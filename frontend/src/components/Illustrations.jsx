@@ -270,7 +270,14 @@ export function SparkleIcon({ className = '', size = 16 }) {
   const p = r * 0.38;
   const cx = size / 2, cy = size / 2;
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className={className} fill="none" aria-hidden="true">
+    <svg 
+      viewBox={`0 0 ${size} ${size}`} 
+      width={size} 
+      height={size} 
+      className={className} 
+      fill="none" 
+      aria-hidden="true"
+    >
       <path
         d={`M${cx},${cy-r} L${cx+p},${cy-p} L${cx+r},${cy} L${cx+p},${cy+p} L${cx},${cy+r} L${cx-p},${cy+p} L${cx-r},${cy} L${cx-p},${cy-p}Z`}
         fill={g(0.7)}

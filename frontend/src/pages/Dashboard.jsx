@@ -212,8 +212,8 @@ export default function Dashboard() {
           {active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
-                <SparkleIcon size={10} className="text-gold" />
-                <p className="font-label text-gold text-xs tracking-widest uppercase font-bold">Bienvenido</p>
+                <SparkleIcon size={16} className="w-4 h-4 text-gold flex-shrink-0" />
+                <p className="font-label text-gold text-[10px] tracking-widest uppercase font-bold">Bienvenido</p>
               </div>
               <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
 
