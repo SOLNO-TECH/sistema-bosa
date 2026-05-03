@@ -7,23 +7,7 @@ export default function ConfigModule() {
   const [activeTab, setActiveTab] = useState('profile');
   const [notis, setNotis] = useState({ emailAlerts: true, systemAlerts: true, newLogins: false, weeklyReports: true });
   const [prefs, setPrefs] = useState({ language: 'es', timezone: 'America/Mexico_City', dateFormat: 'DD/MM/YYYY' });
-  const [testLoading, setTestLoading] = useState(false);
-  const [testMsg, setTestMsg] = useState(null);
-
   const handleToggle = (key) => setNotis({ ...notis, [key]: !notis[key] });
-
-  const runEmailTest = async () => {
-    setTestLoading(true);
-    setTestMsg(null);
-    try {
-      const res = await axios.post('/api/auth/test-email', { email: 'sistemas@bosa.mx' });
-      setTestMsg({ type: 'success', text: res.data.message });
-    } catch (err) {
-      setTestMsg({ type: 'error', text: err.response?.data?.error || 'Error al conectar con SMTP' });
-    } finally {
-      setTestLoading(false);
-    }
-  };
 
   const tabs = [
     {
@@ -195,23 +179,6 @@ export default function ConfigModule() {
                 </div>
                 <div className="flex justify-end pt-2">
                   <button className="btn-gold shadow-md">Guardar Preferencias</button>
-                </div>
-
-                <div className="mt-10 p-5 border border-dashed border-gray-300 rounded-xl bg-gray-50">
-                  <h4 className="text-navy-900 font-bold text-sm mb-2">Prueba de Conectividad</h4>
-                  <p className="text-navy-500 text-xs mb-4">Envía un correo de prueba a <strong>sistemas@bosa.mx</strong> para validar la configuración SMTP.</p>
-                  <button 
-                    onClick={runEmailTest}
-                    disabled={testLoading}
-                    className={`px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${testLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-navy-900 text-white hover:bg-navy-800'}`}
-                  >
-                    {testLoading ? 'Enviando...' : 'Probar Correo'}
-                  </button>
-                  {testMsg && (
-                    <div className={`mt-3 p-3 rounded-lg text-xs font-bold ${testMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                      {testMsg.text}
-                    </div>
-                  )}
                 </div>
               </div>
             )}

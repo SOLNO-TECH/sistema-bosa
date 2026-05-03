@@ -3,7 +3,6 @@ const authController = require('../controllers/authController');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 router.post('/login', authController.login);
-router.post('/test-email', authController.testEmail);
 router.get('/me', authenticate, authController.me);
 
 // Solo superadmin puede gestionar usuarios
