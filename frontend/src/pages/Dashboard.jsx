@@ -53,7 +53,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebar] = useState(false);
   const [mounted, setMounted] = useState(false);
   
-  const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 3, avisos: 2 });
+  const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
