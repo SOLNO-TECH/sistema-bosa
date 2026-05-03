@@ -1,13 +1,14 @@
 const router = require('express').Router();
-const { login, me, getUsers, createUser, toggleUser } = require('../controllers/authController');
+const authController = require('../controllers/authController');
 const { authenticate, requireRole } = require('../middleware/auth');
 
-router.post('/login', login);
-router.get('/me', authenticate, me);
+router.post('/login', authController.login);
+router.post('/test-email', authController.testEmail);
+router.get('/me', authenticate, authController.me);
 
 // Solo superadmin puede gestionar usuarios
-router.get('/users', authenticate, requireRole('superadmin'), getUsers);
-router.post('/users', authenticate, requireRole('superadmin'), createUser);
-router.patch('/users/:id/toggle', authenticate, requireRole('superadmin'), toggleUser);
+router.get('/users', authenticate, requireRole('superadmin'), authController.getUsers);
+router.post('/users', authenticate, requireRole('superadmin'), authController.createUser);
+router.patch('/users/:id/toggle', authenticate, requireRole('superadmin'), authController.toggleUser);
 
 module.exports = router;

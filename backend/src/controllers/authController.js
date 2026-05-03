@@ -85,4 +85,22 @@ function toggleUser(req, res) {
   return res.json({ message: `Usuario ${user.is_active ? 'desactivado' : 'activado'}.` });
 }
 
-module.exports = { login, me, getUsers, createUser, toggleUser };
+const testEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requerido' });
+    
+    const { sendWelcomeEmail } = require('../services/emailService');
+    const success = await sendWelcomeEmail('Usuario de Prueba', email, '********', 'administrator');
+    
+    if (success) {
+      res.json({ message: `Correo de prueba enviado a ${email}` });
+    } else {
+      res.status(500).json({ error: 'El servidor SMTP rechazó el correo. Revisa los logs en Dokploy.' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno al intentar enviar el correo' });
+  }
+};
+
+module.exports = { login, me, getUsers, createUser, toggleUser, testEmail };
