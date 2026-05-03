@@ -63,9 +63,11 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const [uRes, mRes] = await Promise.all([
+      const [uRes, mRes, tRes, aRes] = await Promise.all([
         axios.get('/api/users'),
-        axios.get('/api/meetings')
+        axios.get('/api/meetings'),
+        axios.get('/api/tickets'),
+        axios.get('/api/avisos')
       ]);
       setStats({
         users: Array.isArray(uRes.data) ? uRes.data.length : 0,
@@ -73,8 +75,8 @@ export default function Dashboard() {
           const today = new Date().toISOString().split('T')[0];
           return m.start_time.startsWith(today);
         }).length : 0,
-        tickets: 3,
-        avisos: 2
+        tickets: Array.isArray(tRes.data) ? tRes.data.length : 0,
+        avisos: Array.isArray(aRes.data) ? aRes.data.length : 0
       });
     } catch (err) { console.error(err); }
   };

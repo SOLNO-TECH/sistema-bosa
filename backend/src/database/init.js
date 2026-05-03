@@ -1,15 +1,14 @@
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
-
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/bosa.db');
 const fs = require('fs');
 
-// Asegurar que la carpeta data existe
-const dataDir = path.dirname(DB_PATH);
+const dataDir = path.join(__dirname, '../../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
+
+const DB_PATH = process.env.DB_PATH || path.join(dataDir, 'bosa.db');
 
 let db;
 
