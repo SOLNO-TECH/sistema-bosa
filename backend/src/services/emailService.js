@@ -1,9 +1,12 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
-const { getWelcomeEmailTemplate } = require('../utils/emailTemplates');
+const { 
+  getWelcomeEmailTemplate, 
+  getTicketEmailTemplate, 
+  getAvisoEmailTemplate, 
+  getMeetingEmailTemplate 
+} = require('../utils/emailTemplates');
 
-// Create a transporter using environment variables
-// It will only be active if SMTP settings are provided
 const createTransporter = () => {
   if (!process.env.SMTP_HOST) {
     console.warn('⚠️ SMTP config not found. Emails will not be sent.');
@@ -21,36 +24,56 @@ const createTransporter = () => {
   });
 };
 
-const sendWelcomeEmail = async (name, email, password, role) => {
+const sendMail = async (to, subject, html) => {
   const transporter = createTransporter();
-  if (!transporter) return;
-
-  const htmlContent = getWelcomeEmailTemplate(name, email, password, role);
+  if (!transporter) return false;
 
   const mailOptions = {
     from: `"BOSA" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
-    to: email,
-    subject: '¡Bienvenido a BOSA! - Tu cuenta ha sido creada',
-    html: htmlContent,
+    to,
+    subject,
+    html,
     attachments: [
       {
         filename: 'logo.png',
         path: path.join(__dirname, '../../../frontend/public/logo.png'),
-        cid: 'bosa_logo' // must match the cid in the img src
+        cid: 'bosa_logo'
       }
     ]
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✉️ Correo enviado exitosamente a ${email} [${info.messageId}]`);
+    await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error('❌ Error enviando correo de bienvenida:', error);
+    console.error(`❌ Error enviando correo a ${to}:`, error);
     return false;
   }
 };
 
+const sendWelcomeEmail = async (name, email, password, role) => {
+  const html = getWelcomeEmailTemplate(name, email, password, role);
+  return sendMail(email, '¡Bienvenido a BOSA! - Tu cuenta ha sido creada', html);
+};
+
+const sendTicketNotification = async (userName, userEmail, ticket) => {
+  const html = getTicketEmailTemplate(userName, ticket);
+  return sendMail(userEmail, `Ticket Asignado: ${ticket.title}`, html);
+};
+
+const sendAvisoNotification = async (userName, userEmail, aviso) => {
+  const html = getAvisoEmailTemplate(userName, aviso);
+  return sendMail(userEmail, `Nuevo Aviso BOSA: ${aviso.title}`, html);
+};
+
+const sendMeetingNotification = async (userName, userEmail, meeting) => {
+  const html = getMeetingEmailTemplate(userName, meeting);
+  return sendMail(userEmail, `Invitación a Reunión: ${meeting.title}`, html);
+};
+
 module.exports = {
-  sendWelcomeEmail
+  sendWelcomeEmail,
+  sendTicketNotification,
+  sendAvisoNotification,
+  sendMeetingNotification
 };

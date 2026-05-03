@@ -48,6 +48,32 @@ function initDatabase() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS tickets (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      title       TEXT    NOT NULL,
+      description TEXT,
+      status      TEXT    NOT NULL DEFAULT 'open', -- open, in_progress, resolved, closed
+      priority    TEXT    NOT NULL DEFAULT 'medium', -- low, medium, high, urgent
+      category    TEXT,
+      assigned_to INTEGER,
+      created_by  INTEGER NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (assigned_to) REFERENCES users(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS avisos (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      title       TEXT    NOT NULL,
+      content     TEXT    NOT NULL,
+      category    TEXT    NOT NULL DEFAULT 'general', -- general, important, emergency
+      is_active   INTEGER NOT NULL DEFAULT 1,
+      created_by  INTEGER NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
     CREATE TRIGGER IF NOT EXISTS update_users_timestamp
     AFTER UPDATE ON users
     BEGIN

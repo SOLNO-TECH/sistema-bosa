@@ -157,6 +157,102 @@ const getWelcomeEmailTemplate = (name, email, password, role) => {
   `;
 };
 
+const getTicketEmailTemplate = (name, ticket) => {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; color: #333; line-height: 1.6; }
+    .header { background: #0A1930; padding: 20px; text-align: center; }
+    .content { padding: 30px; border: 1px solid #eee; border-radius: 8px; margin-top: 20px; }
+    .title { color: #A47D3B; font-size: 20px; font-weight: bold; }
+    .footer { font-size: 12px; color: #999; margin-top: 30px; text-align: center; }
+    .badge { background: #A47D3B; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="cid:bosa_logo" width="180" />
+  </div>
+  <div class="content">
+    <h2 class="title">Nuevo Ticket Asignado</h2>
+    <p>Hola <strong>${name}</strong>,</p>
+    <p>Se te ha asignado un nuevo ticket de soporte en el sistema:</p>
+    <div style="background: #f9f9f9; padding: 15px; border-left: 4px solid #A47D3B;">
+      <p><strong>Asunto:</strong> ${ticket.title}</p>
+      <p><strong>Prioridad:</strong> <span class="badge">${ticket.priority.toUpperCase()}</span></p>
+      <p><strong>Descripción:</strong> ${ticket.description}</p>
+    </div>
+    <p style="margin-top: 20px;">Por favor, revisa el dashboard para más detalles y actualización del estado.</p>
+  </div>
+  <div class="footer">
+    &copy; ${new Date().getFullYear()} BOSA. Sistema Operativo Central.
+  </div>
+</body>
+</html>
+  `;
+};
+
+const getAvisoEmailTemplate = (name, aviso) => {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; color: #333; }
+    .header { background: #0A1930; padding: 20px; text-align: center; }
+    .content { padding: 30px; }
+    .title { color: #A47D3B; font-size: 22px; }
+  </style>
+</head>
+<body>
+  <div class="header"><img src="cid:bosa_logo" width="180" /></div>
+  <div class="content">
+    <h2 class="title">Nuevo Aviso Publicado</h2>
+    <p>Hola <strong>${name}</strong>,</p>
+    <p>Hay un nuevo comunicado importante en la plataforma:</p>
+    <div style="background: #fff8e1; padding: 20px; border-radius: 8px; border: 1px solid #ffe082;">
+      <h3 style="margin-top: 0;">${aviso.title}</h3>
+      <p>${aviso.content}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
+const getMeetingEmailTemplate = (name, meeting) => {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; color: #333; }
+    .header { background: #0A1930; padding: 20px; text-align: center; }
+    .content { padding: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header"><img src="cid:bosa_logo" width="180" /></div>
+  <div class="content">
+    <h2 style="color: #A47D3B;">Nueva Reunión Programada</h2>
+    <p>Hola <strong>${name}</strong>,</p>
+    <p>Has sido invitado a una nueva reunión:</p>
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+      <p><strong>Evento:</strong> ${meeting.title}</p>
+      <p><strong>Inicio:</strong> ${new Date(meeting.start_time).toLocaleString()}</p>
+      <p><strong>Fin:</strong> ${new Date(meeting.end_time).toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
 module.exports = {
-  getWelcomeEmailTemplate
+  getWelcomeEmailTemplate,
+  getTicketEmailTemplate,
+  getAvisoEmailTemplate,
+  getMeetingEmailTemplate
 };

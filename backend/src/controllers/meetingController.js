@@ -1,4 +1,5 @@
 const { getDb } = require('../database/init');
+const { sendMeetingNotification } = require('../services/emailService');
 
 const getMeetings = (req, res) => {
   try {
@@ -34,6 +35,17 @@ const createMeeting = (req, res) => {
     `);
 
     const info = stmt.run(title, description || '', start_time, end_time, created_by, JSON.stringify(attendees || []));
+
+    // Notificar a los asistentes
+    if (attendees && Array.isArray(attendees)) {
+      attendees.forEach(userId => {
+        const attendee = db.prepare('SELECT name, email FROM users WHERE id = ?').get(userId);
+        if (attendee) {
+          sendMeetingNotification(attendee.name, attendee.email, { title, start_time, end_time });
+        }
+      });
+    }
+
     res.status(201).json({ id: info.lastInsertRowid, message: 'Reunión creada exitosamente' });
   } catch (err) {
     console.error(err);
