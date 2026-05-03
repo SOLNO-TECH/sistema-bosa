@@ -143,7 +143,7 @@ const getWelcomeEmailTemplate = (name, email, password, role) => {
         </p>
         
         <div>
-          <a href="http://localhost:5173/login" class="btn">Acceder al Portal</a>
+          <a href="https://bosahub.bosa.mx/login" class="btn">Acceder al Portal</a>
         </div>
       </div>
       <div class="footer">
