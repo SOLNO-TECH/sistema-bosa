@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────
+   FUENTES PROPIETARIAS BOSA
+   Coloca los archivos en /frontend/public/fonts/
+   Ver INSTRUCCIONES.txt en esa carpeta para descargarlos.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Transducer — cuerpo / UI */
+@font-face {
+  font-family: 'Transducer';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/transducer-regular.woff2') format('woff2'),
+    url('/fonts/transducer-regular.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Transducer';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/transducer-bold.woff2') format('woff2'),
+    url('/fonts/transducer-bold.woff') format('woff');
+}
+
+/* Neogrotesk Small Caps Light — títulos grandes */
+@font-face {
+  font-family: 'Neogrotesk SC';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/neogrotesk-smallcaps-light.woff2') format('woff2'),
+    url('/fonts/neogrotesk-smallcaps-light.woff') format('woff');
+}
+
+/* PODIUM Sharp 7.7 — títulos pequeños / labels */
+@font-face {
+  font-family: 'PODIUM Sharp';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/podium-sharp-7.7.woff2') format('woff2'),
+    url('/fonts/podium-sharp-7.7.woff') format('woff');
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    /* Transducer primero — cae a Manrope si no están los archivos */
+    font-family: 'Transducer', 'Manrope', Arial, sans-serif;
+    background-color: #071221;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(12, 26, 48, 0.9) 0%, transparent 70%),
+      linear-gradient(160deg, #071221 0%, #050D1A 100%);
+    color: #F0F4FA;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #071221;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #937C58;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #CBAC80;
+  }
+
+  ::selection {
+    background: rgba(203, 172, 128, 0.25);
+    color: #F0F4FA;
+  }
+}
+
+@layer components {
+
+  /* ── Botones ── */
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 font-sans font-semibold text-xs uppercase px-8 py-3.5 transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+    letter-spacing: 0.18em;
+    background: linear-gradient(135deg, #CBAC80 0%, #F0D080 50%, #937C58 100%);
+    color: #050D1A;
+  }
+
+  .btn-gold:hover {
+    box-shadow: 0 0 48px rgba(203, 172, 128, 0.28);
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 font-sans font-medium text-xs uppercase px-8 py-3.5 transition-all duration-200 active:scale-[0.98];
+    letter-spacing: 0.18em;
+    border: 1px solid #CBAC80;
+    color: #CBAC80;
+  }
+
+  .btn-outline:hover {
+    background: rgba(203, 172, 128, 0.10);
+    box-shadow: 0 0 24px rgba(203, 172, 128, 0.20);
+  }
+
+  /* ── Inputs ── */
+  .input-corporate {
+    @apply w-full text-sm rounded-sm px-4 py-3 outline-none font-sans tracking-wide transition-all duration-200;
+    background: rgba(7, 18, 33, 0.6);
+    border: 1px solid rgba(240, 244, 250, 0.07);
+    color: #F0F4FA;
+  }
+
+  .input-corporate::placeholder {
+    color: rgba(240, 244, 250, 0.30);
+  }
+
+  .input-corporate:focus {
+    border-color: #CBAC80;
+    background: rgba(7, 18, 33, 0.8);
+    box-shadow: 0 0 0 1px rgba(203, 172, 128, 0.25);
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply rounded-sm;
+    background: rgba(10, 25, 46, 0.70);
+    border: 1px solid rgba(240, 244, 250, 0.07);
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .card-elevated {
+    @apply rounded-sm;
+    background: rgba(13, 32, 59, 0.50);
+    border: 1px solid rgba(203, 172, 128, 0.12);
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.55);
+  }
+
+  /* ── Sidebar nav items ── */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-sm w-full text-left font-sans text-xs uppercase transition-all duration-150;
+    letter-spacing: 0.12em;
+  }
+
+  .nav-item-default {
+    @apply nav-item;
+    color: rgba(240, 244, 250, 0.55);
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item-default:hover {
+    color: #F0F4FA;
+    background: rgba(240, 244, 250, 0.04);
+  }
+
+  .nav-item-active {
+    @apply nav-item;
+    color: #CBAC80;
+    background: rgba(203, 172, 128, 0.08);
+    border-left: 2px solid #CBAC80;
+  }
+
+  /* ── Badge de rol ── */
+  .role-badge {
+    @apply font-sans font-medium uppercase rounded-sm border;
+    font-size: 10px;
+    letter-spacing: 0.20em;
+    padding: 2px 6px;
+  }
+}
+
+@layer utilities {
+  .text-gold-shimmer {
+    background: linear-gradient(90deg, #937C58, #F0D080, #CBAC80, #F0D080, #937C58);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+
+  .border-surface {
+    border-color: rgba(240, 244, 250, 0.07);
+  }
+}

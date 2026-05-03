@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables (NEVER commit)
+.env
+.env.local
+.env.production
+
+# SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+*.sqlite
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code session data
+.claude/
+
+# Font files (proprietary — install manually)
+frontend/public/fonts/*.woff
+frontend/public/fonts/*.woff2
+frontend/public/fonts/*.ttf
+frontend/public/fonts/*.otf
+frontend/public/fonts/*.zip

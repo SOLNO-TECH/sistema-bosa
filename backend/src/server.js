@@ -1,0 +1,36 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const { initDatabase } = require('./database/init');
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(express.json());
+
+// Inicializar BD y seed al arrancar
+initDatabase();
+
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/meetings', require('./routes/meetings'));
+
+app.get('/api/health', (_, res) => res.json({ status: 'ok', service: 'BOSA Hospitality API' }));
+
+app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada.' }));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ message: 'Error interno del servidor.' });
+});
+
+app.listen(PORT, () => {
+  console.log(`\n🏨  BOSA Hospitality API corriendo en http://localhost:${PORT}`);
+  console.log(`    Credenciales por defecto:`);
+  console.log(`    SuperAdmin → superadmin@bosa.mx / Bosa@SuperAdmin2024!`);
+  console.log(`    Admin     → admin@bosa.mx / Bosa@Admin2024!\n`);
+});

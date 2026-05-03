@@ -1,0 +1,22 @@
+FUENTE TRANSDUCER — Tipografía principal de BOSA
+=================================================
+
+Coloca aquí los archivos de la fuente Transducer con estos nombres exactos:
+
+  transducer-regular.woff2   ← requerido
+  transducer-regular.woff    ← requerido (fallback)
+  transducer-bold.woff2      ← opcional
+  transducer-bold.woff       ← opcional
+
+¿Cómo obtener los archivos?
+---------------------------
+Los archivos están en el servidor de bosa.mx. Puedes descargarlos desde:
+
+  1. Abre bosa.mx en Chrome
+  2. F12 → pestaña "Network" → filtra por "Font"
+  3. Recarga la página
+  4. Los archivos aparecerán como "transducer-regular-webfont.XXXXX.woff2"
+  5. Click derecho → "Guardar como" → renombrar a transducer-regular.woff2
+
+Una vez colocados aquí, la tipografía cargará automáticamente.
+Mientras no estén los archivos, el sistema usará Manrope como fallback.
