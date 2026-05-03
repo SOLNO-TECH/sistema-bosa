@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  bosahub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bosa-hub-app
+    ports:
+      - "4000:4000"
+    volumes:
+      - bosa_data:/app/backend/src/database
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+    restart: always
+
+volumes:
+  bosa_data:
+    driver: local

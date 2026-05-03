@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { initDatabase } = require('./database/init');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,7 +22,14 @@ app.use('/api/meetings', require('./routes/meetings'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', service: 'BOSA Hospitality API' }));
 
-app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada.' }));
+// Servir Frontend en Producción
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ message: 'Ruta API no encontrada.' });
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
 
 app.use((err, req, res, next) => {
   console.error(err);
