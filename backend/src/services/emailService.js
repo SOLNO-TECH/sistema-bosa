@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
+const fs = require('fs');
 const { 
   getWelcomeEmailTemplate, 
   getTicketEmailTemplate, 
@@ -31,18 +32,25 @@ const sendMail = async (to, subject, html) => {
     return false;
   }
 
+  const logoPath = path.join(__dirname, '../../public/logo.png');
+  const attachments = [];
+  
+  if (fs.existsSync(logoPath)) {
+    attachments.push({
+      filename: 'logo.png',
+      path: logoPath,
+      cid: 'bosa_logo'
+    });
+  } else {
+    console.warn(`⚠️ Logo no encontrado en ${logoPath}, el correo se enviará sin imagen adjunta.`);
+  }
+
   const mailOptions = {
     from: `"BOSA" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
     to,
     subject,
     html,
-    attachments: [
-      {
-        filename: 'logo.png',
-        path: path.join(__dirname, '../../../frontend/public/logo.png'),
-        cid: 'bosa_logo'
-      }
-    ]
+    attachments
   };
 
   try {
