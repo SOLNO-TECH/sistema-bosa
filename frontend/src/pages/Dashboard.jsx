@@ -169,10 +169,10 @@ export default function Dashboard() {
             <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
             </button>
-            <div>
-              <p className="font-label text-navy-600 font-bold text-[10px] tracking-widest uppercase hidden sm:block">BOSA · Dashboard</p>
-              <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
-            </div>
+              <div className="flex items-center gap-4">
+                <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold border border-emerald-500/20">v1.2 - LIVE</span>
+              </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
