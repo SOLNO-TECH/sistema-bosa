@@ -9,7 +9,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - bosa_data:/app/backend/src/database
+      - bosa_data:/app/backend/data
     environment:
       - NODE_ENV=production
       - PORT=4000
