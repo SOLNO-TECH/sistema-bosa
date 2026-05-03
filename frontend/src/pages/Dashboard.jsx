@@ -27,6 +27,21 @@ const NAV_SECTIONS = [
       { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> },
     ],
   },
+  {
+    title: 'Operaciones',
+    items: [
+      { id: 'hotel', label: 'Hotel', icon: <IconBuilding /> },
+      { id: 'condos', label: 'Condominios', icon: <IconCondos /> },
+      { id: 'reservas', label: 'Reservaciones', icon: <IconCalendar /> },
+    ],
+  },
+  {
+    title: 'Finanzas',
+    items: [
+      { id: 'factura', label: 'Facturación', icon: <IconFinance /> },
+      { id: 'reportes', label: 'Reportes', icon: <IconReports /> },
+    ],
+  },
 ];
 
 const SYSTEM_SECTION = {
@@ -140,17 +155,16 @@ export default function Dashboard() {
   allSections.push(...NAV_SECTIONS);
   allSections.push(SYSTEM_SECTION);
   
+  const systemItems = [];
   if (user?.role === 'superadmin') {
-    allSections.push(ADMIN_ONLY_SECTION);
-  } else if (user?.role === 'administrator') {
-    // El admin ve configuración pero no usuarios
-    allSections.push({
-      title: 'Sistema',
-      items: [
-        { id: 'settings', label: 'Configuración', icon: <IconSettings /> },
-      ]
-    });
+    systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
   }
+  systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
+  
+  allSections.push({
+    title: 'Sistema',
+    items: systemItems
+  });
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
