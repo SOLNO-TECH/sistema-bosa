@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
 
 const DEPARTAMENTOS = [
   'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
@@ -22,11 +23,9 @@ const ESTADO_STYLES = {
   programado: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
-const MOCK_AVISOS = [];
-
 export default function AvisosModule() {
   const { user } = useAuth();
-  const [avisos, setAvisos] = useState(MOCK_AVISOS);
+  const [avisos, setAvisos] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAviso, setSelectedAviso] = useState(null);
   const [sending, setSending] = useState(false);
@@ -43,6 +42,28 @@ export default function AvisosModule() {
     grupo: '',
   });
 
+  const fetchAvisos = async () => {
+    try {
+      const res = await axios.get('/api/avisos');
+      const data = Array.isArray(res.data) ? res.data : [];
+      setAvisos(data.map(a => ({
+        id: `AV-${String(a.id).padStart(3, '0')}`,
+        titulo: a.title,
+        mensaje: a.content,
+        prioridad: a.category,
+        estado: 'enviado',
+        fecha: new Date(a.created_at).toLocaleDateString('es-MX'),
+        hora: new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        autor: a.creator_name || 'Sistema',
+        enviados: 0,
+        leidos: 0,
+        destinatarios: ['Todos']
+      })));
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => { fetchAvisos(); }, []);
+
   const toggleDept = (dept) => {
     setForm(f => ({
       ...f,
@@ -55,55 +76,52 @@ export default function AvisosModule() {
   const handleSend = async () => {
     if (!form.titulo || !form.mensaje) return;
     const destinatarios = form.tipo === 'grupo' ? [form.grupo || GRUPOS[0]] : form.departamentos;
-    if (destinatarios.length === 0) return;
-
+    
     setSending(true);
     try {
-      // Llamada al backend para envío de correos
-      await fetch('/api/avisos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titulo: form.titulo,
-          mensaje: form.mensaje,
-          prioridad: form.prioridad,
-          destinatarios,
-          tipo: form.tipo,
-          autor: user?.name,
-        }),
+      await axios.post('/api/avisos', {
+        title: form.titulo,
+        content: form.mensaje,
+        category: form.prioridad,
+        created_by: user?.id,
       });
-    } catch (_) { /* Si el backend no está disponible, continúa igual */ }
+      
+      const now = new Date();
+      setAvisos(prev => [{
+        id: `AV-NEW`,
+        titulo: form.titulo,
+        mensaje: form.mensaje,
+        destinatarios,
+        tipo: form.tipo,
+        prioridad: form.prioridad,
+        estado: 'enviado',
+        fecha: now.toLocaleDateString('es-MX'),
+        hora: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        autor: user?.name || 'Administrador',
+        enviados: destinatarios.length,
+        leidos: 0,
+      }, ...prev]);
 
-    const now = new Date();
-    setAvisos(prev => [{
-      id: `AV-${String(prev.length + 1).padStart(3, '0')}`,
-      titulo: form.titulo,
-      mensaje: form.mensaje,
-      destinatarios,
-      tipo: form.tipo,
-      prioridad: form.prioridad,
-      estado: 'enviado',
-      fecha: now.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }),
-      hora: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      autor: user?.name || 'Administrador',
-      enviados: destinatarios.length,
-      leidos: 0,
-    }, ...prev]);
-
-    setSending(false);
-    setIsModalOpen(false);
-    setForm({ titulo: '', mensaje: '', prioridad: 'normal', tipo: 'departamento', departamentos: [], grupo: '' });
+      setTimeout(fetchAvisos, 1000);
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar el aviso en la base de datos.');
+    } finally {
+      setSending(false);
+      setIsModalOpen(false);
+      setForm({ titulo: '', mensaje: '', prioridad: 'normal', tipo: 'departamento', departamentos: [], grupo: '' });
+    }
   };
 
   const filtered = avisos.filter(a =>
     (a.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     a.autor.toLowerCase().includes(searchTerm.toLowerCase())) &&
+     (a.autor || '').toLowerCase().includes(searchTerm.toLowerCase())) &&
     (filterPrioridad ? a.prioridad === filterPrioridad : true) &&
     (filterEstado ? a.estado === filterEstado : true)
   );
 
-  const totalEnviados = avisos.reduce((s,a) => s + a.enviados, 0);
-  const totalLeidos = avisos.reduce((s,a) => s + a.leidos, 0);
+  const totalEnviados = avisos.reduce((s,a) => s + (a.enviados || 0), 0);
+  const totalLeidos = avisos.reduce((s,a) => s + (a.leidos || 0), 0);
   const tasaLectura = totalEnviados > 0 ? Math.round((totalLeidos / totalEnviados) * 100) : 0;
 
   return (
@@ -217,36 +235,15 @@ export default function AvisosModule() {
                 <h3 className="font-bold text-navy-950 text-base group-hover:text-gold transition-colors mb-1">{aviso.titulo}</h3>
                 <p className="text-navy-500 text-sm line-clamp-2 mb-3">{aviso.mensaje}</p>
                 <div className="flex flex-wrap gap-1.5 mb-3">
-                  {aviso.destinatarios.map(d => (
+                  {(aviso.destinatarios || []).map(d => (
                     <span key={d} className="bg-navy-50 text-navy-700 border border-navy-100 text-[10px] font-bold uppercase px-2 py-0.5 rounded">{d}</span>
                   ))}
                 </div>
-                {aviso.enviados > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Tasa de lectura</span>
-                      <span className="text-[10px] font-black text-navy-700">{Math.round((aviso.leidos/aviso.enviados)*100)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5">
-                      <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{width: `${Math.round((aviso.leidos/aviso.enviados)*100)}%`}} />
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex-shrink-0 text-right space-y-2">
                 <div className="flex items-center gap-1.5 justify-end text-gray-400 text-xs font-medium">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   {aviso.fecha} · {aviso.hora}
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <div className="text-center">
-                    <p className="text-lg font-black text-navy-900">{aviso.enviados}</p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Enviados</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-black text-emerald-600">{aviso.leidos}</p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Leídos</p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -327,7 +324,7 @@ export default function AvisosModule() {
                         )}
                         {d}
                       </button>
-                    ))}}
+                    ))}
                   </div>
                 </div>
               ) : (
@@ -350,7 +347,7 @@ export default function AvisosModule() {
 
               {/* Nota correo */}
               <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                 <p className="text-xs text-blue-700 font-medium">Este aviso se enviará por correo electrónico a todos los miembros de los departamentos o grupos seleccionados.</p>
               </div>
             </div>
@@ -396,30 +393,8 @@ export default function AvisosModule() {
                 <p className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase mb-2">Mensaje</p>
                 <p className="bg-gray-50 p-4 rounded-lg border border-gray-100 text-navy-700 text-sm leading-relaxed">{selectedAviso.mensaje}</p>
               </div>
-              <div>
-                <p className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase mb-2">Destinatarios</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAviso.destinatarios.map(d => (
-                    <span key={d} className="bg-navy-50 text-navy-700 border border-navy-100 text-xs font-bold px-3 py-1 rounded-full">{d}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                  <p className="text-xl font-black text-navy-900">{selectedAviso.enviados}</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-0.5">Enviados</p>
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                  <p className="text-xl font-black text-emerald-600">{selectedAviso.leidos}</p>
-                  <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wide mt-0.5">Leídos</p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                  <p className="text-xl font-black text-navy-900">{selectedAviso.enviados - selectedAviso.leidos}</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-0.5">Pendientes</p>
-                </div>
-              </div>
               <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 Publicado por <span className="font-bold text-navy-700">{selectedAviso.autor}</span> el {selectedAviso.fecha} a las {selectedAviso.hora}
               </div>
             </div>
