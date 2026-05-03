@@ -29,12 +29,18 @@ const NAV_SECTIONS = [
   },
 ];
 
-const SUPERADMIN_SECTION = {
+const SYSTEM_SECTION = {
+  title: 'Gestión',
+  items: [
+    { id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> },
+    { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
+  ],
+};
+
+const ADMIN_ONLY_SECTION = {
   title: 'Sistema',
   items: [
     { id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> },
-    { id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> },
-    { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
     { id: 'settings', label: 'Configuración', icon: <IconSettings /> },
   ],
 };
@@ -130,9 +136,21 @@ export default function Dashboard() {
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
 
-  const allSections = user?.role === 'superadmin'
-    ? [...NAV_SECTIONS, SUPERADMIN_SECTION]
-    : NAV_SECTIONS;
+  const allSections = [];
+  allSections.push(...NAV_SECTIONS);
+  allSections.push(SYSTEM_SECTION);
+  
+  if (user?.role === 'superadmin') {
+    allSections.push(ADMIN_ONLY_SECTION);
+  } else if (user?.role === 'administrator') {
+    // El admin ve configuración pero no usuarios
+    allSections.push({
+      title: 'Sistema',
+      items: [
+        { id: 'settings', label: 'Configuración', icon: <IconSettings /> },
+      ]
+    });
+  }
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
