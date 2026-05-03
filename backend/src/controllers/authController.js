@@ -23,8 +23,11 @@ function login(req, res) {
     role: user.role,
   };
 
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
+  const secret = process.env.JWT_SECRET || 'bosa-default-secret-key-change-me-in-prod';
+  const expires = process.env.JWT_EXPIRES_IN || '24h';
+
+  const token = jwt.sign(payload, secret, {
+    expiresIn: expires,
   });
 
   return res.json({
