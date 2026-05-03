@@ -21,6 +21,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/avisos', require('./routes/avisos'));
+app.use('/api/stats', require('./routes/stats'));
 app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads')));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', service: 'BOSA Hospitality API' }));
