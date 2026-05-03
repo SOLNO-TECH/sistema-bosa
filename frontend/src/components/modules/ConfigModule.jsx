@@ -16,7 +16,7 @@ export default function ConfigModule() {
     setTestLoading(true);
     setTestMsg(null);
     try {
-      const res = await axios.post('/api/auth/test-email', { email: user?.email || 'sistemas@bosa.mx' });
+      const res = await axios.post('/api/auth/test-email', { email: 'sistemas@bosa.mx' });
       setTestMsg({ type: 'success', text: res.data.message });
     } catch (err) {
       setTestMsg({ type: 'error', text: err.response?.data?.error || 'Error al conectar con SMTP' });
@@ -199,7 +199,7 @@ export default function ConfigModule() {
 
                 <div className="mt-10 p-5 border border-dashed border-gray-300 rounded-xl bg-gray-50">
                   <h4 className="text-navy-900 font-bold text-sm mb-2">Prueba de Conectividad</h4>
-                  <p className="text-navy-500 text-xs mb-4">Envía un correo de prueba a <strong>{user?.email || 'sistemas@bosa.mx'}</strong> para validar la configuración SMTP.</p>
+                  <p className="text-navy-500 text-xs mb-4">Envía un correo de prueba a <strong>sistemas@bosa.mx</strong> para validar la configuración SMTP.</p>
                   <button 
                     onClick={runEmailTest}
                     disabled={testLoading}
