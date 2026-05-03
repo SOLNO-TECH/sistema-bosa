@@ -11,17 +11,17 @@ const DEPARTAMENTOS = [
 ];
 
 const COLUMNS = [
-  { id: 'open',        label: 'Pendientes',   color: 'border-slate-400',  bg: 'bg-slate-50',  text: 'text-slate-700', icon: 'M12 6v6m0 0v6m0-6h6m-6 0H6' },
-  { id: 'in_progress', label: 'En Progreso',  color: 'border-blue-500',   bg: 'bg-blue-50',   text: 'text-blue-700',  icon: 'M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75' },
-  { id: 'resolved',    label: 'En Revisión',  color: 'border-amber-500',  bg: 'bg-amber-50',  text: 'text-amber-700', icon: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z' },
-  { id: 'closed',      label: 'Completados',  color: 'border-emerald-500',bg: 'bg-emerald-50',text: 'text-emerald-700',icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { id: 'open',        label: 'Pendientes',   color: 'border-slate-400',  bg: 'bg-slate-100', text: 'text-slate-900', icon: 'M12 6v6m0 0v6m0-6h6m-6 0H6' },
+  { id: 'in_progress', label: 'En Progreso',  color: 'border-blue-600',   bg: 'bg-blue-100',  text: 'text-blue-900',  icon: 'M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75' },
+  { id: 'resolved',    label: 'En Revisión',  color: 'border-amber-600',  bg: 'bg-amber-100', text: 'text-amber-900', icon: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z' },
+  { id: 'closed',      label: 'Completados',  color: 'border-emerald-600',bg: 'bg-emerald-100',text: 'text-emerald-900',icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
 
 const PRIORITY_STYLES = {
-  low: 'bg-gray-100 text-gray-600 border-gray-200',
-  medium: 'bg-blue-50 text-blue-600 border-blue-200',
-  high: 'bg-amber-50 text-amber-600 border-amber-200',
-  urgent: 'bg-red-50 text-red-600 border-red-200',
+  low: 'bg-gray-200 text-gray-800 border-gray-300',
+  medium: 'bg-blue-600 text-white border-blue-700',
+  high: 'bg-amber-500 text-white border-amber-600',
+  urgent: 'bg-red-600 text-white border-red-700',
 };
 
 export default function TicketsModule() {
@@ -54,10 +54,8 @@ export default function TicketsModule() {
   const handleDragStart = (e, ticket) => {
     setDraggedTicket(ticket);
     e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => e.target.classList.add('opacity-40', 'scale-95'), 0);
   };
   const handleDragEnd = (e) => { 
-    e.target.classList.remove('opacity-40', 'scale-95'); 
     setDraggedTicket(null); 
   };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
@@ -98,76 +96,71 @@ export default function TicketsModule() {
       {/* ── HEADER ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-display font-bold text-navy-950 tracking-tight">Gestión de Tickets</h2>
-          <p className="text-navy-500 font-medium mt-1">Monitorea y resuelve los requerimientos de la organización</p>
+          <h2 className="text-3xl font-display font-black text-navy-950 tracking-tight">TABLERO DE TICKETS</h2>
+          <p className="text-navy-600 font-bold mt-1">Gestión operativa y seguimiento de casos</p>
         </div>
         <button 
           onClick={() => { setFormData(defaultForm); setIsModalOpen(true); }} 
-          className="bg-navy-950 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl hover:bg-gold hover:text-navy-950 transition-all active:scale-95"
+          className="bg-navy-950 text-white px-8 py-4 rounded-xl font-black flex items-center justify-center gap-3 shadow-2xl hover:bg-gold hover:text-navy-950 transition-all transform active:scale-95"
         >
-          <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          </div>
-          Nuevo Requerimiento
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          NUEVO TICKET
         </button>
       </div>
 
-      {/* ── FILTROS PREMIUM ── */}
+      {/* ── FILTROS ── */}
       <div className="flex flex-col md:flex-row items-stretch gap-4">
         <div className="relative flex-1 group">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <svg className="w-5 h-5 text-navy-400 group-focus-within:text-gold transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+            <svg className="w-5 h-5 text-navy-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
           <input 
             type="text" 
-            placeholder="Buscar por asunto, responsable o ID..." 
+            placeholder="Buscar por asunto o responsable..." 
             value={searchTerm} 
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-transparent bg-white shadow-sm focus:border-gold focus:ring-0 text-navy-900 font-medium placeholder-navy-300 transition-all outline-none" 
+            className="w-full pl-14 pr-6 py-4 rounded-2xl border-2 border-navy-100 bg-white shadow-md focus:border-navy-950 focus:ring-0 text-navy-950 font-bold placeholder-navy-300 transition-all outline-none" 
           />
         </div>
-        <div className="md:w-64">
+        <div className="md:w-72">
           <select 
             value={filterDept} 
             onChange={e => setFilterDept(e.target.value)}
-            className="w-full h-full px-5 py-4 rounded-2xl border-2 border-transparent bg-white shadow-sm focus:border-gold transition-all outline-none font-bold text-navy-800 appearance-none"
+            className="w-full h-full px-6 py-4 rounded-2xl border-2 border-navy-100 bg-white shadow-md focus:border-navy-950 transition-all outline-none font-black text-navy-950 appearance-none"
           >
-            <option value="">Departamentos: Todos</option>
+            <option value="">TODOS LOS DEPTOS</option>
             {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
       </div>
 
-      {/* ── TABLERO KANBAN ESTILO MODERNO ── */}
-      <div className="flex-1 flex gap-6 overflow-x-auto pb-6 -mx-2 px-2 scrollbar-hide">
+      {/* ── KANBAN CON ALTO CONTRASTE ── */}
+      <div className="flex-1 flex gap-6 overflow-x-auto pb-6 -mx-2 px-2">
         {COLUMNS.map(col => {
           const colTickets = filteredTickets.filter(t => t.status === col.id);
           return (
             <div 
               key={col.id} 
-              className="flex-shrink-0 w-[320px] flex flex-col rounded-[24px] bg-slate-100/50 border-2 border-dashed border-slate-200/60 p-2"
+              className="flex-shrink-0 w-[340px] flex flex-col rounded-[24px] bg-white border-2 border-slate-200 shadow-xl overflow-hidden"
               onDragOver={handleDragOver} 
               onDrop={e => handleDrop(e, col.id)}
             >
               {/* Header Columna */}
-              <div className="px-4 py-4 flex items-center justify-between mb-2">
+              <div className={`px-5 py-5 flex items-center justify-between border-b-2 border-slate-100 ${col.bg}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl ${col.bg} border-2 ${col.color} flex items-center justify-center ${col.text}`}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d={col.icon} /></svg>
+                  <div className={`w-10 h-10 rounded-xl bg-white border-2 ${col.color} flex items-center justify-center ${col.text.replace('900', '600')}`}>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d={col.icon} /></svg>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-navy-950 text-sm tracking-tight">{col.label}</h3>
-                    <p className="text-[10px] text-navy-400 font-black uppercase tracking-widest">{colTickets.length} Items</p>
-                  </div>
+                  <h3 className={`font-black ${col.text} text-sm uppercase tracking-tighter`}>{col.label}</h3>
                 </div>
+                <span className="bg-navy-950 text-white text-[11px] font-black px-3 py-1 rounded-full">{colTickets.length}</span>
               </div>
 
               {/* Lista de Tarjetas */}
-              <AnimatedColumn className="flex-1 overflow-y-auto space-y-4 px-1 pb-4">
+              <AnimatedColumn className="flex-1 overflow-y-auto space-y-4 p-4 bg-slate-50/50 min-h-[300px]">
                 {colTickets.length === 0 ? (
-                  <div className="h-32 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center opacity-40">
-                    <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sin tickets</span>
+                  <div className="h-40 rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">VACÍO</span>
                   </div>
                 ) : (
                   colTickets.map(ticket => (
@@ -180,149 +173,118 @@ export default function TicketsModule() {
         })}
       </div>
 
-      {/* ── MODAL NUEVO TICKET (REDESIGN) ── */}
+      {/* ── MODAL NUEVO TICKET ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/70 backdrop-blur-md px-4">
-          <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-up border border-white/20">
-            <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/80 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-up">
+            <div className="px-8 py-6 bg-navy-950 text-white flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-display font-bold text-navy-950">Nuevo Requerimiento</h3>
-                <p className="text-xs text-navy-500 font-medium mt-1">Completa los detalles para asignar el ticket</p>
+                <h3 className="text-2xl font-black uppercase tracking-tight">NUEVO REQUERIMIENTO</h3>
+                <p className="text-xs text-gold font-bold mt-1 uppercase tracking-widest">Información de Soporte</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-navy-400 hover:text-red-500 transition-all shadow-sm">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-red-500 transition-all">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
             <div className="p-8 space-y-6">
               <div className="space-y-2">
-                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 ml-1">Asunto Principal</label>
+                <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Asunto o Título</label>
                 <input 
                   type="text" 
                   value={formData.title} 
                   onChange={e => setFormData({...formData, title: e.target.value})} 
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-gold focus:bg-white rounded-2xl px-6 py-4 text-navy-900 font-bold placeholder-slate-300 transition-all outline-none" 
-                  placeholder="Ej. Error en servidor de archivos" 
+                  className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-6 py-4 text-navy-950 font-black placeholder-slate-400 transition-all outline-none text-lg" 
+                  placeholder="ESCRIBE EL ASUNTO AQUÍ..." 
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 ml-1">Departamento</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Departamento</label>
                   <select 
                     value={formData.category} 
                     onChange={e => setFormData({...formData, category: e.target.value})} 
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-gold focus:bg-white rounded-2xl px-5 py-4 text-navy-900 font-bold outline-none"
+                    className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-5 py-4 text-navy-950 font-black outline-none appearance-none"
                   >
                     {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 ml-1">Prioridad</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Prioridad</label>
                   <select 
                     value={formData.priority} 
                     onChange={e => setFormData({...formData, priority: e.target.value})} 
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-gold focus:bg-white rounded-2xl px-5 py-4 text-navy-900 font-bold outline-none"
+                    className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-5 py-4 text-navy-950 font-black outline-none appearance-none"
                   >
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
-                    <option value="urgent">Urgente</option>
+                    <option value="low">BAJA</option>
+                    <option value="medium">MEDIA</option>
+                    <option value="high">ALTA</option>
+                    <option value="urgent">URGENTE</option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 ml-1">Descripción Detallada</label>
+                <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Descripción</label>
                 <textarea 
                   rows="4" 
                   value={formData.description} 
                   onChange={e => setFormData({...formData, description: e.target.value})} 
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-gold focus:bg-white rounded-2xl px-6 py-4 text-navy-900 font-medium resize-none transition-all outline-none" 
-                  placeholder="Explica el problema o solicitud..."
+                  className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-6 py-4 text-navy-950 font-bold resize-none transition-all outline-none" 
+                  placeholder="DETALLES ADICIONALES..."
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 ml-1">Asignar Responsable</label>
-                <select 
-                  value={formData.assigned_to || ''} 
-                  onChange={e => setFormData({...formData, assigned_to: e.target.value || null})} 
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-gold focus:bg-white rounded-2xl px-5 py-4 text-navy-900 font-bold outline-none"
-                >
-                  <option value="">Dejar sin asignar (Pendiente)</option>
-                  {dbUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.apellido || ''}</option>)}
-                </select>
               </div>
             </div>
 
-            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="px-8 py-4 text-navy-500 font-bold uppercase text-[11px] tracking-widest hover:text-navy-950 transition-colors">Descartar</button>
-              <button onClick={handleSaveTicket} className="bg-navy-950 text-white px-10 py-4 rounded-2xl font-bold shadow-xl hover:bg-gold hover:text-navy-950 transition-all active:scale-95">Guardar Ticket</button>
+            <div className="px-8 py-6 bg-slate-50 border-t-2 border-slate-100 flex justify-end gap-4">
+              <button onClick={() => setIsModalOpen(false)} className="px-8 py-4 text-navy-950 font-black uppercase text-xs tracking-widest hover:text-red-600 transition-colors">CANCELAR</button>
+              <button onClick={handleSaveTicket} className="bg-navy-950 text-white px-12 py-4 rounded-2xl font-black shadow-xl hover:bg-gold hover:text-navy-950 transition-all">GUARDAR TICKET</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL DETALLE (EXPEDIENTE) ── */}
+      {/* ── MODAL DETALLE ── */}
       {selectedTicket && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/80 backdrop-blur-lg px-4" onClick={() => setSelectedTicket(null)}>
-          <div className="bg-white rounded-[40px] w-full max-w-3xl overflow-hidden shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
-            {/* Header Detalle */}
-            <div className="px-10 py-10 bg-navy-950 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gold/10 rounded-full blur-3xl -mr-32 -mt-32" />
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="bg-gold text-navy-950 px-3 py-1 rounded-lg text-xs font-black tracking-widest">T-00{selectedTicket.id}</span>
-                  <span className="bg-white/10 text-white/80 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-white/10">{selectedTicket.category}</span>
-                </div>
-                <h3 className="text-3xl font-display font-bold leading-tight">{selectedTicket.title}</h3>
-                <div className="mt-6 flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-gold animate-pulse" />
-                    <span className="text-xs font-bold text-white/60 uppercase tracking-widest">{COLUMNS.find(c => c.id === selectedTicket.status)?.label}</span>
-                  </div>
-                  <div className="h-4 w-px bg-white/20" />
-                  <span className="text-xs font-medium text-white/60">Creado el {new Date(selectedTicket.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long' })}</span>
-                </div>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/90 backdrop-blur-md px-4" onClick={() => setSelectedTicket(null)}>
+          <div className="bg-white rounded-[40px] w-full max-w-3xl overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
+            <div className="px-10 py-12 bg-navy-950 text-white">
+              <div className="flex items-center gap-4 mb-6">
+                <span className="bg-gold text-navy-950 px-4 py-1.5 rounded-xl text-sm font-black tracking-widest">ID-{String(selectedTicket.id).padStart(3, '0')}</span>
+                <span className="bg-white/20 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border-2 border-white/10">{selectedTicket.category}</span>
               </div>
-              <button onClick={() => setSelectedTicket(null)} className="absolute top-8 right-8 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <h3 className="text-4xl font-black leading-tight uppercase">{selectedTicket.title}</h3>
             </div>
 
-            {/* Contenido Detalle */}
-            <div className="p-10 grid grid-cols-1 md:grid-cols-3 gap-10">
-              <div className="md:col-span-2 space-y-8">
-                <div>
-                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 mb-4">Descripción del requerimiento</h4>
-                  <p className="text-navy-900 text-lg leading-relaxed font-medium bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    {selectedTicket.description || 'Sin descripción detallada.'}
+            <div className="p-10 space-y-8">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-navy-400 mb-4">DETALLES DEL REQUERIMIENTO</h4>
+                <div className="bg-slate-50 p-8 rounded-3xl border-4 border-slate-100">
+                  <p className="text-navy-950 text-xl font-bold leading-relaxed italic">
+                    "{selectedTicket.description || 'SIN DESCRIPCIÓN DETALLADA.'}"
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-8">
-                <div>
-                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-navy-400 mb-4">Responsable</h4>
-                  <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-navy-950 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+              <div className="grid grid-cols-2 gap-8">
+                <div className="bg-slate-100 p-6 rounded-[32px] flex items-center gap-5">
+                   <div className="w-16 h-16 rounded-2xl bg-navy-950 text-gold flex items-center justify-center font-black text-2xl border-4 border-white shadow-xl">
                       {(selectedTicket.assigned_name || 'U').charAt(0)}
                     </div>
                     <div>
-                      <p className="text-navy-950 font-bold text-sm leading-none">{selectedTicket.assigned_name || 'Sin asignar'}</p>
-                      <p className="text-[10px] text-navy-400 font-bold uppercase mt-1">Encargado</p>
+                      <p className="text-navy-950 font-black text-lg leading-none uppercase">{selectedTicket.assigned_name || 'SIN ASIGNAR'}</p>
+                      <p className="text-[11px] text-navy-500 font-black uppercase mt-1 tracking-widest">Responsable</p>
                     </div>
-                  </div>
                 </div>
-
-                <div className="pt-4">
-                  <div className={`p-4 rounded-2xl border-2 text-center ${PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium}`}>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">Prioridad</p>
-                    <p className="text-xl font-bold mt-1 capitalize">{selectedTicket.priority}</p>
-                  </div>
+                <div className={`p-6 rounded-[32px] border-4 flex flex-col justify-center items-center ${PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium}`}>
+                    <p className="text-[11px] font-black uppercase tracking-[0.3em]">PRIORIDAD</p>
+                    <p className="text-2xl font-black mt-1 uppercase">{selectedTicket.priority}</p>
                 </div>
               </div>
+            </div>
+            <div className="px-10 py-6 bg-slate-50 text-center border-t-2 border-slate-100">
+               <button onClick={() => setSelectedTicket(null)} className="bg-navy-950 text-white px-12 py-3 rounded-full font-black text-sm uppercase tracking-widest">CERRAR VISTA</button>
             </div>
           </div>
         </div>
@@ -333,7 +295,7 @@ export default function TicketsModule() {
 
 function AnimatedColumn({ children, className, ...props }) {
   const ref = useRef(null);
-  useEffect(() => { if (ref.current) autoAnimate(ref.current, { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }); }, []);
+  useEffect(() => { if (ref.current) autoAnimate(ref.current, { duration: 250, easing: 'ease-out' }); }, []);
   return <div ref={ref} className={className} {...props}>{children}</div>;
 }
 
@@ -346,40 +308,34 @@ function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
       onDragStart={e => onDragStart(e, ticket)} 
       onDragEnd={onDragEnd} 
       onClick={() => onClick(ticket)}
-      className={`relative bg-white p-5 rounded-[24px] shadow-sm border-2 border-transparent hover:border-gold hover:shadow-xl transition-all duration-300 cursor-pointer group active:scale-95 ${isUrgent ? 'ring-2 ring-red-500/10' : ''}`}
+      className="bg-white p-6 rounded-[28px] shadow-lg border-2 border-slate-200 hover:border-navy-950 hover:shadow-2xl transition-all duration-300 cursor-pointer group relative overflow-hidden"
     >
-      {isUrgent && (
-        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded-full shadow-lg border-2 border-white uppercase tracking-tighter">Prioritario</div>
-      )}
-      
-      <div className="flex justify-between items-center mb-3">
-        <span className="text-[10px] font-black text-navy-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 group-hover:bg-navy-950 group-hover:text-gold transition-all duration-300 tracking-tighter">ID-{String(ticket.id).padStart(3, '0')}</span>
-        <div className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border ${PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium}`}>
+      <div className="flex justify-between items-start mb-4 gap-2">
+        <span className="text-[11px] font-black text-white bg-navy-950 px-3 py-1.5 rounded-xl tracking-tight shadow-lg">ID-{String(ticket.id).padStart(3, '0')}</span>
+        <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border-2 ${PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium} shadow-md`}>
           {ticket.priority}
         </div>
       </div>
 
-      <h4 className="font-bold text-navy-950 text-base leading-snug mb-4 group-hover:text-gold transition-colors line-clamp-2">
+      <h4 className="font-black text-navy-950 text-lg leading-[1.2] mb-6 group-hover:text-gold transition-colors uppercase tracking-tighter">
         {ticket.title}
       </h4>
 
-      <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-navy-400 group-hover:bg-gold/10 group-hover:text-gold transition-all duration-300">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>
+      <div className="pt-5 border-t-4 border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-navy-950 text-gold flex items-center justify-center shadow-lg">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>
           </div>
-          <span className="text-[10px] font-black text-navy-500 uppercase tracking-tighter">{ticket.category}</span>
+          <span className="text-[11px] font-black text-navy-900 uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">{ticket.category}</span>
         </div>
         
         {ticket.assigned_name ? (
-          <div className="flex -space-x-2">
-            <div className="w-8 h-8 rounded-xl bg-navy-950 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-md ring-1 ring-slate-100" title={ticket.assigned_name}>
-              {ticket.assigned_name.charAt(0)}
-            </div>
+          <div className="w-10 h-10 rounded-2xl bg-navy-950 text-white flex items-center justify-center font-black border-4 border-white shadow-xl text-sm" title={ticket.assigned_name}>
+            {ticket.assigned_name.charAt(0).toUpperCase()}
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300" title="Sin asignar">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 013 19.235z" /></svg>
+          <div className="w-10 h-10 rounded-2xl bg-slate-200 border-4 border-white flex items-center justify-center text-slate-500 shadow-inner">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
           </div>
         )}
       </div>
