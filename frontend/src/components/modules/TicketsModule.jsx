@@ -11,17 +11,17 @@ const DEPARTAMENTOS = [
 ];
 
 const COLUMNS = [
-  { id: 'open',        label: 'Pendientes',   color: 'border-slate-400',  bg: 'bg-slate-100', text: 'text-slate-900', icon: 'M12 6v6m0 0v6m0-6h6m-6 0H6' },
-  { id: 'in_progress', label: 'En Progreso',  color: 'border-blue-600',   bg: 'bg-blue-100',  text: 'text-blue-900',  icon: 'M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75' },
-  { id: 'resolved',    label: 'En Revisión',  color: 'border-amber-600',  bg: 'bg-amber-100', text: 'text-amber-900', icon: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z' },
-  { id: 'closed',      label: 'Completados',  color: 'border-emerald-600',bg: 'bg-emerald-100',text: 'text-emerald-900',icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { id: 'open',        label: 'Pendientes',   color: 'border-slate-300',  bg: 'bg-slate-50'  },
+  { id: 'in_progress', label: 'En Progreso',  color: 'border-blue-400',   bg: 'bg-blue-50'   },
+  { id: 'resolved',    label: 'En Revisión',  color: 'border-amber-400',  bg: 'bg-amber-50'  },
+  { id: 'closed',      label: 'Completados',  color: 'border-emerald-400',bg: 'bg-emerald-50'},
 ];
 
 const PRIORITY_STYLES = {
-  low: 'bg-gray-200 text-gray-800 border-gray-300',
-  medium: 'bg-blue-600 text-white border-blue-700',
-  high: 'bg-amber-500 text-white border-amber-600',
-  urgent: 'bg-red-600 text-white border-red-700',
+  low: 'bg-gray-100 text-gray-600 border-gray-200',
+  medium: 'bg-blue-50 text-blue-700 border-blue-100',
+  high: 'bg-amber-50 text-amber-700 border-amber-100',
+  urgent: 'bg-red-50 text-red-700 border-red-100',
 };
 
 export default function TicketsModule() {
@@ -54,10 +54,9 @@ export default function TicketsModule() {
   const handleDragStart = (e, ticket) => {
     setDraggedTicket(ticket);
     e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => e.target.classList.add('opacity-50'), 0);
   };
-  const handleDragEnd = (e) => { 
-    setDraggedTicket(null); 
-  };
+  const handleDragEnd = (e) => { e.target.classList.remove('opacity-50'); setDraggedTicket(null); };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
 
   const handleDrop = async (e, statusId) => {
@@ -93,75 +92,45 @@ export default function TicketsModule() {
   return (
     <div className="h-full flex flex-col animate-fade-in space-y-6">
       
-      {/* ── HEADER ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header - Matching Avisos style */}
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-display font-black text-navy-950 tracking-tight">TABLERO DE TICKETS</h2>
-          <p className="text-navy-600 font-bold mt-1">Gestión operativa y seguimiento de casos</p>
+          <h2 className="text-2xl font-display font-medium text-navy-950 tracking-tight">Soporte y Tareas</h2>
+          <p className="text-sm text-navy-600 mt-1">Gestión avanzada de tickets y requerimientos internos</p>
         </div>
-        <button 
-          onClick={() => { setFormData(defaultForm); setIsModalOpen(true); }} 
-          className="bg-navy-950 text-white px-8 py-4 rounded-xl font-black flex items-center justify-center gap-3 shadow-2xl hover:bg-gold hover:text-navy-950 transition-all transform active:scale-95"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          NUEVO TICKET
+        <button onClick={() => { setFormData(defaultForm); setIsModalOpen(true); }} className="btn-gold flex items-center gap-2 shadow-md">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Nuevo Ticket
         </button>
       </div>
 
-      {/* ── FILTROS ── */}
-      <div className="flex flex-col md:flex-row items-stretch gap-4">
-        <div className="relative flex-1 group">
-          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-            <svg className="w-5 h-5 text-navy-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          </div>
-          <input 
-            type="text" 
-            placeholder="Buscar por asunto o responsable..." 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 rounded-2xl border-2 border-navy-100 bg-white shadow-md focus:border-navy-950 focus:ring-0 text-navy-950 font-bold placeholder-navy-300 transition-all outline-none" 
-          />
+      {/* Filters - Matching Avisos style */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="relative w-full md:w-96">
+          <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input type="text" placeholder="Buscar por ID, título o responsable..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 placeholder-gray-400 bg-gray-50 hover:bg-white shadow-inner transition-all" />
         </div>
-        <div className="md:w-72">
-          <select 
-            value={filterDept} 
-            onChange={e => setFilterDept(e.target.value)}
-            className="w-full h-full px-6 py-4 rounded-2xl border-2 border-navy-100 bg-white shadow-md focus:border-navy-950 transition-all outline-none font-black text-navy-950 appearance-none"
-          >
-            <option value="">TODOS LOS DEPTOS</option>
-            {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
+        <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
+          className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-gold text-sm text-navy-900 bg-gray-50 hover:bg-white transition-all outline-none">
+          <option value="">Todos los departamentos</option>
+          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
       </div>
 
-      {/* ── KANBAN CON ALTO CONTRASTE ── */}
-      <div className="flex-1 flex gap-6 overflow-x-auto pb-6 -mx-2 px-2">
+      {/* Kanban Board - Formal/Professional */}
+      <div className="flex-1 flex gap-6 overflow-x-auto pb-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
         {COLUMNS.map(col => {
           const colTickets = filteredTickets.filter(t => t.status === col.id);
           return (
-            <div 
-              key={col.id} 
-              className="flex-shrink-0 w-[340px] flex flex-col rounded-[24px] bg-white border-2 border-slate-200 shadow-xl overflow-hidden"
-              onDragOver={handleDragOver} 
-              onDrop={e => handleDrop(e, col.id)}
-            >
-              {/* Header Columna */}
-              <div className={`px-5 py-5 flex items-center justify-between border-b-2 border-slate-100 ${col.bg}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-white border-2 ${col.color} flex items-center justify-center ${col.text.replace('900', '600')}`}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d={col.icon} /></svg>
-                  </div>
-                  <h3 className={`font-black ${col.text} text-sm uppercase tracking-tighter`}>{col.label}</h3>
-                </div>
-                <span className="bg-navy-950 text-white text-[11px] font-black px-3 py-1 rounded-full">{colTickets.length}</span>
+            <div key={col.id} className="flex-shrink-0 w-80 flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden shadow-sm" onDragOver={handleDragOver} onDrop={e => handleDrop(e, col.id)}>
+              <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white border-t-4 ${col.color}`}>
+                <h3 className="font-bold text-navy-900 text-sm">{col.label}</h3>
+                <span className="bg-gray-200 text-navy-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{colTickets.length}</span>
               </div>
-
-              {/* Lista de Tarjetas */}
-              <AnimatedColumn className="flex-1 overflow-y-auto space-y-4 p-4 bg-slate-50/50 min-h-[300px]">
+              <AnimatedColumn className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
                 {colTickets.length === 0 ? (
-                  <div className="h-40 rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">VACÍO</span>
-                  </div>
+                  <div className="h-24 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-[10px] font-medium text-gray-400 uppercase tracking-widest">Sin items</div>
                 ) : (
                   colTickets.map(ticket => (
                     <TicketCard key={ticket.id} ticket={ticket} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onClick={t => setSelectedTicket(t)} />
@@ -173,118 +142,89 @@ export default function TicketsModule() {
         })}
       </div>
 
-      {/* ── MODAL NUEVO TICKET ── */}
+      {/* Modal - Modern & Formal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/80 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-up">
-            <div className="px-8 py-6 bg-navy-950 text-white flex justify-between items-center">
-              <div>
-                <h3 className="text-2xl font-black uppercase tracking-tight">NUEVO REQUERIMIENTO</h3>
-                <p className="text-xs text-gold font-bold mt-1 uppercase tracking-widest">Información de Soporte</p>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-red-500 transition-all">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-navy-950/50 pt-[72px] px-4 pb-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col animate-slide-up">
+            <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center bg-gray-50 flex-shrink-0">
+              <h3 className="font-display font-medium text-navy-950 text-xl">Nuevo Ticket</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-navy-950">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            
-            <div className="p-8 space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Asunto o Título</label>
-                <input 
-                  type="text" 
-                  value={formData.title} 
-                  onChange={e => setFormData({...formData, title: e.target.value})} 
-                  className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-6 py-4 text-navy-950 font-black placeholder-slate-400 transition-all outline-none text-lg" 
-                  placeholder="ESCRIBE EL ASUNTO AQUÍ..." 
-                />
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-navy-950">Asunto</label>
+                <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none" placeholder="Ej. Falla en sistema" />
               </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Departamento</label>
-                  <select 
-                    value={formData.category} 
-                    onChange={e => setFormData({...formData, category: e.target.value})} 
-                    className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-5 py-4 text-navy-950 font-black outline-none appearance-none"
-                  >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-navy-950">Departamento</label>
+                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none">
                     {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Prioridad</label>
-                  <select 
-                    value={formData.priority} 
-                    onChange={e => setFormData({...formData, priority: e.target.value})} 
-                    className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-5 py-4 text-navy-950 font-black outline-none appearance-none"
-                  >
-                    <option value="low">BAJA</option>
-                    <option value="medium">MEDIA</option>
-                    <option value="high">ALTA</option>
-                    <option value="urgent">URGENTE</option>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-navy-950">Prioridad</label>
+                  <select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none">
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
+                    <option value="urgent">Urgente</option>
                   </select>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-navy-950 ml-1">Descripción</label>
-                <textarea 
-                  rows="4" 
-                  value={formData.description} 
-                  onChange={e => setFormData({...formData, description: e.target.value})} 
-                  className="w-full bg-slate-100 border-4 border-transparent focus:border-navy-950 focus:bg-white rounded-2xl px-6 py-4 text-navy-950 font-bold resize-none transition-all outline-none" 
-                  placeholder="DETALLES ADICIONALES..."
-                />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-navy-950">Descripción</label>
+                <textarea rows="4" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none resize-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-navy-950">Asignar a</label>
+                <select value={formData.assigned_to || ''} onChange={e => setFormData({...formData, assigned_to: e.target.value || null})} className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none">
+                  <option value="">Sin asignar</option>
+                  {dbUsers.map(u => <option key={u.id} value={u.id}>{u.name} {u.apellido || ''}</option>)}
+                </select>
               </div>
             </div>
-
-            <div className="px-8 py-6 bg-slate-50 border-t-2 border-slate-100 flex justify-end gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="px-8 py-4 text-navy-950 font-black uppercase text-xs tracking-widest hover:text-red-600 transition-colors">CANCELAR</button>
-              <button onClick={handleSaveTicket} className="bg-navy-950 text-white px-12 py-4 rounded-2xl font-black shadow-xl hover:bg-gold hover:text-navy-950 transition-all">GUARDAR TICKET</button>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 flex-shrink-0">
+              <button onClick={() => setIsModalOpen(false)} className="px-6 py-2 text-navy-600 font-bold uppercase text-xs tracking-widest hover:bg-gray-100 transition-colors">Cancelar</button>
+              <button onClick={handleSaveTicket} className="btn-gold">Guardar Ticket</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL DETALLE ── */}
+      {/* Detail View */}
       {selectedTicket && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/90 backdrop-blur-md px-4" onClick={() => setSelectedTicket(null)}>
-          <div className="bg-white rounded-[40px] w-full max-w-3xl overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
-            <div className="px-10 py-12 bg-navy-950 text-white">
-              <div className="flex items-center gap-4 mb-6">
-                <span className="bg-gold text-navy-950 px-4 py-1.5 rounded-xl text-sm font-black tracking-widest">ID-{String(selectedTicket.id).padStart(3, '0')}</span>
-                <span className="bg-white/20 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border-2 border-white/10">{selectedTicket.category}</span>
-              </div>
-              <h3 className="text-4xl font-black leading-tight uppercase">{selectedTicket.title}</h3>
-            </div>
-
-            <div className="p-10 space-y-8">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/50 px-4 pt-20 pb-6 animate-fade-in" onClick={() => setSelectedTicket(null)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-start">
               <div>
-                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-navy-400 mb-4">DETALLES DEL REQUERIMIENTO</h4>
-                <div className="bg-slate-50 p-8 rounded-3xl border-4 border-slate-100">
-                  <p className="text-navy-950 text-xl font-bold leading-relaxed italic">
-                    "{selectedTicket.description || 'SIN DESCRIPCIÓN DETALLADA.'}"
-                  </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="bg-navy-950 text-white px-2 py-0.5 rounded text-[10px] font-black tracking-widest uppercase">T-{selectedTicket.id}</span>
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium}`}>{selectedTicket.priority}</span>
                 </div>
+                <h3 className="font-display font-medium text-navy-950 text-lg">{selectedTicket.title}</h3>
               </div>
-
-              <div className="grid grid-cols-2 gap-8">
-                <div className="bg-slate-100 p-6 rounded-[32px] flex items-center gap-5">
-                   <div className="w-16 h-16 rounded-2xl bg-navy-950 text-gold flex items-center justify-center font-black text-2xl border-4 border-white shadow-xl">
-                      {(selectedTicket.assigned_name || 'U').charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-navy-950 font-black text-lg leading-none uppercase">{selectedTicket.assigned_name || 'SIN ASIGNAR'}</p>
-                      <p className="text-[11px] text-navy-500 font-black uppercase mt-1 tracking-widest">Responsable</p>
-                    </div>
-                </div>
-                <div className={`p-6 rounded-[32px] border-4 flex flex-col justify-center items-center ${PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium}`}>
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em]">PRIORIDAD</p>
-                    <p className="text-2xl font-black mt-1 uppercase">{selectedTicket.priority}</p>
-                </div>
-              </div>
+              <button onClick={() => setSelectedTicket(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <div className="px-10 py-6 bg-slate-50 text-center border-t-2 border-slate-100">
-               <button onClick={() => setSelectedTicket(null)} className="bg-navy-950 text-white px-12 py-3 rounded-full font-black text-sm uppercase tracking-widest">CERRAR VISTA</button>
+            <div className="p-6 space-y-6 overflow-y-auto">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-navy-400 mb-2">Descripción</p>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 text-navy-700 text-sm leading-relaxed">{selectedTicket.description || 'Sin descripción.'}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-navy-400 mb-1">Responsable</p>
+                  <p className="text-navy-950 font-bold text-sm">{selectedTicket.assigned_name || 'Sin asignar'}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-navy-400 mb-1">Departamento</p>
+                  <p className="text-navy-950 font-bold text-sm">{selectedTicket.category}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -300,42 +240,23 @@ function AnimatedColumn({ children, className, ...props }) {
 }
 
 function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
-  const isUrgent = ticket.priority === 'urgent' || ticket.priority === 'high';
-  
   return (
-    <div 
-      draggable 
-      onDragStart={e => onDragStart(e, ticket)} 
-      onDragEnd={onDragEnd} 
-      onClick={() => onClick(ticket)}
-      className="bg-white p-6 rounded-[28px] shadow-lg border-2 border-slate-200 hover:border-navy-950 hover:shadow-2xl transition-all duration-300 cursor-pointer group relative overflow-hidden"
-    >
-      <div className="flex justify-between items-start mb-4 gap-2">
-        <span className="text-[11px] font-black text-white bg-navy-950 px-3 py-1.5 rounded-xl tracking-tight shadow-lg">ID-{String(ticket.id).padStart(3, '0')}</span>
-        <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border-2 ${PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium} shadow-md`}>
+    <div draggable onDragStart={e => onDragStart(e, ticket)} onDragEnd={onDragEnd} onClick={() => onClick(ticket)}
+      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-gold/40 hover:shadow-md transition-all cursor-pointer group">
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-[10px] font-black text-white bg-navy-950 px-2 py-0.5 rounded tracking-widest">T-{ticket.id}</span>
+        <div className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded border ${PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium}`}>
           {ticket.priority}
         </div>
       </div>
-
-      <h4 className="font-black text-navy-950 text-lg leading-[1.2] mb-6 group-hover:text-gold transition-colors uppercase tracking-tighter">
-        {ticket.title}
-      </h4>
-
-      <div className="pt-5 border-t-4 border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-navy-950 text-gold flex items-center justify-center shadow-lg">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>
-          </div>
-          <span className="text-[11px] font-black text-navy-900 uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">{ticket.category}</span>
-        </div>
-        
+      <h4 className="font-bold text-navy-950 text-sm leading-snug mb-3 group-hover:text-gold transition-colors line-clamp-2">{ticket.title}</h4>
+      <div className="flex items-center justify-between mt-auto">
+        <span className="text-[10px] font-bold text-navy-500 uppercase bg-gray-100 px-2 py-0.5 rounded border border-gray-200">{ticket.category}</span>
         {ticket.assigned_name ? (
-          <div className="w-10 h-10 rounded-2xl bg-navy-950 text-white flex items-center justify-center font-black border-4 border-white shadow-xl text-sm" title={ticket.assigned_name}>
-            {ticket.assigned_name.charAt(0).toUpperCase()}
-          </div>
+          <div className="w-7 h-7 rounded-lg bg-navy-950 text-white flex items-center justify-center text-[10px] font-bold border border-gold/30 shadow-sm">{ticket.assigned_name.charAt(0).toUpperCase()}</div>
         ) : (
-          <div className="w-10 h-10 rounded-2xl bg-slate-200 border-4 border-white flex items-center justify-center text-slate-500 shadow-inner">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+          <div className="w-7 h-7 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </div>
         )}
       </div>
