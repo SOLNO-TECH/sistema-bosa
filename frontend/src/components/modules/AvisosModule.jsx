@@ -103,7 +103,7 @@ export default function AvisosModule() {
     setSending(true);
     try {
       // Llamada al backend para envío de correos
-      await fetch('http://localhost:4000/api/avisos', {
+      await fetch('/api/avisos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

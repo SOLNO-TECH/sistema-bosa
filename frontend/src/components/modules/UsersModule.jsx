@@ -33,7 +33,7 @@ export default function UsersModule() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/users');
+      const res = await fetch('/api/users');
       if (res.ok) setUsers(await res.json());
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -47,7 +47,7 @@ export default function UsersModule() {
   const handleSave = async (e) => {
     e.preventDefault();
     const isEdit = !!editingUser;
-    const url = isEdit ? `http://localhost:4000/api/users/${editingUser.id}` : 'http://localhost:4000/api/users';
+    const url = isEdit ? `/api/users/${editingUser.id}` : '/api/users';
     const method = isEdit ? 'PUT' : 'POST';
 
     try {
@@ -72,7 +72,7 @@ export default function UsersModule() {
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de que deseas eliminar permanentemente este usuario?')) return;
     try {
-      await fetch(`http://localhost:4000/api/users/${id}`, { method: 'DELETE' });
+      await fetch(`/api/users/${id}`, { method: 'DELETE' });
       fetchUsers();
     } catch (err) {
       alert('Error eliminando usuario');
@@ -82,7 +82,7 @@ export default function UsersModule() {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:4000/api/users/${editingUser.id}/password`, {
+      const res = await fetch(`/api/users/${editingUser.id}/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: passwordData })

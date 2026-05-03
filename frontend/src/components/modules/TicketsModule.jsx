@@ -78,7 +78,7 @@ export default function TicketsModule() {
 
   // Carga todos los usuarios desde la base de datos al montar
   useEffect(() => {
-    fetch('http://localhost:4000/api/users')
+    fetch('/api/users')
       .then(r => r.json())
       .then(data => setDbUsers(Array.isArray(data) ? data : []))
       .catch(() => setDbUsers([]));
