@@ -166,6 +166,21 @@ export default function Dashboard() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
+          </div>
+        </div>
+
+        {/* PERFIL (MOVIDO ARRIBA) */}
+        <div className="border-b border-surface px-5 py-4 bg-gold/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg border border-gold/40 flex items-center justify-center flex-shrink-0 bg-navy-900"
+              style={{ boxShadow: '0 0 15px rgba(203,172,128,0.1)' }}>
+              <span className="font-display text-gold text-base font-bold">{user?.name?.charAt(0)}</span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-slate-text text-[11px] font-bold leading-none truncate tracking-wide">{user?.name} {user?.apellido}</span>
+              <span className="text-gold text-[9px] font-bold mt-1.5 uppercase tracking-[0.15em]">{ROLE_LABELS[user?.role]}</span>
+            </div>
+          </div>
         </div>
 
         {/* Navegación */}
@@ -191,23 +206,13 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        {/* Usuario */}
-        <div className="border-t border-surface px-4 py-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-sm border border-gold/30 flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(203,172,128,0.07)' }}>
-              <span className="font-display text-gold text-sm">{user?.name?.charAt(0)}</span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-sans text-slate-text text-xs truncate">{user?.name}</p>
-              <span className={`role-badge font-label ${ROLE_COLORS[user?.role]}`}>{ROLE_LABELS[user?.role]}</span>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 font-label text-[10px] tracking-[0.2em] uppercase text-slate-muted hover:text-red-400 transition-colors w-full py-0.5"
+        {/* Cerrar Sesión */}
+        <div className="border-t border-surface p-4 pb-20 lg:pb-4">
+          <button 
+            onClick={handleLogout} 
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10 transition-all"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
             </svg>
             Cerrar Sesión
@@ -288,9 +293,7 @@ export default function Dashboard() {
                   {/* Nombre — Neogrotesk SC */}
                   <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 font-label text-navy-600 font-bold text-[10px] tracking-widest uppercase">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/70" />
-                  Sistema operativo
+                  <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
                 </div>
               </div>
 
@@ -326,20 +329,40 @@ export default function Dashboard() {
                 {/* Panel lateral */}
                 <div className="space-y-4">
 
-                  {/* Estado módulos */}
+                  {/* Módulos */}
                   <div className="rounded-sm border border-gray-200 p-5 bg-white shadow-sm">
                     <p className="font-label font-bold text-navy-950 text-xs tracking-[0.2em] uppercase mb-4 pb-3 border-b border-gray-200">
-                      Módulos
+                      Acceso Directo
                     </p>
-                    <div className="space-y-2.5">
-                      {['Hotel', 'Condominios', 'Reservaciones', 'Facturación', 'Reportes'].map((m) => (
-                        <div key={m} className="flex items-center justify-between">
-                          <span className="font-sans font-medium text-navy-700 text-xs">{m}</span>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80" />
-                            <span className="font-sans font-medium text-navy-600 text-[10px] tracking-wide">En desarrollo</span>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {[
+                        { id: 'users', label: 'Usuarios', status: 'Activo', color: 'bg-emerald-500' },
+                        { id: 'calendar', label: 'Calendario', status: 'Activo', color: 'bg-emerald-500' },
+                        { id: 'tickets', label: 'Tickets', status: 'Activo', color: 'bg-emerald-500' },
+                        { id: 'avisos', label: 'Avisos', status: 'Activo', color: 'bg-emerald-500' },
+                        { id: 'hotel', label: 'Hotel', status: 'Desarrollo', color: 'bg-amber-400' },
+                        { id: 'condos', label: 'Condominios', status: 'Desarrollo', color: 'bg-amber-400' },
+                        { id: 'reservas', label: 'Reservaciones', status: 'Desarrollo', color: 'bg-amber-400' },
+                        { id: 'factura', label: 'Facturación', status: 'Desarrollo', color: 'bg-amber-400' },
+                        { id: 'reportes', label: 'Reportes', status: 'Desarrollo', color: 'bg-amber-400' },
+                      ].map((m) => (
+                        <button 
+                          key={m.id} 
+                          onClick={() => m.status === 'Activo' && setActive(m.id)}
+                          className={`flex items-center justify-between p-2 rounded-lg transition-all ${m.status === 'Activo' ? 'hover:bg-gold/5 border border-transparent hover:border-gold/20 cursor-pointer' : 'opacity-60 cursor-default'}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-1.5 h-1.5 rounded-full ${m.color}`} />
+                            <span className="font-sans font-bold text-navy-800 text-xs">{m.label}</span>
                           </div>
-                        </div>
+                          {m.status === 'Activo' ? (
+                            <svg className="w-4 h-4 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                          ) : (
+                            <span className="text-[9px] font-bold text-navy-400 uppercase tracking-tight">{m.status}</span>
+                          )}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -363,17 +386,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Banner construcción */}
-              <div className="rounded-sm border border-gold/20 px-5 py-4 flex items-center gap-3 bg-gold/5 shadow-sm">
-                <div className="w-7 h-7 rounded-sm border border-gold/40 flex items-center justify-center flex-shrink-0 bg-white">
-                  <svg className="w-3.5 h-3.5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
-                  </svg>
-                </div>
-                <p className="font-sans font-medium text-navy-800 text-xs">
-                  Dashboard en construcción — estructura base lista. El contenido funcional se irá agregando módulo a módulo.
-                </p>
-              </div>
+              {/* Módulos en desarrollo quitados de aquí y banner eliminado */}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-60">
