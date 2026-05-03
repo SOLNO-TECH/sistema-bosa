@@ -26,7 +26,10 @@ const createTransporter = () => {
 
 const sendMail = async (to, subject, html) => {
   const transporter = createTransporter();
-  if (!transporter) return false;
+  if (!transporter) {
+    console.error('❌ No se pudo enviar correo: Transporter no configurado (faltan variables de entorno)');
+    return false;
+  }
 
   const mailOptions = {
     from: `"BOSA" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
@@ -43,10 +46,14 @@ const sendMail = async (to, subject, html) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Intentando enviar correo a: ${to} - Asunto: ${subject}...`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Correo enviado exitosamente a ${to}. ID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error(`❌ Error enviando correo a ${to}:`, error);
+    console.error(`❌ Error crítico enviando correo a ${to}:`, error.message);
+    if (error.code) console.error(`   Código de error SMTP: ${error.code}`);
+    if (error.command) console.error(`   Comando fallido: ${error.command}`);
     return false;
   }
 };
