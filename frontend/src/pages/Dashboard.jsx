@@ -99,11 +99,41 @@ export default function Dashboard() {
   const [active, setActive] = useState('overview');
   const [sidebarOpen, setSidebar] = useState(false);
   const [mounted, setMounted] = useState(false);
+  
+  // Estados para estadísticas del Dashboard
+  const [stats, setStats] = useState({
+    users: 0,
+    meetings: 0,
+    tickets: 3, // Valor base mock
+    avisos: 2   // Valor base mock
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
+    fetchStats();
     return () => clearTimeout(t);
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      const [uRes, mRes] = await Promise.all([
+        import('axios').then(m => m.default.get('/api/users')),
+        import('axios').then(m => m.default.get('/api/meetings'))
+      ]);
+      
+      setStats({
+        users: Array.isArray(uRes.data) ? uRes.data.length : 0,
+        meetings: Array.isArray(mRes.data) ? mRes.data.filter(m => {
+          const today = new Date().toISOString().split('T')[0];
+          return m.start_time.startsWith(today);
+        }).length : 0,
+        tickets: 3,
+        avisos: 2
+      });
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+    }
+  };
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
 
@@ -266,13 +296,13 @@ export default function Dashboard() {
 
               {/* Métricas */}
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <MetricCard title="Ocupación" value="—" sub="Habitaciones activas" highlight
-                  icon={<IconBuilding />} />
-                <MetricCard title="Reservaciones" value="—" sub="Esta semana"
-                  icon={<IconCalendar />} />
-                <MetricCard title="Check-ins hoy" value="—" sub="Huéspedes activos"
+                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight
                   icon={<IconUsers />} />
-                <MetricCard title="Ingresos" value="—" sub="Mes actual"
+                <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy"
+                  icon={<IconCalendar />} />
+                <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión"
+                  icon={<IconBuilding />} />
+                <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados"
                   icon={<IconFinance />} />
               </div>
 
