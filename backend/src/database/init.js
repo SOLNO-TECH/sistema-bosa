@@ -51,15 +51,49 @@ function initDatabase() {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       title       TEXT    NOT NULL,
       description TEXT,
-      status      TEXT    NOT NULL DEFAULT 'open', -- open, in_progress, resolved, closed
-      priority    TEXT    NOT NULL DEFAULT 'medium', -- low, medium, high, urgent
+      status      TEXT    NOT NULL DEFAULT 'open',
+      priority    TEXT    NOT NULL DEFAULT 'medium',
       category    TEXT,
       assigned_to INTEGER,
       created_by  INTEGER NOT NULL,
+      due_date    TEXT,              -- ISO 8601
       created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (assigned_to) REFERENCES users(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_history (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id   INTEGER NOT NULL,
+      user_id     INTEGER NOT NULL,
+      action      TEXT    NOT NULL,  -- 'status_change', 'assignment', 'comment', etc.
+      details     TEXT,              -- JSON or text
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+      FOREIGN KEY (user_id)   REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_comments (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id   INTEGER NOT NULL,
+      user_id     INTEGER NOT NULL,
+      content     TEXT    NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+      FOREIGN KEY (user_id)   REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_attachments (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id   INTEGER NOT NULL,
+      filename    TEXT    NOT NULL,
+      mimetype    TEXT    NOT NULL,
+      path        TEXT    NOT NULL,
+      uploaded_by INTEGER NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+      FOREIGN KEY (uploaded_by) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS avisos (
@@ -89,6 +123,10 @@ function initDatabase() {
       // La columna ya existe
     }
   }
+
+  try {
+    db.prepare(`ALTER TABLE tickets ADD COLUMN due_date TEXT`).run();
+  } catch (err) {}
 
   seedDefaultUsers(db);
 }
