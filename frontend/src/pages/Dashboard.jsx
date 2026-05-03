@@ -81,7 +81,6 @@ export default function Dashboard() {
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
 
-  // Construcción dinámica de secciones según rol
   const getSections = () => {
     const sections = [
       {
@@ -89,21 +88,6 @@ export default function Dashboard() {
         items: [
           { id: 'overview', label: 'Resumen General', icon: <IconGrid /> },
           { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> },
-        ],
-      },
-      {
-        title: 'Operaciones',
-        items: [
-          { id: 'hotel', label: 'Hotel', icon: <IconBuilding /> },
-          { id: 'condos', label: 'Condominios', icon: <IconCondos /> },
-          { id: 'reservas', label: 'Reservaciones', icon: <IconCalendar /> },
-        ],
-      },
-      {
-        title: 'Finanzas',
-        items: [
-          { id: 'factura', label: 'Facturación', icon: <IconFinance /> },
-          { id: 'reportes', label: 'Reportes', icon: <IconReports /> },
         ],
       },
       {
