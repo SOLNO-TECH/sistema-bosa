@@ -171,7 +171,7 @@ export default function Dashboard() {
             </button>
               <div className="flex items-center gap-4">
                 <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold border border-emerald-500/20">v1.2 - LIVE</span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold border border-emerald-500/20">v1.3 - CLEAN</span>
               </div>
           </div>
           <div className="flex items-center gap-3">

@@ -22,50 +22,7 @@ const ESTADO_STYLES = {
   programado: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
-const MOCK_AVISOS = [
-  {
-    id: 'AV-001',
-    titulo: 'Mantenimiento programado de servidores',
-    mensaje: 'Se realizará un mantenimiento preventivo el próximo viernes de 10pm a 2am. El sistema estará en modo de solo lectura durante ese período.',
-    destinatarios: ['Sistemas','Operaciones'],
-    tipo: 'departamento',
-    prioridad: 'importante',
-    estado: 'enviado',
-    fecha: '02 May 2026',
-    hora: '09:15 AM',
-    autor: 'Super Administrador',
-    enviados: 12,
-    leidos: 8,
-  },
-  {
-    id: 'AV-002',
-    titulo: 'Reunión general mensual',
-    mensaje: 'Se convoca a todo el personal a la reunión general del mes. Asistencia obligatoria. Lugar: Sala de juntas principal.',
-    destinatarios: ['Todos los departamentos'],
-    tipo: 'grupo',
-    prioridad: 'normal',
-    estado: 'enviado',
-    fecha: '01 May 2026',
-    hora: '11:00 AM',
-    autor: 'Super Administrador',
-    enviados: 45,
-    leidos: 38,
-  },
-  {
-    id: 'AV-003',
-    titulo: 'Actualización de políticas de seguridad',
-    mensaje: 'Se han actualizado las políticas de seguridad informática. Todo el personal debe revisar y firmar el documento de acuse.',
-    destinatarios: ['Todos los departamentos'],
-    tipo: 'grupo',
-    prioridad: 'urgente',
-    estado: 'programado',
-    fecha: '05 May 2026',
-    hora: '08:00 AM',
-    autor: 'Super Administrador',
-    enviados: 0,
-    leidos: 0,
-  },
-];
+const MOCK_AVISOS = [];
 
 export default function AvisosModule() {
   const { user } = useAuth();

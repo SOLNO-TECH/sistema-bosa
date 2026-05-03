@@ -11,50 +11,7 @@ const DEPARTAMENTOS = [
 
 // Los usuarios se cargan dinámicamente desde el backend
 
-const INITIAL_TICKETS = [
-  {
-    id: 'T-1001',
-    title: 'Actualizar servidores de base de datos',
-    description: 'Se requiere realizar el mantenimiento programado y actualización de parches de seguridad.',
-    status: 'todo',
-    departamento: 'Sistemas',
-    creadoPor: 'Super Administrador',
-    asignadoA: null,
-    date: '12 May 2026', time: '09:00 AM',
-    historial: [
-      { accion: 'Ticket creado y asignado al depto. Sistemas', autor: 'Super Administrador', fecha: '12 May 2026', hora: '09:00 AM' }
-    ]
-  },
-  {
-    id: 'T-1002',
-    title: 'Revisión de facturación mensual',
-    description: 'Validar las facturas emitidas vs el reporte del CRM de BOSA.',
-    status: 'inProgress',
-    departamento: 'Finanzas',
-    creadoPor: 'Super Administrador',
-    asignadoA: 'María López',
-    date: '15 May 2026', time: '11:30 AM',
-    historial: [
-      { accion: 'Ticket creado y asignado al depto. Finanzas', autor: 'Super Administrador', fecha: '15 May 2026', hora: '11:30 AM' },
-      { accion: 'Ticket asignado a María López', autor: 'María López', fecha: '15 May 2026', hora: '12:00 PM' },
-      { accion: 'Estado cambiado a En Progreso', autor: 'María López', fecha: '15 May 2026', hora: '12:05 PM' }
-    ]
-  },
-  {
-    id: 'T-1003',
-    title: 'Error de acceso en el portal de clientes',
-    description: 'El cliente XYZ reporta que no puede acceder a su cuenta. Muestra error 500.',
-    status: 'todo',
-    departamento: 'Sistemas',
-    creadoPor: 'Super Administrador',
-    asignadoA: 'Ana García',
-    date: '02 May 2026', time: '14:45 PM',
-    historial: [
-      { accion: 'Ticket creado y asignado al depto. Sistemas', autor: 'Super Administrador', fecha: '02 May 2026', hora: '14:45 PM' },
-      { accion: 'Ticket asignado a Ana García', autor: 'Angel Palacios', fecha: '02 May 2026', hora: '15:00 PM' }
-    ]
-  },
-];
+const INITIAL_TICKETS = [];
 
 const COLUMNS = [
   { id: 'todo',       label: 'Pendientes',   color: 'border-slate-300',  bg: 'bg-slate-50'  },
