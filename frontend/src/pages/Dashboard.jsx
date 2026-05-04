@@ -25,6 +25,7 @@ const IconUserAdmin = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24
 const IconSettings = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>;
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
+const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
 
 // ── Metric Card ──────────────────────────────────────────
 function MetricCard({ title, value, sub, icon, highlight }) {
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [active, setActive] = useState('overview');
   const [sidebarOpen, setSidebar] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [mounted, setMounted] = useState(false);
   
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
@@ -175,11 +177,30 @@ export default function Dashboard() {
               </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
-              <div className="w-7 h-7 rounded-sm border border-gold/35 flex items-center justify-center bg-gold/10">
-                <span className="font-display text-gold text-xs font-bold">{user?.name?.charAt(0)}</span>
-              </div>
-              <span className={`hidden md:block role-badge ${user?.role === 'superadmin' ? 'border-gold text-gold font-bold' : 'border-gray-200 text-navy-700 font-bold'}`}>{ROLE_LABELS[user?.role]}</span>
+            <div className="flex items-center pl-2 border-l border-gray-200 relative">
+              <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-navy-600 hover:text-gold transition-colors">
+                <IconBell />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              </button>
+              
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
+                  <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <span className="font-sans font-bold text-navy-950 text-sm">Notificaciones</span>
+                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-bold">1 Nueva</span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <div className="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                      <p className="text-xs font-bold text-navy-800">Bienvenido a BOSA</p>
+                      <p className="text-[10px] text-navy-500 mt-1 line-clamp-2">Revisa los últimos avisos y actualizaciones del sistema.</p>
+                      <span className="text-[9px] text-gray-400 mt-1 block">Hace un momento</span>
+                    </div>
+                  </div>
+                  <div className="p-2 text-center bg-gray-50 border-t border-gray-200">
+                    <button className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
