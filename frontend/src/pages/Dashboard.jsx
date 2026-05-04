@@ -14,124 +14,66 @@ const ROLE_LABELS = {
   administrator: 'Administrador',
 };
 
-// ── Iconografía ──────────────────────────────────────────
-const IconGrid = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
-const IconCalendar = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
-const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5z" /></svg>;
-const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>;
+// ── Iconos ──────────────────────────────────────────────
+const IconGrid = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>;
+const IconCalendar = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>;
+const IconBuilding = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" /></svg>;
+const IconCondos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21m0 0h4.5V3.545M12.75 21h7.5V10.75M2.25 21h1.5m18 0h-18M2.25 9l4.5-1.636M18.75 3l-1.5.545m0 6.205l3 1m1.5.5l-1.5-.5M6.75 7.364V3h-3v18m3-13.636l10.5-3.819" /></svg>;
+const IconFinance = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 01-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>;
+const IconReports = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>;
+const IconUserAdmin = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>;
+const IconSettings = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>;
+const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 
-// ── Componente de Gráfica Dinámica SVG ────────────────────
-function ActivityChart({ stats }) {
-  const days = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
-  // Simulamos una tendencia real basada en el total actual
-  const baseValue = stats.tickets || 1;
-  const trend = [
-    Math.max(1, baseValue - 2), 
-    Math.max(2, baseValue - 1), 
-    Math.max(1, baseValue - 3), 
-    Math.max(3, baseValue), 
-    baseValue, 
-    0, 
-    0
-  ];
-  
-  const max = Math.max(...trend, 10);
-  const points = trend.map((val, i) => ({
-    x: i * (700 / 6),
-    y: 200 - (val * (180 / max))
-  }));
-
-  const pathD = `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`;
-  const areaD = `${pathD} L ${points[points.length-1].x},200 L 0,200 Z`;
-
-  return (
-    <div className="relative w-full h-full pt-4">
-      <div className="absolute inset-0 flex flex-col justify-between py-2">
-        {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-slate-100" />)}
-      </div>
-      
-      <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 700 200">
-        <defs>
-          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#D4AF37" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#D4AF37" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        
-        {/* Área Sombreada */}
-        <path d={areaD} fill="url(#chartGrad)" className="transition-all duration-1000 ease-in-out" />
-        
-        {/* Línea Principal */}
-        <path d={pathD} fill="none" stroke="#D4AF37" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
-        
-        {/* Puntos Interactivos */}
-        {points.map((p, i) => (
-          <g key={i} className="group cursor-pointer">
-            <circle cx={p.x} cy={p.y} r="6" fill="white" stroke="#D4AF37" strokeWidth="3" className="transition-all duration-300 group-hover:r-8 group-hover:fill-gold" />
-            <foreignObject x={p.x - 20} y={p.y - 40} width="40" height="30" className="opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-navy-950 text-white text-[10px] font-bold py-1 rounded text-center shadow-lg border border-gold/30">
-                {trend[i]}
-              </div>
-            </foreignObject>
-          </g>
-        ))}
-      </svg>
-      
-      {/* Etiquetas X */}
-      <div className="absolute -bottom-6 left-0 right-0 flex justify-between px-1">
-        {days.map(d => <span key={d} className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{d}</span>)}
-      </div>
-    </div>
-  );
-}
-
+// ── Metric Card ──────────────────────────────────────────
 function MetricCard({ title, value, sub, icon, highlight }) {
   return (
-    <div className={`rounded-2xl p-6 border transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${highlight ? 'border-gold/30 bg-white' : 'border-gray-100 bg-white'}`}>
+    <div className={`rounded-sm p-5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group ${highlight ? 'border-gold/30 bg-gold/5' : 'border-gray-200 bg-white shadow-sm'}`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
-          <p className="text-4xl font-display font-bold text-navy-950 mt-1">{value}</p>
-          <p className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{sub}</p>
+          <p className="font-label text-navy-700 text-[10px] tracking-[0.2em] uppercase font-bold">{title}</p>
+          <p className="font-display text-navy-950 text-3xl font-light mt-2">{value}</p>
+          {sub && <p className="font-sans text-navy-600 text-xs mt-1 font-medium">{sub}</p>}
         </div>
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${highlight ? 'bg-gold text-navy-950 shadow-lg shadow-gold/20' : 'bg-slate-50 text-navy-900 border border-slate-100'}`}>{icon}</div>
+        <div className={`w-9 h-9 rounded-sm flex items-center justify-center border ${highlight ? 'border-gold/40 text-gold bg-gold/10' : 'border-gray-200 text-navy-600 bg-gray-50'}`}>
+          {icon}
+        </div>
       </div>
+      <div className="mt-4 h-px w-0 group-hover:w-full transition-all duration-500 bg-gradient-to-r from-gold/60 to-transparent" />
     </div>
   );
 }
 
-function KPIBar({ label, value, color }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-end"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p><p className="text-sm font-black text-navy-950">{value}%</p></div>
-      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/50"><div className="h-full transition-all duration-1000 ease-out shadow-sm" style={{ width: `${value}%`, backgroundColor: color }} /></div>
-    </div>
-  );
-}
-
+// ── Componente principal ──────────────────────────────────
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [active, setActive] = useState('overview');
   const [sidebarOpen, setSidebar] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
-  const [performance, setPerformance] = useState({ resolutionRate: 0, efficiency: 0, topUsers: [], engagement: '...' });
 
   useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
-    fetchPerformance();
-  }, [active]);
+    return () => clearTimeout(t);
+  }, []);
 
   const fetchStats = async () => {
     try {
       const [uRes, mRes, tRes, aRes] = await Promise.all([
-        axios.get('/api/users'), axios.get('/api/meetings'), axios.get('/api/tickets'), axios.get('/api/avisos')
+        axios.get('/api/users'),
+        axios.get('/api/meetings'),
+        axios.get('/api/tickets'),
+        axios.get('/api/avisos')
       ]);
       setStats({
-        users: Array.isArray(uRes.data) ? uRes.data.length : (uRes.data.users ? uRes.data.users.length : 0),
+        users: Array.isArray(uRes.data) ? uRes.data.length : 0,
         meetings: Array.isArray(mRes.data) ? mRes.data.filter(m => {
           const today = new Date().toISOString().split('T')[0];
-          return m.start_time?.startsWith(today);
+          return m.start_time.startsWith(today);
         }).length : 0,
         tickets: Array.isArray(tRes.data) ? tRes.data.length : 0,
         avisos: Array.isArray(aRes.data) ? aRes.data.length : 0
@@ -139,131 +81,176 @@ export default function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
-  const fetchPerformance = async () => {
-    try {
-      const res = await axios.get('/api/stats/performance');
-      setPerformance(res.data);
-    } catch (err) { console.error(err); }
+  const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
+
+  const getSections = () => {
+    const sections = [
+      {
+        title: 'Principal',
+        items: [
+          { id: 'overview', label: 'Resumen General', icon: <IconGrid /> },
+          { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> },
+        ],
+      },
+      {
+        title: 'Gestión',
+        items: [
+          { id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> },
+          { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
+        ],
+      }
+    ];
+
+    const systemItems = [];
+    if (user?.role === 'superadmin') {
+      systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
+    }
+    systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
+    
+    sections.push({ title: 'Sistema', items: systemItems });
+    return sections;
   };
 
-  const sections = [
-    { title: 'Principal', items: [{ id: 'overview', label: 'Resumen General', icon: <IconGrid /> }, { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> }] },
-    { title: 'Operación', items: [{ id: 'tickets', label: 'Gestión de Tickets', icon: <IconTickets /> }, { id: 'avisos', label: 'Módulo de Avisos', icon: <IconAvisos /> }] }
-  ];
-  if (user?.role === 'superadmin') sections.push({ title: 'Administración', items: [{ id: 'users', label: 'Control de Usuarios', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" strokeWidth={2}/></svg> }] });
-  
-  sections.push({ title: 'Sistema', items: [{ id: 'settings', label: 'Configuración', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth={2}/></svg> }] });
+  const allSections = getSections();
 
   return (
-    <div className="min-h-screen flex bg-gray-50/30 font-sans text-navy-950">
-      
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1930] flex flex-col transition-transform lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl lg:shadow-none`}>
-        <div className="p-10"><img src="/logo.png" alt="BOSA" className="w-full" /></div>
-        <nav className="flex-1 px-6 space-y-10 overflow-y-auto">
-          {sections.map(s => (
-            <div key={s.title}>
-              <p className="text-[11px] font-black text-white/20 uppercase tracking-[0.3em] px-4 mb-5">{s.title}</p>
-              {s.items.map(i => (
-                <button key={i.id} onClick={() => { setActive(i.id); setSidebar(false); }} className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${active === i.id ? 'bg-gold text-navy-950 shadow-lg shadow-gold/20 scale-105' : 'text-white/50 hover:text-white hover:bg-white/5'}`}>
-                  {i.icon}<span className="tracking-tight">{i.label}</span>
-                </button>
-              ))}
+    <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
+
+      {/* SIDEBAR */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-60 flex flex-col border-r border-surface lg:relative lg:translate-x-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ background: 'linear-gradient(180deg, #0A1930 0%, #071221 100%)' }}
+      >
+        <div className="px-5 py-6 border-b border-surface flex items-center h-[96px] relative">
+          <img src="/logo.png" alt="BOSA Logo" className="w-40" />
+          <button onClick={() => setSidebar(false)} className="lg:hidden ml-auto text-slate-muted hover:text-gold">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg border border-gold/40 flex items-center justify-center bg-navy-900">
+            <span className="font-display text-gold text-base font-bold">{user?.name?.charAt(0)}</span>
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-slate-text text-[11px] font-bold truncate tracking-wide">{user?.name} {user?.apellido}</span>
+            <span className="text-gold text-[9px] font-bold mt-1 uppercase tracking-widest">{ROLE_LABELS[user?.role]}</span>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+          {allSections.map((section) => (
+            <div key={section.title}>
+              <p className="font-label text-slate-muted text-[9px] tracking-[0.35em] uppercase px-3 mb-1.5">{section.title}</p>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <button key={item.id} onClick={() => { setActive(item.id); setSidebar(false); }} className={active === item.id ? 'nav-item-active' : 'nav-item-default'}>
+                    {item.icon}<span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </nav>
-        <div className="p-8 border-t border-white/5"><button onClick={logout} className="w-full py-4 rounded-2xl border border-red-500/10 text-red-400 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-500/10 transition-colors">Cerrar Sesión Oficial</button></div>
+
+        <div className="border-t border-surface p-4 pb-20 lg:pb-4">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
+            Cerrar Sesión
+          </button>
+        </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-24 flex items-center justify-between px-10 bg-white border-b border-gray-100 sticky top-0 z-40">
-           <div className="flex items-center gap-6">
-             <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-900"><svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth={2.5}/></svg></button>
-             <div>
-               <h2 className="text-2xl font-bold tracking-tight text-navy-950">{sections.flatMap(s => s.items).find(i => i.id === active)?.label || 'Dashboard'}</h2>
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">BOSA Hospitality Group · Panel Administrativo</p>
-             </div>
-           </div>
-           <div className="flex items-center gap-6">
-             <div className="text-right hidden sm:block">
-               <p className="text-xs font-black text-navy-950 leading-none">{user?.name} {user?.apellido}</p>
-               <p className="text-[9px] text-gold font-bold uppercase tracking-widest mt-1">{user?.role}</p>
-             </div>
-             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-900 to-navy-950 flex items-center justify-center font-bold text-gold border border-gold/20 shadow-xl">{user?.name?.charAt(0)}</div>
-           </div>
+      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebar(false)} />}
+
+      <div className={`flex-1 flex flex-col min-w-0 bg-gray-50 transition-opacity duration-1000 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/90 backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            </button>
+              <div className="flex items-center gap-4">
+                <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold border border-emerald-500/20">v1.3 - CLEAN</span>
+              </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+              <div className="w-7 h-7 rounded-sm border border-gold/35 flex items-center justify-center bg-gold/10">
+                <span className="font-display text-gold text-xs font-bold">{user?.name?.charAt(0)}</span>
+              </div>
+              <span className={`hidden md:block role-badge ${user?.role === 'superadmin' ? 'border-gold text-gold font-bold' : 'border-gray-200 text-navy-700 font-bold'}`}>{ROLE_LABELS[user?.role]}</span>
+            </div>
+          </div>
         </header>
 
-        <main className="p-10 flex-1 overflow-y-auto">
-          {active === 'overview' ? (
-            <div className="space-y-10 animate-fade-in max-w-7xl mx-auto pb-20">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                <MetricCard title="Usuarios Totales" value={stats.users} sub="Colaboradores de alta" highlight icon={<IconGrid />} />
-                <MetricCard title="Agenda Hoy" value={stats.meetings} sub="Reuniones programadas" icon={<IconCalendar />} />
-                <MetricCard title="Tickets Abiertos" value={stats.tickets} sub="Casos en seguimiento" icon={<IconTickets />} />
-                <MetricCard title="Avisos Activos" value={stats.avisos} sub="Comunicación interna" icon={<IconAvisos />} />
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8">
+          {active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                <SparkleIcon size={16} className="text-gold" />
+                <p className="font-label text-gold text-[10px] tracking-widest uppercase font-bold">Bienvenido</p>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                
-                {/* GRÁFICA FUNCIONAL Y CHIDA */}
-                <div className="lg:col-span-2 bg-white rounded-[2.5rem] border border-gray-100 p-10 shadow-sm h-[500px] flex flex-col group hover:shadow-2xl transition-all duration-500">
-                  <div className="flex justify-between items-center mb-12">
-                    <div>
-                      <h3 className="text-xl font-bold text-navy-950">Monitor de Actividad Operativa</h3>
-                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        Datos actualizados en tiempo real
-                      </p>
-                    </div>
-                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex gap-2">
-                      <button className="px-4 py-1.5 bg-white shadow-sm rounded-lg text-[10px] font-black text-navy-950 uppercase tracking-tighter">Semanal</button>
-                    </div>
+              <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} />
+                <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy" icon={<IconCalendar />} />
+                <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión" icon={<IconBuilding />} />
+                <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2 rounded-sm border border-gray-200 p-6 bg-white shadow-sm">
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                    <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Actividad Reciente</p>
                   </div>
-                  
-                  <div className="flex-1 relative">
-                    <ActivityChart stats={stats} />
+                  <div className="flex flex-col items-center justify-center py-10 gap-3">
+                    <EmptyStateIllustration className="w-24 h-24 opacity-60" />
+                    <p className="font-label font-bold text-navy-500 text-[10px] tracking-widest uppercase">Próximamente</p>
                   </div>
                 </div>
-
-                <div className="bg-white rounded-[2.5rem] border border-gray-100 p-10 shadow-sm flex flex-col group hover:shadow-2xl transition-all duration-500">
-                  <h3 className="text-xl font-bold text-navy-950 mb-10 border-b border-gray-50 pb-6 flex items-center gap-3">
-                    <SparkleIcon className="text-gold" size={20} />
-                    Métricas KPI
-                  </h3>
-                  <div className="space-y-10 flex-1">
-                    <KPIBar label="Tasa de Resolución Real" value={performance.resolutionRate || 85} color="#D4AF37" />
-                    <KPIBar label="Eficiencia del Equipo" value={performance.efficiency || 90} color="#0A1930" />
-                    
-                    <div className="pt-10">
-                       <div className="flex justify-between items-center mb-8">
-                         <p className="text-[11px] font-black uppercase text-slate-400 tracking-[0.25em]">Líderes de Operación</p>
-                         <span className="w-2 h-2 rounded-full bg-gold" />
-                       </div>
-                       <div className="space-y-5">
-                         {performance.topUsers?.map((u, i) => (
-                           <div key={i} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-2xl transition-colors">
-                             <div className="flex items-center gap-4">
-                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-navy-950 text-gold shadow-lg shadow-gold/10' : 'bg-slate-100 text-navy-900'}`}>{u.name.charAt(0)}</div>
-                               <div>
-                                 <p className="text-[13px] font-bold text-navy-950">{u.name}</p>
-                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-1">{u.dept}</p>
-                               </div>
-                             </div>
-                             <div className="text-right">
-                               <p className="text-[13px] font-black text-navy-950">KPI {u.score}</p>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                    </div>
+                <div className="rounded-sm border border-gray-200 p-5 bg-white shadow-sm">
+                  <p className="font-label font-bold text-navy-950 text-xs tracking-widest uppercase mb-4 pb-3 border-b border-gray-200">Acceso Directo</p>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {[
+                      { id: 'users', label: 'Usuarios', status: 'Activo', color: 'bg-emerald-500' },
+                      { id: 'calendar', label: 'Calendario', status: 'Activo', color: 'bg-emerald-500' },
+                      { id: 'tickets', label: 'Tickets', status: 'Activo', color: 'bg-emerald-500' },
+                      { id: 'avisos', label: 'Avisos', status: 'Activo', color: 'bg-emerald-500' },
+                      { id: 'hotel', label: 'Hotel', status: 'Desarrollo', color: 'bg-amber-400' },
+                      { id: 'condos', label: 'Condominios', status: 'Desarrollo', color: 'bg-amber-400' },
+                      { id: 'reservas', label: 'Reservaciones', status: 'Desarrollo', color: 'bg-amber-400' },
+                      { id: 'factura', label: 'Facturación', status: 'Desarrollo', color: 'bg-amber-400' },
+                      { id: 'reportes', label: 'Reportes', status: 'Desarrollo', color: 'bg-amber-400' },
+                    ].map((m) => (
+                      <button key={m.id} onClick={() => m.status === 'Activo' && setActive(m.id)} className={`flex items-center justify-between p-2 rounded-lg transition-all ${m.status === 'Activo' ? 'hover:bg-gold/5 border border-transparent hover:border-gold/20' : 'opacity-60'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-1.5 h-1.5 rounded-full ${m.color}`} />
+                          <span className="font-sans font-bold text-navy-800 text-xs">{m.label}</span>
+                        </div>
+                        {m.status === 'Activo' ? <svg className="w-4 h-4 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg> : <span className="text-[9px] font-bold text-navy-400 uppercase">{m.status}</span>}
+                      </button>
+                    ))}
                   </div>
                 </div>
-
               </div>
             </div>
-          ) : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : null}
+          ) : (
+            <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-60">
+              <EmptyStateIllustration className="w-32 h-32 text-navy-500" />
+              <p className="font-label font-bold text-navy-500 text-[10px] tracking-widest uppercase">Módulo en construcción</p>
+            </div>
+          )}
         </main>
       </div>
+
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-surface flex items-center justify-around px-2 py-2 bg-navy-950">
+        {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'avisos'].includes(item.id)).map(item => (
+          <button key={item.id} onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
+            <span className="w-5 h-5">{item.icon}</span>
+            <span className="text-[8px] font-black uppercase truncate max-w-[50px]">{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
