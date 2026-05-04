@@ -133,7 +133,7 @@ export default function Dashboard() {
         </div>
 
         <div className="border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-gold/40 flex items-center justify-center bg-navy-900">
+          <div className="w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-navy-900">
             <span className="font-display text-gold text-base font-bold">{user?.name?.charAt(0)}</span>
           </div>
           <div className="flex flex-col min-w-0">
