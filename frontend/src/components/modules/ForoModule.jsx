@@ -17,8 +17,10 @@ export default function ForoModule() {
   const [messageInput, setMessageInput] = useState('');
   const [fileInput, setFileInput] = useState(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isEditingGroup, setIsEditingGroup] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
+  const [editGroupForm, setEditGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
   const messagesEndRef = useRef(null);
 
   // Cargar grupos iniciales
@@ -27,18 +29,27 @@ export default function ForoModule() {
   }, []);
 
   useEffect(() => {
-    if (isCreatingGroup && allUsers.length === 0) {
+    if ((isCreatingGroup || isEditingGroup) && allUsers.length === 0) {
       axios.get('/api/users').then(res => setAllUsers(res.data)).catch(console.error);
     }
-  }, [isCreatingGroup]);
+  }, [isCreatingGroup, isEditingGroup]);
 
-  const toggleAccessList = (item) => {
-    setNewGroupForm(f => ({
-      ...f,
-      access_list: f.access_list.includes(item) 
-        ? f.access_list.filter(i => i !== item)
-        : [...f.access_list, item]
-    }));
+  const toggleAccessList = (item, isEdit = false) => {
+    if (isEdit) {
+      setEditGroupForm(f => ({
+        ...f,
+        access_list: f.access_list.includes(item) 
+          ? f.access_list.filter(i => i !== item)
+          : [...f.access_list, item]
+      }));
+    } else {
+      setNewGroupForm(f => ({
+        ...f,
+        access_list: f.access_list.includes(item) 
+          ? f.access_list.filter(i => i !== item)
+          : [...f.access_list, item]
+      }));
+    }
   };
 
   // Polling para mensajes del grupo seleccionado
@@ -92,6 +103,38 @@ export default function ForoModule() {
       setSelectedGroup(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleUpdateGroup = async (e) => {
+    e.preventDefault();
+    if (!editGroupForm.name) return;
+    try {
+      const res = await axios.put(`/api/forums/${selectedGroup.id}`, {
+        name: editGroupForm.name,
+        description: editGroupForm.description,
+        access_type: editGroupForm.access_type,
+        access_list: editGroupForm.access_list
+      });
+      setGroups(groups.map(g => g.id === selectedGroup.id ? res.data : g));
+      setSelectedGroup(res.data);
+      setIsEditingGroup(false);
+    } catch (err) {
+      console.error(err);
+      alert('Error al actualizar el grupo');
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el grupo "${selectedGroup.name}" y todos sus mensajes? Esta acción no se puede deshacer.`)) return;
+    try {
+      await axios.delete(`/api/forums/${selectedGroup.id}`);
+      setGroups(groups.filter(g => g.id !== selectedGroup.id));
+      setSelectedGroup(null);
+      setIsEditingGroup(false);
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar el grupo');
     }
   };
 
@@ -182,11 +225,29 @@ export default function ForoModule() {
                 </h3>
                 <p className="text-xs text-navy-500 mt-0.5">{selectedGroup.description}</p>
               </div>
-              <div className="flex -space-x-2">
-                {/* Simulated active users indicator */}
-                <div className="w-8 h-8 rounded-full bg-navy-100 border-2 border-white flex items-center justify-center text-xs font-bold text-navy-600">A</div>
-                <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-xs font-bold text-emerald-600">S</div>
-                <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-bold text-gray-500">+</div>
+              <div className="flex items-center gap-4">
+                <div className="flex -space-x-2 mr-2">
+                  {/* Simulated active users indicator */}
+                  <div className="w-8 h-8 rounded-full bg-navy-100 border-2 border-white flex items-center justify-center text-xs font-bold text-navy-600">A</div>
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-xs font-bold text-emerald-600">S</div>
+                  <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-bold text-gray-500">+</div>
+                </div>
+                {user?.role === 'superadmin' || selectedGroup.created_by === user?.id ? (
+                  <button 
+                    onClick={() => {
+                      setEditGroupForm({
+                        name: selectedGroup.name,
+                        description: selectedGroup.description,
+                        access_type: selectedGroup.access_type || 'all',
+                        access_list: selectedGroup.access_list ? JSON.parse(selectedGroup.access_list) : []
+                      });
+                      setIsEditingGroup(true);
+                    }}
+                    className="text-gray-400 hover:text-gold transition-colors p-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -352,6 +413,84 @@ export default function ForoModule() {
                 </button>
                 <button type="submit" disabled={!newGroupForm.name} className="flex-1 py-2.5 rounded-xl bg-gold text-white font-bold text-sm hover:bg-yellow-500 disabled:opacity-50 transition-colors shadow-md">
                   Crear Grupo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Grupo */}
+      {isEditingGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up">
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-display font-bold text-navy-950 text-lg">Configuración del Grupo</h3>
+              <button onClick={() => setIsEditingGroup(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleUpdateGroup} className="p-6 space-y-4">
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Nombre del Grupo</label>
+                <input 
+                  type="text" 
+                  autoFocus
+                  required
+                  value={editGroupForm.name}
+                  onChange={e => setEditGroupForm({...editGroupForm, name: e.target.value})}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors"
+                />
+              </div>
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Descripción</label>
+                <textarea 
+                  value={editGroupForm.description}
+                  onChange={e => setEditGroupForm({...editGroupForm, description: e.target.value})}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors resize-none"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Tipo de Acceso</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditGroupForm({...editGroupForm, access_type: 'all', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${editGroupForm.access_type === 'all' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Todos</button>
+                  <button type="button" onClick={() => setEditGroupForm({...editGroupForm, access_type: 'department', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${editGroupForm.access_type === 'department' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Depto.</button>
+                  <button type="button" onClick={() => setEditGroupForm({...editGroupForm, access_type: 'users', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${editGroupForm.access_type === 'users' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Usuarios</button>
+                </div>
+                
+                {editGroupForm.access_type === 'department' && (
+                  <div className="max-h-32 overflow-y-auto grid grid-cols-2 gap-2 pr-1 mt-3">
+                    {DEPARTAMENTOS.map(d => (
+                      <button type="button" key={d} onClick={() => toggleAccessList(d, true)} className={`text-left px-3 py-2 rounded-lg border text-[10px] font-bold truncate ${editGroupForm.access_list.includes(d) ? 'border-gold bg-gold/10 text-gold shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {editGroupForm.access_type === 'users' && (
+                  <div className="max-h-32 overflow-y-auto grid grid-cols-1 gap-2 pr-1 mt-3">
+                    {allUsers.map(u => (
+                      <button type="button" key={u.id} onClick={() => toggleAccessList(u.id, true)} className={`text-left px-3 py-2 rounded-lg border text-[11px] font-bold flex justify-between items-center ${editGroupForm.access_list.includes(u.id) ? 'border-gold bg-gold/10 text-gold shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        <span>{u.name} {u.apellido}</span>
+                        <span className="text-[9px] opacity-60 uppercase">{u.departamento || 'Sin Depto'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="pt-4 flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setIsEditingGroup(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-navy-600 font-bold text-sm hover:bg-gray-50 transition-colors">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={!editGroupForm.name} className="flex-1 py-2.5 rounded-xl bg-gold text-white font-bold text-sm hover:bg-yellow-500 disabled:opacity-50 transition-colors shadow-md">
+                    Guardar
+                  </button>
+                </div>
+                <button type="button" onClick={handleDeleteGroup} className="w-full py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 font-bold text-xs uppercase tracking-widest hover:bg-red-100 transition-colors mt-2">
+                  Eliminar Grupo
                 </button>
               </div>
             </form>

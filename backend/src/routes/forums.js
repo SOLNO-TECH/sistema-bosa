@@ -45,6 +45,34 @@ router.post('/', (req, res) => {
   }
 });
 
+// Actualizar un grupo
+router.put('/:id', (req, res) => {
+  try {
+    const db = getDb();
+    const { name, description, access_type, access_list } = req.body;
+    const stmt = db.prepare('UPDATE workgroups SET name = ?, description = ?, access_type = ?, access_list = ? WHERE id = ?');
+    stmt.run(name, description, access_type || 'all', JSON.stringify(access_list || []), req.params.id);
+    const updatedGroup = db.prepare('SELECT * FROM workgroups WHERE id = ?').get(req.params.id);
+    res.json(updatedGroup);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar un grupo
+router.delete('/:id', (req, res) => {
+  try {
+    const db = getDb();
+    // Primero eliminar mensajes del grupo
+    db.prepare('DELETE FROM workgroup_messages WHERE workgroup_id = ?').run(req.params.id);
+    // Luego eliminar el grupo
+    db.prepare('DELETE FROM workgroups WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener mensajes de un grupo
 router.get('/:id/messages', (req, res) => {
   try {
