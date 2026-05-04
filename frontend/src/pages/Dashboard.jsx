@@ -8,6 +8,7 @@ import TicketsModule from '../components/modules/TicketsModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
 import axios from 'axios';
+import NotificationsModule from '../components/modules/NotificationsModule';
 
 const ROLE_LABELS = {
   superadmin: 'Super Admin',
@@ -108,6 +109,7 @@ export default function Dashboard() {
       systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
     }
     systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
+    systemItems.push({ id: 'notifications', label: 'Notificaciones', icon: <IconBell /> });
     
     sections.push({ title: 'Sistema', items: systemItems });
     return sections;
@@ -197,7 +199,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="p-2 text-center bg-gray-50 border-t border-gray-200">
-                    <button className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
+                    <button onClick={() => { setActive('notifications'); setShowNotifications(false); }} className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
                   </div>
                 </div>
               )}
@@ -206,7 +208,7 @@ export default function Dashboard() {
         </header>
 
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8">
-          {active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          {active === 'notifications' ? <NotificationsModule /> : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <SparkleIcon size={16} className="text-gold" />
