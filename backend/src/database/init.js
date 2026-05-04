@@ -112,6 +112,27 @@ function initDatabase() {
     BEGIN
       UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
     END;
+
+    CREATE TABLE IF NOT EXISTS workgroups (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT    NOT NULL,
+      description TEXT,
+      created_by  INTEGER NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS workgroup_messages (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      workgroup_id INTEGER NOT NULL,
+      user_id      INTEGER NOT NULL,
+      content      TEXT,
+      file_url     TEXT,
+      file_name    TEXT,
+      created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (workgroup_id) REFERENCES workgroups(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // Migración de columnas nuevas si no existen

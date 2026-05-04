@@ -7,6 +7,7 @@ import ConfigModule from '../components/modules/ConfigModule';
 import TicketsModule from '../components/modules/TicketsModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
+import ForoModule from '../components/modules/ForoModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
 
@@ -27,6 +28,7 @@ const IconSettings = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 
 const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>;
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
+const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
 
 // ── Metric Card ──────────────────────────────────────────
 function MetricCard({ title, value, sub, icon, highlight }) {
@@ -108,6 +110,7 @@ export default function Dashboard() {
     if (user?.role === 'superadmin') {
       systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
     }
+    systemItems.push({ id: 'foro', label: 'Foro / Equipos', icon: <IconForo /> });
     systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
     systemItems.push({ id: 'notifications', label: 'Notificaciones', icon: <IconBell /> });
     
@@ -208,7 +211,7 @@ export default function Dashboard() {
         </header>
 
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8">
-          {active === 'notifications' ? <NotificationsModule /> : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <SparkleIcon size={16} className="text-gold" />

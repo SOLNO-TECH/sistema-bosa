@@ -1,0 +1,309 @@
+import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
+
+export default function ForoModule() {
+  const { user } = useAuth();
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [fileInput, setFileInput] = useState(null);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '' });
+  const messagesEndRef = useRef(null);
+
+  // Cargar grupos iniciales
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  // Polling para mensajes del grupo seleccionado
+  useEffect(() => {
+    if (!selectedGroup) return;
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 2000);
+    return () => clearInterval(interval);
+  }, [selectedGroup]);
+
+  // Scroll to bottom cuando hay nuevos mensajes
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const fetchGroups = async () => {
+    try {
+      const res = await axios.get('/api/forums');
+      setGroups(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchMessages = async () => {
+    if (!selectedGroup) return;
+    try {
+      const res = await axios.get(`/api/forums/${selectedGroup.id}/messages`);
+      setMessages(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    if (!newGroupForm.name) return;
+    try {
+      const res = await axios.post('/api/forums', {
+        name: newGroupForm.name,
+        description: newGroupForm.description,
+        created_by: user.id
+      });
+      setGroups([res.data, ...groups]);
+      setIsCreatingGroup(false);
+      setNewGroupForm({ name: '', description: '' });
+      setSelectedGroup(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!messageInput.trim() && !fileInput) return;
+
+    const formData = new FormData();
+    formData.append('user_id', user.id);
+    formData.append('content', messageInput);
+    if (fileInput) {
+      formData.append('file', fileInput);
+    }
+
+    try {
+      await axios.post(`/api/forums/${selectedGroup.id}/messages`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setMessageInput('');
+      setFileInput(null);
+      fetchMessages();
+    } catch (err) {
+      console.error(err);
+      alert('Error al enviar mensaje');
+    }
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-140px)] gap-6 animate-fade-in">
+      {/* Columna Izquierda: Lista de Grupos */}
+      <div className="w-1/3 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div>
+            <h2 className="font-display font-medium text-navy-950 text-lg">Foro & Equipos</h2>
+            <p className="text-xs text-navy-500 mt-0.5">Grupos de Trabajo</p>
+          </div>
+          <button 
+            onClick={() => setIsCreatingGroup(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gold/10 text-gold hover:bg-gold hover:text-white transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {groups.length === 0 ? (
+            <div className="text-center py-10 text-sm text-gray-400">No hay grupos creados</div>
+          ) : (
+            groups.map(g => (
+              <button 
+                key={g.id} 
+                onClick={() => setSelectedGroup(g)}
+                className={`w-full text-left p-4 rounded-xl transition-all border ${
+                  selectedGroup?.id === g.id 
+                    ? 'bg-navy-900 border-navy-900 shadow-md transform scale-[1.02]' 
+                    : 'bg-white border-gray-100 hover:border-gold/30 hover:bg-gold/5'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-lg ${
+                    selectedGroup?.id === g.id ? 'bg-white/10 text-gold' : 'bg-navy-50 text-navy-900'
+                  }`}>
+                    {g.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`font-bold text-sm truncate ${selectedGroup?.id === g.id ? 'text-white' : 'text-navy-950'}`}>
+                      # {g.name}
+                    </h3>
+                    <p className={`text-xs truncate mt-0.5 ${selectedGroup?.id === g.id ? 'text-navy-200' : 'text-navy-500'}`}>
+                      {g.description || 'Sin descripción'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Columna Derecha: Chat Area */}
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+        {selectedGroup ? (
+          <>
+            <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+              <div>
+                <h3 className="font-display font-bold text-navy-950 text-lg flex items-center gap-2">
+                  <span className="text-gold">#</span> {selectedGroup.name}
+                </h3>
+                <p className="text-xs text-navy-500 mt-0.5">{selectedGroup.description}</p>
+              </div>
+              <div className="flex -space-x-2">
+                {/* Simulated active users indicator */}
+                <div className="w-8 h-8 rounded-full bg-navy-100 border-2 border-white flex items-center justify-center text-xs font-bold text-navy-600">A</div>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-xs font-bold text-emerald-600">S</div>
+                <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-bold text-gray-500">+</div>
+              </div>
+            </div>
+
+            {/* Mensajes */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('/pattern.png')] bg-repeat opacity-95">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3">
+                  <svg className="w-12 h-12 opacity-50 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
+                  <p className="font-medium text-sm">Comienza la conversación en el grupo</p>
+                </div>
+              ) : (
+                messages.map(m => {
+                  const isMe = m.user_id === user?.id;
+                  return (
+                    <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex gap-3 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                        {!isMe && (
+                          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-xs flex-shrink-0">
+                            {m.user_name.charAt(0)}
+                          </div>
+                        )}
+                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                          {!isMe && <span className="text-[10px] font-bold text-navy-500 mb-1 ml-1">{m.user_name}</span>}
+                          <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+                            isMe ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-100 text-navy-900 rounded-bl-none'
+                          }`}>
+                            {m.content && <p className="text-sm whitespace-pre-wrap">{m.content}</p>}
+                            {m.file_url && (
+                              <div className="mt-2">
+                                {m.file_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                                  <img src={m.file_url} alt="adjunto" className="max-w-full h-auto rounded-lg" />
+                                ) : (
+                                  <a href={m.file_url} target="_blank" rel="noreferrer" className={`flex items-center gap-2 text-xs font-bold p-2 rounded border ${isMe ? 'bg-navy-800 border-navy-700 text-gold' : 'bg-gray-50 border-gray-200 text-navy-600'}`}>
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                    {m.file_name || 'Archivo Adjunto'}
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-gray-400 mt-1 mx-1">
+                            {new Date(m.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 bg-white border-t border-gray-100">
+              {fileInput && (
+                <div className="mb-3 flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-medium px-3 py-2 rounded-lg border border-blue-100 w-fit">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                  {fileInput.name}
+                  <button onClick={() => setFileInput(null)} className="ml-2 text-red-400 hover:text-red-600 font-bold">×</button>
+                </div>
+              )}
+              <form onSubmit={handleSendMessage} className="flex items-end gap-3">
+                <label className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-navy-600 cursor-pointer transition-colors border border-gray-200">
+                  <input type="file" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                </label>
+                <textarea 
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage(e);
+                    }
+                  }}
+                  placeholder="Escribe un mensaje..."
+                  className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold focus:bg-white transition-all max-h-32"
+                  rows={1}
+                />
+                <button 
+                  type="submit" 
+                  disabled={!messageInput.trim() && !fileInput}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold text-white disabled:opacity-50 hover:bg-yellow-500 transition-colors shadow-md"
+                >
+                  <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                </button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-4 bg-gray-50/30">
+            <svg className="w-16 h-16 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
+            <p className="font-medium">Selecciona o crea un grupo para comenzar a chatear</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Crear Grupo */}
+      {isCreatingGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up">
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-display font-bold text-navy-950 text-lg">Nuevo Grupo de Trabajo</h3>
+              <button onClick={() => setIsCreatingGroup(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleCreateGroup} className="p-6 space-y-4">
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Nombre del Grupo</label>
+                <input 
+                  type="text" 
+                  autoFocus
+                  required
+                  value={newGroupForm.name}
+                  onChange={e => setNewGroupForm({...newGroupForm, name: e.target.value})}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors"
+                  placeholder="Ej. Proyecto Alpha"
+                />
+              </div>
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Descripción</label>
+                <textarea 
+                  value={newGroupForm.description}
+                  onChange={e => setNewGroupForm({...newGroupForm, description: e.target.value})}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors resize-none"
+                  placeholder="Objetivo de este equipo..."
+                  rows={3}
+                />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setIsCreatingGroup(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-navy-600 font-bold text-sm hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={!newGroupForm.name} className="flex-1 py-2.5 rounded-xl bg-gold text-white font-bold text-sm hover:bg-yellow-500 disabled:opacity-50 transition-colors shadow-md">
+                  Crear Grupo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
