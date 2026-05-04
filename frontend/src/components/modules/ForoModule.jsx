@@ -364,7 +364,7 @@ export default function ForoModule() {
                   required
                   value={newGroupForm.name}
                   onChange={e => setNewGroupForm({...newGroupForm, name: e.target.value})}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black font-medium focus:outline-none focus:border-gold transition-colors"
                   placeholder="Ej. Proyecto Alpha"
                 />
               </div>
@@ -373,7 +373,7 @@ export default function ForoModule() {
                 <textarea 
                   value={newGroupForm.description}
                   onChange={e => setNewGroupForm({...newGroupForm, description: e.target.value})}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors resize-none"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black font-medium focus:outline-none focus:border-gold transition-colors resize-none"
                   placeholder="Objetivo de este equipo..."
                   rows={2}
                 />
@@ -439,7 +439,7 @@ export default function ForoModule() {
                   required
                   value={editGroupForm.name}
                   onChange={e => setEditGroupForm({...editGroupForm, name: e.target.value})}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black font-medium focus:outline-none focus:border-gold transition-colors"
                 />
               </div>
               <div>
@@ -447,7 +447,7 @@ export default function ForoModule() {
                 <textarea 
                   value={editGroupForm.description}
                   onChange={e => setEditGroupForm({...editGroupForm, description: e.target.value})}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors resize-none"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black font-medium focus:outline-none focus:border-gold transition-colors resize-none"
                   rows={2}
                 />
               </div>
