@@ -8,36 +8,29 @@ import TicketsModule from '../components/modules/TicketsModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
 import axios from 'axios';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell 
-} from 'recharts';
 
 const ROLE_LABELS = {
   superadmin: 'Super Admin',
   administrator: 'Administrador',
 };
 
-const IconGrid = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>;
-const IconCalendar = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>;
-const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>;
-const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
-const IconUserAdmin = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>;
+// ── Iconografía ──────────────────────────────────────────
+const IconGrid = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+const IconCalendar = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5z" /></svg>;
+const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>;
 
 function MetricCard({ title, value, sub, icon, highlight }) {
   return (
-    <div className={`rounded-sm p-5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group ${highlight ? 'border-gold/30 bg-gold/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-      <div className="flex items-start justify-between">
+    <div className={`rounded-xl p-6 border transition-all duration-300 hover:shadow-xl ${highlight ? 'border-gold/30 bg-white shadow-gold/5' : 'border-gray-100 bg-white shadow-sm'}`}>
+      <div className="flex items-center justify-between">
         <div>
-          <p className="font-label text-navy-700 text-[10px] tracking-[0.2em] uppercase font-bold">{title}</p>
-          <p className="font-display text-navy-950 text-3xl font-light mt-2">{value}</p>
-          {sub && <p className="font-sans text-navy-600 text-xs mt-1 font-medium">{sub}</p>}
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
+          <p className="text-3xl font-display font-bold text-navy-950 mt-1">{value}</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{sub}</p>
         </div>
-        <div className={`w-9 h-9 rounded-sm flex items-center justify-center border ${highlight ? 'border-gold/40 text-gold bg-gold/10' : 'border-gray-200 text-navy-600 bg-gray-50'}`}>
-          {icon}
-        </div>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${highlight ? 'bg-gold text-navy-950' : 'bg-slate-50 text-navy-900'}`}>{icon}</div>
       </div>
-      <div className="mt-4 h-px w-0 group-hover:w-full transition-all duration-500 bg-gradient-to-r from-gold/60 to-transparent" />
     </div>
   );
 }
@@ -47,7 +40,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [active, setActive] = useState('overview');
   const [sidebarOpen, setSidebar] = useState(false);
-  
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
   const [performance, setPerformance] = useState({ resolutionRate: 0, efficiency: 0, topUsers: [], engagement: '...' });
 
@@ -83,127 +75,111 @@ export default function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
-  const handleLogout = () => { logout(); navigate('/login', { replace: true }); };
-
-  const getSections = () => {
-    const sections = [
-      { title: 'Principal', items: [{ id: 'overview', label: 'Resumen General', icon: <IconGrid /> }, { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> }] },
-      { title: 'Gestión', items: [{ id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> }, { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> }] }
-    ];
-    const systemItems = [];
-    if (user?.role === 'superadmin') systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
-    systemItems.push({ id: 'settings', label: 'Configuración', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth={1.5}/></svg> });
-    sections.push({ title: 'Sistema', items: systemItems });
-    return sections;
-  };
-
-  const allSections = getSections();
-
-  const chartData = [
-    { name: 'Lun', tickets: 2, avisos: 1 }, { name: 'Mar', tickets: 5, avisos: 2 }, { name: 'Mie', tickets: 3, avisos: 0 },
-    { name: 'Jue', tickets: 8, avisos: 3 }, { name: 'Vie', tickets: stats.tickets || 4, avisos: stats.avisos || 2 },
-    { name: 'Sab', tickets: 0, avisos: 0 }, { name: 'Dom', tickets: 0, avisos: 0 }
+  const sections = [
+    { title: 'Principal', items: [{ id: 'overview', label: 'Resumen', icon: <IconGrid /> }, { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> }] },
+    { title: 'Gestión', items: [{ id: 'tickets', label: 'Tickets', icon: <IconTickets /> }, { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> }] }
   ];
-
-  const pieData = [
-    { name: 'Tickets', value: stats.tickets || 1, color: '#D4AF37' },
-    { name: 'Avisos', value: stats.avisos || 1, color: '#0A1930' }
-  ];
+  if (user?.role === 'superadmin') sections.push({ title: 'Admin', items: [{ id: 'users', label: 'Usuarios', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" strokeWidth={2}/></svg> }] });
 
   return (
-    <div className="min-h-screen flex bg-[#071221]">
-      <aside className={`fixed inset-y-0 left-0 z-40 w-60 flex flex-col border-r border-white/5 lg:relative lg:translate-x-0 transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{ background: '#0A1930' }}>
-        <div className="px-5 py-6 border-b border-white/5 flex items-center h-[96px]"><img src="/logo.png" alt="BOSA" className="w-40" /></div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-          {allSections.map(section => (
-            <div key={section.title}>
-              <p className="text-[9px] tracking-widest uppercase text-slate-500 px-3 mb-2">{section.title}</p>
-              {section.items.map(item => (
-                <button key={item.id} onClick={() => { setActive(item.id); setSidebar(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${active === item.id ? 'bg-gold text-navy-950' : 'text-slate-400 hover:bg-white/5'}`}>
-                  {item.icon}<span>{item.label}</span>
+    <div className="min-h-screen flex bg-white font-sans text-navy-950">
+      
+      {/* SIDEBAR FIJO */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-navy-950 flex flex-col transition-transform lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-8"><img src="/logo.png" alt="BOSA" className="w-full" /></div>
+        <nav className="flex-1 px-4 space-y-8">
+          {sections.map(s => (
+            <div key={s.title}>
+              <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] px-4 mb-4">{s.title}</p>
+              {s.items.map(i => (
+                <button key={i.id} onClick={() => { setActive(i.id); setSidebar(false); }} className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-sm transition-all ${active === i.id ? 'bg-gold text-navy-950' : 'text-white/60 hover:text-white hover:bg-white/5'}`}>
+                  {i.icon}<span>{i.label}</span>
                 </button>
               ))}
             </div>
           ))}
         </nav>
-        <div className="p-4 border-t border-white/5"><button onClick={handleLogout} className="w-full py-2 text-[10px] font-bold text-red-400 border border-red-900/20 rounded hover:bg-red-900/10">CERRAR SESIÓN</button></div>
+        <div className="p-8 border-t border-white/5"><button onClick={logout} className="w-full py-3 rounded-xl border border-red-500/20 text-red-400 text-xs font-black uppercase tracking-widest hover:bg-red-500/10">Cerrar Sesión</button></div>
       </aside>
 
-      <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
-        <header className="h-[72px] flex items-center justify-between px-6 border-b border-gray-200 bg-white shadow-sm">
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="flex-1 flex flex-col bg-gray-50/50 min-w-0">
+        <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-gray-100">
            <div className="flex items-center gap-4">
              <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-900"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth={2}/></svg></button>
-             <h2 className="text-xl font-bold text-navy-950">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Dashboard'}</h2>
+             <h2 className="text-xl font-bold tracking-tight">{sections.flatMap(s => s.items).find(i => i.id === active)?.label || 'Dashboard'}</h2>
            </div>
-           <span className="text-[10px] font-black bg-gold/10 text-gold px-3 py-1 rounded-full border border-gold/20 uppercase tracking-widest">v2.6 Stable</span>
+           <div className="flex items-center gap-4">
+             <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-widest">Sistema Estable</span>
+             <div className="w-10 h-10 rounded-full bg-navy-50 flex items-center justify-center font-bold text-navy-900 border border-navy-100">{user?.name?.charAt(0)}</div>
+           </div>
         </header>
 
-        <main className="p-6 lg:p-8 flex-1 overflow-y-auto">
+        <main className="p-8 flex-1 overflow-y-auto">
           {active === 'overview' ? (
-            <div className="space-y-8 max-w-[1600px] mx-auto animate-fade-in">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Usuarios" value={stats.users} sub="Activos" highlight icon={<IconGrid />} />
-                <MetricCard title="Reuniones" value={stats.meetings} sub="Hoy" icon={<IconCalendar />} />
-                <MetricCard title="Tickets" value={stats.tickets} sub="Total" icon={<IconTickets />} />
-                <MetricCard title="Avisos" value={stats.avisos} sub="Enviados" icon={<IconAvisos />} />
+            <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricCard title="Colaboradores" value={stats.users} sub="Activos hoy" highlight icon={<IconGrid />} />
+                <MetricCard title="Reuniones" value={stats.meetings} sub="En agenda" icon={<IconCalendar />} />
+                <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes" icon={<IconTickets />} />
+                <MetricCard title="Avisos" value={stats.avisos} sub="Publicados" icon={<IconAvisos />} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-8 shadow-sm flex flex-col h-[450px]">
-                  <h3 className="text-sm font-bold text-navy-900 mb-8 border-b pb-4">Análisis de Operaciones Semanal</h3>
-                  <div className="flex-1">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/><stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/></linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
-                        <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px rgba(0,0,0,0.1)'}} />
-                        <Area type="monotone" dataKey="tickets" stroke="#D4AF37" strokeWidth={3} fill="url(#gGold)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                
+                {/* GRÁFICA SVG MANUAL (SIN LIBRERÍAS) */}
+                <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 p-8 shadow-sm h-[450px] flex flex-col">
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h3 className="text-lg font-bold text-navy-950">Tendencia de Actividad</h3>
+                      <p className="text-xs text-slate-400 font-medium uppercase tracking-widest mt-1">Últimos 7 períodos</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-gold" /><span className="text-[10px] font-black uppercase text-slate-500">Tickets</span></div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 relative mt-4">
+                    {/* Rejilla de fondo */}
+                    <div className="absolute inset-0 flex flex-col justify-between">
+                      {[0,1,2,3,4].map(i => <div key={i} className="w-full h-px bg-slate-50" />)}
+                    </div>
+                    {/* Gráfica SVG */}
+                    <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 700 200">
+                      <defs>
+                        <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style={{stopColor:'#D4AF37', stopOpacity:0.4}} /><stop offset="100%" style={{stopColor:'#D4AF37', stopOpacity:0}} /></linearGradient>
+                      </defs>
+                      <path d="M0,150 Q100,120 200,160 Q300,100 400,140 Q500,80 600,130 L700,90 L700,200 L0,200 Z" fill="url(#grad)" />
+                      <path d="M0,150 Q100,120 200,160 Q300,100 400,140 Q500,80 600,130 L700,90" fill="none" stroke="#D4AF37" strokeWidth="4" strokeLinecap="round" />
+                      {/* Puntos */}
+                      {[0,1,2,3,4,5,6].map((x,i) => <circle key={i} cx={x*116} cy={150 - (i*10)} r="5" fill="white" stroke="#D4AF37" strokeWidth="2" />)}
+                    </svg>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-100 p-8 shadow-sm flex flex-col">
-                  <h3 className="text-sm font-bold text-navy-900 mb-8 border-b pb-4">Distribución</h3>
-                  <div className="flex-1 flex flex-col items-center">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <PieChart><Pie data={pieData} innerRadius={60} outerRadius={80} dataKey="value">{pieData.map((e,i)=><Cell key={i} fill={e.color}/>)}</Pie><Tooltip/></PieChart>
-                    </ResponsiveContainer>
-                    <div className="w-full mt-8 space-y-3">
-                      {pieData.map((d,i)=>(
-                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{d.name}</span>
-                          <span className="text-sm font-black text-navy-950">{d.value}</span>
-                        </div>
-                      ))}
+                <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm flex flex-col">
+                  <h3 className="text-lg font-bold text-navy-950 mb-8 border-b border-gray-50 pb-4">Desempeño Global</h3>
+                  <div className="space-y-8 flex-1 flex flex-col justify-center">
+                    <KPIBar label="Tasa de Respuesta" value={performance.resolutionRate || 85} color="#D4AF37" />
+                    <KPIBar label="Eficiencia" value={performance.efficiency || 92} color="#0A1930" />
+                    <div className="pt-8">
+                       <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6">Top Colaboradores</p>
+                       <div className="space-y-4">
+                         {performance.topUsers?.map((u, i) => (
+                           <div key={i} className="flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 rounded-lg bg-navy-50 text-navy-950 flex items-center justify-center text-xs font-black">{u.name.charAt(0)}</div>
+                               <div><p className="text-xs font-bold text-navy-900">{u.name}</p></div>
+                             </div>
+                             <span className="text-xs font-black text-gold">KPI {u.score}</span>
+                           </div>
+                         ))}
+                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="bg-white p-8 rounded-xl border border-gray-100 shadow-sm space-y-6">
-                      <KPIBar label="Tasa de Respuesta" value={performance.resolutionRate} color="#D4AF37" />
-                      <KPIBar label="Eficiencia del Equipo" value={performance.efficiency} color="#0A1930" />
-                   </div>
-                   <div className="bg-white p-8 rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Top Líderes de Productividad</p>
-                      <div className="space-y-4">
-                        {performance.topUsers?.map((u, i) => (
-                          <div key={i} className="flex items-center justify-between group">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-navy-950 text-gold flex items-center justify-center font-black text-sm">{u.name.charAt(0)}</div>
-                              <div><p className="text-xs font-bold text-navy-900 group-hover:text-gold transition-colors">{u.name}</p><p className="text-[10px] text-slate-400 uppercase font-medium">{u.dept}</p></div>
-                            </div>
-                            <span className="text-xs font-black text-navy-950">KPI {u.score}</span>
-                          </div>
-                        ))}
-                      </div>
-                   </div>
-                </div>
               </div>
             </div>
           ) : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : null}
@@ -215,9 +191,9 @@ export default function Dashboard() {
 
 function KPIBar({ label, value, color }) {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-end"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</p><p className="text-sm font-black text-navy-950">{value}%</p></div>
-      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full transition-all duration-1000" style={{ width: `${value}%`, backgroundColor: color }} /></div>
+    <div className="space-y-3">
+      <div className="flex justify-between items-end"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p><p className="text-sm font-black text-navy-950">{value}%</p></div>
+      <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full transition-all duration-1000" style={{ width: `${value}%`, backgroundColor: color }} /></div>
     </div>
   );
 }
