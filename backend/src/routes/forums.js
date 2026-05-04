@@ -35,9 +35,9 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const db = getDb();
-    const { name, description, created_by } = req.body;
-    const stmt = db.prepare('INSERT INTO workgroups (name, description, created_by) VALUES (?, ?, ?)');
-    const info = stmt.run(name, description, created_by);
+    const { name, description, created_by, access_type, access_list } = req.body;
+    const stmt = db.prepare('INSERT INTO workgroups (name, description, created_by, access_type, access_list) VALUES (?, ?, ?, ?, ?)');
+    const info = stmt.run(name, description, created_by, access_type || 'all', JSON.stringify(access_list || []));
     const newGroup = db.prepare('SELECT * FROM workgroups WHERE id = ?').get(info.lastInsertRowid);
     res.json(newGroup);
   } catch (error) {

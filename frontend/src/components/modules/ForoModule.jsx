@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 
+const DEPARTAMENTOS = [
+  'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
+  'HVAC','Hidrosanitarios','Sistemas','Contabilidad','Finanzas',
+  'Recursos Humanos','Jurídico','Compras','Costos','Operaciones',
+  'Mantenimiento','Almacén','Marketing','Restaurantes','Berry Yum'
+];
+
 export default function ForoModule() {
   const { user } = useAuth();
   const [groups, setGroups] = useState([]);
@@ -10,13 +17,29 @@ export default function ForoModule() {
   const [messageInput, setMessageInput] = useState('');
   const [fileInput, setFileInput] = useState(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '' });
+  const [allUsers, setAllUsers] = useState([]);
+  const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
   const messagesEndRef = useRef(null);
 
   // Cargar grupos iniciales
   useEffect(() => {
     fetchGroups();
   }, []);
+
+  useEffect(() => {
+    if (isCreatingGroup && allUsers.length === 0) {
+      axios.get('/api/users').then(res => setAllUsers(res.data)).catch(console.error);
+    }
+  }, [isCreatingGroup]);
+
+  const toggleAccessList = (item) => {
+    setNewGroupForm(f => ({
+      ...f,
+      access_list: f.access_list.includes(item) 
+        ? f.access_list.filter(i => i !== item)
+        : [...f.access_list, item]
+    }));
+  };
 
   // Polling para mensajes del grupo seleccionado
   useEffect(() => {
@@ -59,11 +82,13 @@ export default function ForoModule() {
       const res = await axios.post('/api/forums', {
         name: newGroupForm.name,
         description: newGroupForm.description,
-        created_by: user.id
+        created_by: user.id,
+        access_type: newGroupForm.access_type,
+        access_list: newGroupForm.access_list
       });
       setGroups([res.data, ...groups]);
       setIsCreatingGroup(false);
-      setNewGroupForm({ name: '', description: '' });
+      setNewGroupForm({ name: '', description: '', access_type: 'all', access_list: [] });
       setSelectedGroup(res.data);
     } catch (err) {
       console.error(err);
@@ -238,7 +263,7 @@ export default function ForoModule() {
                     }
                   }}
                   placeholder="Escribe un mensaje..."
-                  className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold focus:bg-white transition-all max-h-32"
+                  className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-black font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold focus:bg-white transition-all max-h-32"
                   rows={1}
                 />
                 <button 
@@ -289,8 +314,37 @@ export default function ForoModule() {
                   onChange={e => setNewGroupForm({...newGroupForm, description: e.target.value})}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors resize-none"
                   placeholder="Objetivo de este equipo..."
-                  rows={3}
+                  rows={2}
                 />
+              </div>
+              <div>
+                <label className="font-label font-bold text-navy-900 text-[10px] tracking-wider uppercase mb-1.5 block">Tipo de Acceso</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setNewGroupForm({...newGroupForm, access_type: 'all', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${newGroupForm.access_type === 'all' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Todos</button>
+                  <button type="button" onClick={() => setNewGroupForm({...newGroupForm, access_type: 'department', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${newGroupForm.access_type === 'department' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Depto.</button>
+                  <button type="button" onClick={() => setNewGroupForm({...newGroupForm, access_type: 'users', access_list: []})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${newGroupForm.access_type === 'users' ? 'bg-gold/10 border-gold text-gold' : 'border-gray-200 text-gray-500'}`}>Usuarios</button>
+                </div>
+                
+                {newGroupForm.access_type === 'department' && (
+                  <div className="max-h-32 overflow-y-auto grid grid-cols-2 gap-2 pr-1 mt-3">
+                    {DEPARTAMENTOS.map(d => (
+                      <button type="button" key={d} onClick={() => toggleAccessList(d)} className={`text-left px-3 py-2 rounded-lg border text-[10px] font-bold truncate ${newGroupForm.access_list.includes(d) ? 'border-gold bg-gold/10 text-gold shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {newGroupForm.access_type === 'users' && (
+                  <div className="max-h-32 overflow-y-auto grid grid-cols-1 gap-2 pr-1 mt-3">
+                    {allUsers.map(u => (
+                      <button type="button" key={u.id} onClick={() => toggleAccessList(u.id)} className={`text-left px-3 py-2 rounded-lg border text-[11px] font-bold flex justify-between items-center ${newGroupForm.access_list.includes(u.id) ? 'border-gold bg-gold/10 text-gold shadow-sm' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        <span>{u.name} {u.apellido}</span>
+                        <span className="text-[9px] opacity-60 uppercase">{u.departamento || 'Sin Depto'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsCreatingGroup(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-navy-600 font-bold text-sm hover:bg-gray-50 transition-colors">

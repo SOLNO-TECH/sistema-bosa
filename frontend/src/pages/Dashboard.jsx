@@ -110,7 +110,7 @@ export default function Dashboard() {
     if (user?.role === 'superadmin') {
       systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
     }
-    systemItems.push({ id: 'foro', label: 'Foro / Equipos', icon: <IconForo /> });
+    systemItems.push({ id: 'foro', label: 'Foro', icon: <IconForo /> });
     systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
     systemItems.push({ id: 'notifications', label: 'Notificaciones', icon: <IconBell /> });
     
