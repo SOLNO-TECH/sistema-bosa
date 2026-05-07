@@ -107,9 +107,14 @@ export default function CalendarModule() {
       const isToday = new Date().toISOString().startsWith(dateStr);
       
       days.push(
-        <div 
-          key={d} 
+        <div
+          key={d}
           onClick={() => setSelectedDay(dateStr)}
+          onDoubleClick={() => {
+            setSelectedDay(dateStr);
+            setFormData(prev => ({ ...prev, date: dateStr }));
+            setIsModalOpen(true);
+          }}
           className={`h-14 lg:h-32 border border-gray-100 p-1 lg:p-2 overflow-y-auto cursor-pointer transition-all relative ${
             isSelected ? 'bg-gold/10' : 'hover:bg-navy-50/10'
           }`}
