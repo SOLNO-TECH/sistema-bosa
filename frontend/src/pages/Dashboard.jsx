@@ -10,6 +10,10 @@ import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 
 const ROLE_LABELS = {
   superadmin: 'Super Admin',
@@ -29,6 +33,34 @@ const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 2
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
 const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
+
+// ── Chart colors ─────────────────────────────────────────
+const CHART_DATA_KEYS = [
+  { key: 'users',    name: 'Usuarios',  color: '#CBAC80' },
+  { key: 'meetings', name: 'Reuniones', color: '#1e3a5f' },
+  { key: 'tickets',  name: 'Tickets',   color: '#2d5f8f' },
+  { key: 'avisos',   name: 'Avisos',    color: '#4a7fb5' },
+];
+
+const BarTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm shadow-lg px-3 py-2">
+      <p className="font-label text-[9px] tracking-widest uppercase text-navy-500 mb-1">{label}</p>
+      <p className="font-display text-navy-950 text-xl font-light">{payload[0].value}</p>
+    </div>
+  );
+};
+
+const PieTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm shadow-lg px-3 py-2">
+      <p className="font-label text-[9px] tracking-widest uppercase text-navy-500 mb-1">{payload[0].name}</p>
+      <p className="font-display text-navy-950 text-xl font-light">{payload[0].value}</p>
+    </div>
+  );
+};
 
 // ── Metric Card ──────────────────────────────────────────
 function MetricCard({ title, value, sub, icon, highlight, onClick }) {
@@ -224,6 +256,79 @@ export default function Dashboard() {
                 <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión" icon={<IconBuilding />} onClick={() => setActive('tickets')} />
                 <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} onClick={() => setActive('avisos')} />
               </div>
+
+              {/* ── Gráficas ── */}
+              {(() => {
+                const chartData = CHART_DATA_KEYS.map(({ key, name, color }) => ({
+                  name, color, value: stats[key] ?? 0,
+                }));
+                const total = chartData.reduce((s, d) => s + d.value, 0);
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                    {/* Gráfica de barras */}
+                    <div className="rounded-sm border border-gray-200 bg-white shadow-sm p-6">
+                      <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Resumen de Actividad</p>
+                      <p className="font-sans text-navy-500 text-xs mt-0.5 mb-6">Comparativa entre módulos principales</p>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={chartData} barSize={42} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
+                          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                            {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Gráfica de pastel */}
+                    <div className="rounded-sm border border-gray-200 bg-white shadow-sm p-6">
+                      <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Distribución General</p>
+                      <p className="font-sans text-navy-500 text-xs mt-0.5 mb-4">Proporción entre módulos</p>
+                      <div className="flex items-center gap-6">
+                        <div style={{ width: 170, height: 220, flexShrink: 0 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={76} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                                {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                              </Pie>
+                              <Tooltip content={<PieTooltip />} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex-1 space-y-4">
+                          {chartData.map((item) => {
+                            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                            return (
+                              <div key={item.name}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                                    <span className="font-sans font-bold text-navy-700 text-xs">{item.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-display text-navy-950 text-sm font-light">{item.value}</span>
+                                    <span className="font-label text-[9px] text-navy-400 tracking-wider">{pct}%</span>
+                                  </div>
+                                </div>
+                                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: item.color }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {total === 0 && (
+                            <p className="font-label text-[10px] text-navy-400 tracking-widest uppercase text-center pt-6">Sin datos aún</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-60">
