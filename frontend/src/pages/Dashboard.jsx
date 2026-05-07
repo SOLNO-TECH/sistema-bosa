@@ -31,9 +31,9 @@ const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" 
 const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
 
 // ── Metric Card ──────────────────────────────────────────
-function MetricCard({ title, value, sub, icon, highlight }) {
+function MetricCard({ title, value, sub, icon, highlight, onClick }) {
   return (
-    <div className={`rounded-sm p-5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group ${highlight ? 'border-gold/30 bg-gold/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+    <div onClick={onClick} className={`rounded-sm p-5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group ${onClick ? 'cursor-pointer' : ''} ${highlight ? 'border-gold/30 bg-gold/5' : 'border-gray-200 bg-white shadow-sm'}`}>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-label text-navy-700 text-[10px] tracking-[0.2em] uppercase font-bold">{title}</p>
@@ -219,45 +219,10 @@ export default function Dashboard() {
               </div>
               <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} />
-                <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy" icon={<IconCalendar />} />
-                <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión" icon={<IconBuilding />} />
-                <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 rounded-sm border border-gray-200 p-6 bg-white shadow-sm">
-                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-                    <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Actividad Reciente</p>
-                  </div>
-                  <div className="flex flex-col items-center justify-center py-10 gap-3">
-                    <EmptyStateIllustration className="w-24 h-24 opacity-60" />
-                    <p className="font-label font-bold text-navy-500 text-[10px] tracking-widest uppercase">Próximamente</p>
-                  </div>
-                </div>
-                <div className="rounded-sm border border-gray-200 p-5 bg-white shadow-sm">
-                  <p className="font-label font-bold text-navy-950 text-xs tracking-widest uppercase mb-4 pb-3 border-b border-gray-200">Acceso Directo</p>
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {[
-                      { id: 'users', label: 'Usuarios', status: 'Activo', color: 'bg-emerald-500' },
-                      { id: 'calendar', label: 'Calendario', status: 'Activo', color: 'bg-emerald-500' },
-                      { id: 'tickets', label: 'Tickets', status: 'Activo', color: 'bg-emerald-500' },
-                      { id: 'avisos', label: 'Avisos', status: 'Activo', color: 'bg-emerald-500' },
-                      { id: 'hotel', label: 'Hotel', status: 'Desarrollo', color: 'bg-amber-400' },
-                      { id: 'condos', label: 'Condominios', status: 'Desarrollo', color: 'bg-amber-400' },
-                      { id: 'reservas', label: 'Reservaciones', status: 'Desarrollo', color: 'bg-amber-400' },
-                      { id: 'factura', label: 'Facturación', status: 'Desarrollo', color: 'bg-amber-400' },
-                      { id: 'reportes', label: 'Reportes', status: 'Desarrollo', color: 'bg-amber-400' },
-                    ].map((m) => (
-                      <button key={m.id} onClick={() => m.status === 'Activo' && setActive(m.id)} className={`flex items-center justify-between p-2 rounded-lg transition-all ${m.status === 'Activo' ? 'hover:bg-gold/5 border border-transparent hover:border-gold/20' : 'opacity-60'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-1.5 h-1.5 rounded-full ${m.color}`} />
-                          <span className="font-sans font-bold text-navy-800 text-xs">{m.label}</span>
-                        </div>
-                        {m.status === 'Activo' ? <svg className="w-4 h-4 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg> : <span className="text-[9px] font-bold text-navy-400 uppercase">{m.status}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} onClick={() => setActive('users')} />
+                <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy" icon={<IconCalendar />} onClick={() => setActive('calendar')} />
+                <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión" icon={<IconBuilding />} onClick={() => setActive('tickets')} />
+                <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} onClick={() => setActive('avisos')} />
               </div>
             </div>
           ) : (
