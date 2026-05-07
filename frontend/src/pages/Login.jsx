@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { BuildingIllustration, GoldRule } from '../components/Illustrations';
+import { GoldRule } from '../components/Illustrations';
 
 function EyeIcon({ open }) {
   return open ? (
@@ -51,56 +51,46 @@ export default function Login() {
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
 
-      {/* ── Panel izquierdo — identidad corporativa ── */}
-      <div
-        className="hidden lg:flex lg:w-[52%] flex-col relative overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #0A1930 0%, #071221 60%, #050D1A 100%)' }}
-      >
-        {/* Líneas geométricas de fondo */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Línea vertical derecha */}
-          <div className="absolute right-0 top-0 bottom-0 w-px"
-            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(203,172,128,0.25) 30%, rgba(203,172,128,0.25) 70%, transparent 100%)' }} />
+      {/* ── Panel izquierdo — foto de fondo ── */}
+      <div className="hidden lg:flex lg:w-[52%] flex-col relative overflow-hidden">
 
-          {/* Rectángulo decorativo superior */}
-          <div className="absolute top-0 left-0 right-0 h-1"
-            style={{ background: 'linear-gradient(90deg, transparent, rgba(203,172,128,0.4), transparent)' }} />
+        {/* Foto de fondo */}
+        <img
+          src="/fondo.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ filter: 'brightness(0.55) saturate(0.75)' }}
+        />
 
-          {/* Grid sutil */}
-          <div className="absolute inset-0 opacity-[0.025]"
-            style={{
-              backgroundImage: `
-                   linear-gradient(rgba(203,172,128,1) 1px, transparent 1px),
-                   linear-gradient(90deg, rgba(203,172,128,1) 1px, transparent 1px)
-                 `,
-              backgroundSize: '60px 60px',
-            }} />
+        {/* Overlay degradado — garantiza legibilidad del texto */}
+        <div className="absolute inset-0" style={{
+          background: 'linear-gradient(170deg, rgba(5,13,26,0.6) 0%, rgba(7,18,33,0.45) 40%, rgba(5,13,26,0.8) 100%)'
+        }} />
 
-          {/* Círculo decorativo grande */}
-          <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(203,172,128,0.04) 0%, transparent 70%)' }} />
-        </div>
+        {/* Línea dorada derecha */}
+        <div className="absolute right-0 top-0 bottom-0 w-px pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(203,172,128,0.3) 25%, rgba(203,172,128,0.3) 75%, transparent 100%)' }} />
 
-        {/* Contenido */}
+        {/* Contenido sobre la foto */}
         <div className={`relative z-10 flex flex-col h-full px-14 py-12 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
 
-          {/* Logo / marca */}
+          {/* Logo */}
           <div className="flex items-start">
-            <img src="/logo.png" alt="BOSA Logo" className="w-64 drop-shadow-2xl" style={{ filter: 'drop-shadow(0px 8px 12px rgba(0, 0, 0, 0.4))' }} />
+            <img src="/logo.png" alt="BOSA Logo" className="w-64 drop-shadow-2xl" style={{ filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.6))' }} />
           </div>
 
           {/* Centro — propuesta de valor */}
           <div className="flex-1 flex flex-col justify-center max-w-sm">
             <GoldRule className="w-36 mb-8" />
 
-            {/* Título principal — Neogrotesk Small Caps Light */}
-            <h1 className="font-display font-light text-slate-text leading-tight" style={{ fontSize: '2.75rem' }}>
+            <h1 className="font-display font-light leading-tight" style={{ fontSize: '2.75rem', color: '#F0F4FA', textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
               Sistema de<br />
               <span className="text-gold-shimmer">Gestión</span><br />
               Corporativa
             </h1>
 
-            <p className="font-sans text-slate-subtle text-sm leading-relaxed mt-6">
+            <p className="font-sans text-sm leading-relaxed mt-6" style={{ color: 'rgba(200,215,235,0.85)', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>
               Plataforma integral para la administración de operaciones hoteleras y residenciales.
             </p>
 
@@ -110,7 +100,7 @@ export default function Login() {
                 {
                   label: 'Hotel',
                   icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                     </svg>
                   )
@@ -118,7 +108,7 @@ export default function Login() {
                 {
                   label: 'Condominios',
                   icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125V21m8.25-3v-6.375m0 0l-1.5-1.125M22.5 18l-1.5-1.125M12 2.25l-10.5 7.875m10.5-7.875l10.5 7.875M12 2.25l-1.5 1.125M12 2.25l1.5 1.125M3 18v-6.375M3 18l1.5-1.125" />
                     </svg>
                   )
@@ -126,30 +116,28 @@ export default function Login() {
                 {
                   label: 'Operaciones',
                   icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   )
                 }
               ].map((item) => (
-                <div key={item.label} className="border border-surface rounded-sm px-2 py-3 text-center flex flex-col items-center justify-center transition-all duration-300 hover:border-gold/30 hover:bg-gold/5"
-                  style={{ background: 'rgba(240,244,250,0.02)' }}>
+                <div key={item.label}
+                  className="rounded-sm px-2 py-3 text-center flex flex-col items-center justify-center transition-all duration-300 hover:bg-white/10"
+                  style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', border: '1px solid rgba(203,172,128,0.2)' }}>
                   {item.icon}
-                  <p className="font-label text-slate-muted text-[9px] tracking-widest uppercase">{item.label}</p>
+                  <p className="font-label text-[9px] tracking-widest uppercase" style={{ color: 'rgba(200,215,235,0.75)' }}>{item.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Footer */}
-          <p className="font-label text-slate-muted text-[10px] tracking-widest">
-            © 2024 BOSA Hospitality Group · Todos los derechos reservados
+          <p className="font-label text-[10px] tracking-widest" style={{ color: 'rgba(180,200,220,0.5)' }}>
+            © 2026 BOSA · Todos los derechos reservados
           </p>
         </div>
-
-        {/* Ilustración arquitectónica — fondo del panel */}
-        <BuildingIllustration className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[90%] max-w-[480px] opacity-[0.28] pointer-events-none select-none" />
       </div>
 
       {/* ── Panel derecho — formulario ── */}
