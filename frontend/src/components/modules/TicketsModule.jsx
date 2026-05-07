@@ -11,17 +11,17 @@ const DEPARTAMENTOS = [
 ];
 
 const COLUMNS = [
-  { id: 'open',        label: 'Pendientes',   color: 'border-slate-300',  bg: 'bg-slate-50'  },
-  { id: 'in_progress', label: 'En Progreso',  color: 'border-blue-400',   bg: 'bg-blue-50'   },
-  { id: 'resolved',    label: 'En Revisión',  color: 'border-amber-400',  bg: 'bg-amber-50'  },
-  { id: 'closed',      label: 'Completados',  color: 'border-emerald-400',bg: 'bg-emerald-50'},
+  { id: 'open',        label: 'Pendientes',  accent: '#94a3b8' },
+  { id: 'in_progress', label: 'En Progreso', accent: '#CBAC80' },
+  { id: 'resolved',    label: 'En Revisión', accent: '#3b82f6' },
+  { id: 'closed',      label: 'Completados', accent: '#10b981' },
 ];
 
 const PRIORITY_STYLES = {
-  low: 'bg-gray-100 text-gray-600 border-gray-200',
-  medium: 'bg-blue-50 text-blue-700 border-blue-100',
-  high: 'bg-amber-50 text-amber-700 border-amber-100',
-  urgent: 'bg-red-50 text-red-700 border-red-100',
+  low:    { label: 'Baja',    cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+  medium: { label: 'Media',   cls: 'bg-sky-50 text-sky-700 border-sky-200'        },
+  high:   { label: 'Alta',    cls: 'bg-amber-50 text-amber-700 border-amber-200'  },
+  urgent: { label: 'Urgente', cls: 'bg-red-50 text-red-600 border-red-200'        },
 };
 
 export default function TicketsModule() {
@@ -159,18 +159,51 @@ export default function TicketsModule() {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 flex gap-6 overflow-x-auto pb-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+      <div className="flex-1 flex gap-4 overflow-x-auto pb-6" style={{ minHeight: 0 }}>
         {COLUMNS.map(col => {
           const colTickets = filteredTickets.filter(t => t.status === col.id);
           return (
-            <div key={col.id} className="flex-shrink-0 w-80 flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden shadow-sm" onDragOver={handleDragOver} onDrop={e => handleDrop(e, col.id)}>
-              <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white border-t-4 ${col.color}`}>
-                <h3 className="font-bold text-navy-900 text-sm">{col.label}</h3>
-                <span className="bg-navy-950 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{colTickets.length}</span>
+            <div
+              key={col.id}
+              className="flex-shrink-0 w-72 flex flex-col rounded-sm overflow-hidden border border-gray-200 shadow-sm"
+              onDragOver={handleDragOver}
+              onDrop={e => handleDrop(e, col.id)}
+            >
+              {/* Cabecera de columna — navy oscuro con línea de acento */}
+              <div
+                className="px-4 py-3 flex items-center justify-between flex-shrink-0"
+                style={{ background: '#0A1930', borderBottom: `2px solid ${col.accent}` }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: col.accent }} />
+                  <span className="font-label text-[10px] tracking-[0.25em] uppercase text-white/90">{col.label}</span>
+                </div>
+                <span
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-sm tabular-nums"
+                  style={{ background: col.accent, color: '#071221' }}
+                >
+                  {colTickets.length}
+                </span>
               </div>
-              <AnimatedColumn className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
+
+              {/* Cuerpo de columna */}
+              <AnimatedColumn
+                className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-gray-50/70"
+                style={{ minHeight: 220 }}
+              >
+                {colTickets.length === 0 && (
+                  <div className="flex items-center justify-center h-24 border border-dashed border-gray-200 rounded-sm">
+                    <p className="font-label text-[9px] tracking-widest text-gray-300 uppercase">Sin tickets</p>
+                  </div>
+                )}
                 {colTickets.map(ticket => (
-                  <TicketCard key={ticket.id} ticket={ticket} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onClick={t => fetchTicketDetails(t.id)} />
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onClick={t => fetchTicketDetails(t.id)}
+                  />
                 ))}
               </AnimatedColumn>
             </div>
@@ -383,29 +416,61 @@ function AnimatedColumn({ children, className, ...props }) {
 
 function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
   const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date() && ticket.status !== 'closed';
-  
+  const priority = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium;
+
   return (
-    <div draggable onDragStart={e => onDragStart(e, ticket)} onDragEnd={onDragEnd} onClick={() => onClick(ticket)}
-      className={`bg-white p-4 rounded-xl shadow-sm border-2 transition-all cursor-pointer group hover:shadow-md ${isOverdue ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-gold/40'}`}>
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-[10px] font-black text-white bg-navy-950 px-2 py-0.5 rounded tracking-widest">T-{ticket.id}</span>
-        {isOverdue && (
-           <span className="text-[8px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-tighter animate-pulse">Vencido</span>
-        )}
-        <div className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded border ${PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium}`}>
-          {ticket.priority}
+    <div
+      draggable
+      onDragStart={e => onDragStart(e, ticket)}
+      onDragEnd={onDragEnd}
+      onClick={() => onClick(ticket)}
+      className={`bg-white rounded-sm border transition-all duration-150 cursor-grab active:cursor-grabbing group hover:shadow-md hover:-translate-y-px select-none ${
+        isOverdue ? 'border-red-200' : 'border-gray-200 hover:border-gold/50'
+      }`}
+    >
+      {/* Franja superior de prioridad */}
+      <div className={`h-0.5 w-full rounded-t-sm ${
+        ticket.priority === 'urgent' ? 'bg-red-500' :
+        ticket.priority === 'high'   ? 'bg-amber-400' :
+        ticket.priority === 'medium' ? 'bg-sky-400' : 'bg-slate-300'
+      }`} />
+
+      <div className="p-3.5">
+        {/* ID + prioridad */}
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="font-label text-[9px] tracking-[0.2em] text-navy-400 uppercase">#{ticket.id}</span>
+          <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-sm border ${priority.cls}`}>
+            {priority.label}
+          </span>
         </div>
-      </div>
-      <h4 className="font-bold text-navy-950 text-sm leading-snug mb-3 group-hover:text-gold transition-colors line-clamp-2">{ticket.title}</h4>
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] font-bold text-navy-500 uppercase bg-gray-100 px-2 py-0.5 rounded border border-gray-200">{ticket.category}</span>
-        {ticket.assigned_name ? (
-          <div className="w-7 h-7 rounded-lg bg-navy-950 text-white flex items-center justify-center text-[10px] font-bold border border-gold/30 shadow-sm">{ticket.assigned_name.charAt(0).toUpperCase()}</div>
-        ) : (
-          <div className="w-7 h-7 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+
+        {/* Título */}
+        <h4 className="font-sans font-bold text-navy-950 text-xs leading-snug mb-3 group-hover:text-gold transition-colors line-clamp-2">
+          {ticket.title}
+        </h4>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
+          <span className="font-label text-[8px] tracking-wider text-navy-500 uppercase truncate max-w-[110px]">
+            {ticket.category}
+          </span>
+          <div className="flex items-center gap-2">
+            {isOverdue && (
+              <span className="text-[8px] font-bold text-red-500 uppercase tracking-wide">Vencido</span>
+            )}
+            {ticket.assigned_name ? (
+              <div className="w-6 h-6 rounded-sm bg-navy-950 text-gold flex items-center justify-center text-[10px] font-bold border border-gold/20">
+                {ticket.assigned_name.charAt(0).toUpperCase()}
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-sm bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
+                <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
