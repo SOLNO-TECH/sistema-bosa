@@ -28,7 +28,9 @@ export default function CalendarModule() {
     date: '',
     start_time: '',
     end_time: '',
-    attendees: []
+    attendees: [],
+    recurrence: 'none',
+    recurrence_until: '',
   });
   const [modalDeptFilter, setModalDeptFilter] = useState('');
 
@@ -55,17 +57,57 @@ export default function CalendarModule() {
     }
   };
 
+  // Genera todas las ocurrencias según la recurrencia configurada
+  const generateOccurrences = (form) => {
+    const baseStart = `${form.date}T${form.start_time}`;
+    const baseEnd = `${form.date}T${form.end_time}`;
+
+    if (form.recurrence === 'none' || !form.recurrence_until) {
+      return [{ start: baseStart, end: baseEnd }];
+    }
+
+    const fmt = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const occurrences = [];
+    const current = new Date(`${form.date}T00:00:00`);
+    const limit = new Date(`${form.recurrence_until}T23:59:59`);
+    const MAX = 200; // límite de seguridad
+
+    while (current <= limit && occurrences.length < MAX) {
+      const dateStr = fmt(current);
+      occurrences.push({
+        start: `${dateStr}T${form.start_time}`,
+        end: `${dateStr}T${form.end_time}`,
+      });
+
+      if (form.recurrence === 'weekly')      current.setDate(current.getDate() + 7);
+      else if (form.recurrence === 'biweekly') current.setDate(current.getDate() + 14);
+      else if (form.recurrence === 'monthly')  current.setMonth(current.getMonth() + 1);
+      else break;
+    }
+    return occurrences;
+  };
+
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
-    const start = `${formData.date}T${formData.start_time}`;
-    const end = `${formData.date}T${formData.end_time}`;
+    const occurrences = generateOccurrences(formData);
 
     try {
-      await axios.post('/api/meetings', {
-        ...formData,
-        start_time: start,
-        end_time: end
-      });
+      await Promise.all(occurrences.map(occ =>
+        axios.post('/api/meetings', {
+          title: formData.title,
+          description: formData.description,
+          date: formData.date,
+          start_time: occ.start,
+          end_time: occ.end,
+          attendees: formData.attendees,
+        })
+      ));
       fetchMeetings();
       setIsModalOpen(false);
       resetForm();
@@ -75,7 +117,7 @@ export default function CalendarModule() {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', date: '', start_time: '', end_time: '', attendees: [] });
+    setFormData({ title: '', description: '', date: '', start_time: '', end_time: '', attendees: [], recurrence: 'none', recurrence_until: '' });
     setModalDeptFilter('');
   };
 
@@ -138,13 +180,13 @@ export default function CalendarModule() {
           {/* Desktop Content */}
           <div className="mt-1 space-y-1 hidden lg:block">
             {dayMeetings.map((m, i) => (
-              <button 
-                key={i} 
+              <button
+                key={i}
                 onClick={(e) => { e.stopPropagation(); setSelectedMeeting(m); }}
-                className="w-full text-left text-[9px] bg-navy-950 text-white p-1 rounded border-l-2 border-gold truncate font-bold uppercase tracking-tight hover:bg-gold hover:text-navy-950 transition-colors" 
+                className="w-full text-left text-[9px] bg-navy-950 text-white p-1 rounded border-l-2 border-gold truncate font-bold uppercase tracking-tight hover:bg-gold hover:text-navy-950 transition-colors"
                 title={m.title}
               >
-                {new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {m.title}
+                {m.title} <span className="font-normal opacity-70 normal-case tracking-normal">{new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </button>
             ))}
           </div>
@@ -283,23 +325,57 @@ export default function CalendarModule() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Fecha</label>
-                  <input required type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} 
+                  <input required type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})}
                     className="w-full border-2 border-gray-200 bg-white rounded-lg px-4 py-3 text-navy-950 focus:border-gold focus:ring-4 focus:ring-gold/10 outline-none transition-all text-sm font-bold" />
                 </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Inicio</label>
-                    <input required type="time" value={formData.start_time} onChange={e => setFormData({...formData, start_time: e.target.value})} 
+                    <input required type="time" value={formData.start_time} onChange={e => setFormData({...formData, start_time: e.target.value})}
                       className="w-full border-2 border-gray-200 bg-white rounded-lg px-2 py-3 text-navy-950 focus:border-gold focus:ring-4 focus:ring-gold/10 outline-none transition-all text-xs font-bold" />
                   </div>
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Fin</label>
-                    <input required type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})} 
+                    <input required type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})}
                       className="w-full border-2 border-gray-200 bg-white rounded-lg px-2 py-3 text-navy-950 focus:border-gold focus:ring-4 focus:ring-gold/10 outline-none transition-all text-xs font-bold" />
                   </div>
                 </div>
               </div>
-              
+
+              {/* ── Recurrencia ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg border border-gold/20 bg-gold/5">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Repetición</label>
+                  <select
+                    value={formData.recurrence}
+                    onChange={e => setFormData({ ...formData, recurrence: e.target.value, recurrence_until: e.target.value === 'none' ? '' : formData.recurrence_until })}
+                    className="w-full border-2 border-gray-200 bg-white rounded-lg px-3 py-3 text-navy-950 focus:border-gold focus:ring-4 focus:ring-gold/10 outline-none transition-all text-xs font-bold uppercase"
+                  >
+                    <option value="none">Sin repetición</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="biweekly">Quincenal</option>
+                    <option value="monthly">Mensual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Repetir hasta</label>
+                  <input
+                    type="date"
+                    disabled={formData.recurrence === 'none'}
+                    required={formData.recurrence !== 'none'}
+                    min={formData.date}
+                    value={formData.recurrence_until}
+                    onChange={e => setFormData({ ...formData, recurrence_until: e.target.value })}
+                    className="w-full border-2 border-gray-200 bg-white rounded-lg px-3 py-3 text-navy-950 focus:border-gold focus:ring-4 focus:ring-gold/10 outline-none transition-all text-xs font-bold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  />
+                </div>
+                {formData.recurrence !== 'none' && formData.date && formData.recurrence_until && (
+                  <p className="sm:col-span-2 text-[10px] text-navy-700 font-bold uppercase tracking-widest">
+                    Se crearán {generateOccurrences(formData).length} reuniones
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Participantes</label>
                 <div className="flex gap-2">
