@@ -21,7 +21,13 @@ export default function ForoModule() {
   const [allUsers, setAllUsers] = useState([]);
   const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
   const [editGroupForm, setEditGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
+  const [lightboxUrl, setLightboxUrl] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // Helper: detectar si una URL es de imagen
+  const isImage = (url) => /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(url || '');
+  // Helper: formatear tamaño de archivo
+  const formatSize = (bytes) => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`;
 
   // Cargar grupos iniciales
   useEffect(() => {
@@ -276,13 +282,36 @@ export default function ForoModule() {
                           }`}>
                             {m.content && <p className="text-sm whitespace-pre-wrap">{m.content}</p>}
                             {m.file_url && (
-                              <div className="mt-2">
-                                {m.file_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                                  <img src={m.file_url} alt="adjunto" className="max-w-full h-auto rounded-lg" />
+                              <div className={m.content ? 'mt-2' : ''}>
+                                {isImage(m.file_url) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightboxUrl(m.file_url)}
+                                    className="block group"
+                                  >
+                                    <img
+                                      src={m.file_url}
+                                      alt={m.file_name || 'imagen'}
+                                      className="max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-zoom-in border border-black/5 group-hover:opacity-90 transition"
+                                    />
+                                  </button>
                                 ) : (
-                                  <a href={m.file_url} target="_blank" rel="noreferrer" className={`flex items-center gap-2 text-xs font-bold p-2 rounded border ${isMe ? 'bg-navy-800 border-navy-700 text-gold' : 'bg-gray-50 border-gray-200 text-navy-600'}`}>
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                                    {m.file_name || 'Archivo Adjunto'}
+                                  <a
+                                    href={m.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    download={m.file_name}
+                                    className={`flex items-center gap-3 text-xs font-bold p-2.5 rounded-lg border min-w-[200px] hover:opacity-90 transition ${isMe ? 'bg-navy-800 border-navy-700 text-gold' : 'bg-gray-50 border-gray-200 text-navy-700'}`}
+                                  >
+                                    <div className={`w-9 h-9 flex-shrink-0 rounded flex items-center justify-center ${isMe ? 'bg-gold/15' : 'bg-navy-100'}`}>
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                    </div>
+                                    <div className="flex-1 min-w-0 text-left">
+                                      <p className="truncate">{m.file_name || 'Archivo'}</p>
+                                      <p className={`text-[9px] font-normal ${isMe ? 'text-gold/70' : 'text-navy-400'}`}>Descargar</p>
+                                    </div>
                                   </a>
                                 )}
                               </div>
@@ -303,18 +332,58 @@ export default function ForoModule() {
             {/* Input Area */}
             <div className="p-4 bg-white border-t border-gray-100">
               {fileInput && (
-                <div className="mb-3 flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-medium px-3 py-2 rounded-lg border border-blue-100 w-fit">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  {fileInput.name}
-                  <button onClick={() => setFileInput(null)} className="ml-2 text-red-400 hover:text-red-600 font-bold">×</button>
+                <div className="mb-3 flex items-center gap-3 bg-gold/5 border border-gold/30 rounded-lg px-3 py-2 w-fit max-w-full">
+                  {fileInput.type?.startsWith('image/') ? (
+                    <img
+                      src={URL.createObjectURL(fileInput)}
+                      alt="preview"
+                      className="w-12 h-12 rounded object-cover border border-gold/40 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded bg-navy-50 border border-navy-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-navy-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-navy-900 truncate">{fileInput.name}</p>
+                    <p className="text-[10px] font-medium text-navy-500">{formatSize(fileInput.size)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFileInput(null)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Quitar"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               )}
-              <form onSubmit={handleSendMessage} className="flex items-end gap-3">
-                <label className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-navy-600 cursor-pointer transition-colors border border-gray-200">
-                  <input type="file" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                {/* Botón Foto */}
+                <label
+                  title="Adjuntar foto"
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold/10 text-gold hover:bg-gold hover:text-white cursor-pointer transition-colors border border-gold/30"
+                >
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                 </label>
-                <textarea 
+                {/* Botón Archivo */}
+                <label
+                  title="Adjuntar archivo"
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-navy-900 hover:text-gold cursor-pointer transition-colors border border-gray-200"
+                >
+                  <input type="file" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                </label>
+                <textarea
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -327,8 +396,8 @@ export default function ForoModule() {
                   className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-black font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold focus:bg-white transition-all max-h-32"
                   rows={1}
                 />
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={!messageInput.trim() && !fileInput}
                   className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold text-white disabled:opacity-50 hover:bg-yellow-500 transition-colors shadow-md"
                 >
@@ -495,6 +564,41 @@ export default function ForoModule() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox para imágenes */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="vista ampliada"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+            title="Cerrar"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <a
+            href={lightboxUrl}
+            download
+            onClick={e => e.stopPropagation()}
+            className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+            title="Descargar"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </a>
         </div>
       )}
     </div>
