@@ -169,17 +169,17 @@ export default function ForoModule() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-140px)] gap-6 animate-fade-in">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-180px)] lg:h-[calc(100vh-140px)] lg:gap-6 animate-fade-in">
       {/* Columna Izquierda: Lista de Grupos */}
-      <div className="w-1/3 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+      <div className={`w-full lg:w-1/3 bg-white rounded-xl shadow-sm border border-gray-100 flex-col overflow-hidden ${selectedGroup ? 'hidden lg:flex' : 'flex'}`}>
+        <div className="p-4 lg:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
           <div>
-            <h2 className="font-display font-medium text-navy-950 text-lg">Foro & Equipos</h2>
+            <h2 className="font-display font-medium text-navy-950 text-base lg:text-lg">Foro & Equipos</h2>
             <p className="text-xs text-navy-500 mt-0.5">Grupos de Trabajo</p>
           </div>
-          <button 
+          <button
             onClick={() => setIsCreatingGroup(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gold/10 text-gold hover:bg-gold hover:text-white transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-gold/10 text-gold hover:bg-gold hover:text-white transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           </button>
@@ -190,17 +190,17 @@ export default function ForoModule() {
             <div className="text-center py-10 text-sm text-gray-400">No hay grupos creados</div>
           ) : (
             groups.map(g => (
-              <button 
-                key={g.id} 
+              <button
+                key={g.id}
                 onClick={() => setSelectedGroup(g)}
-                className={`w-full text-left p-4 rounded-xl transition-all border ${
-                  selectedGroup?.id === g.id 
-                    ? 'bg-navy-900 border-navy-900 shadow-md transform scale-[1.02]' 
+                className={`w-full text-left p-3 lg:p-4 rounded-xl transition-all border ${
+                  selectedGroup?.id === g.id
+                    ? 'bg-navy-900 border-navy-900 shadow-md lg:transform lg:scale-[1.02]'
                     : 'bg-white border-gray-100 hover:border-gold/30 hover:bg-gold/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-lg ${
+                  <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center font-display font-bold text-lg ${
                     selectedGroup?.id === g.id ? 'bg-white/10 text-gold' : 'bg-navy-50 text-navy-900'
                   }`}>
                     {g.name.charAt(0).toUpperCase()}
@@ -221,18 +221,28 @@ export default function ForoModule() {
       </div>
 
       {/* Columna Derecha: Chat Area */}
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+      <div className={`flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex-col overflow-hidden ${selectedGroup ? 'flex' : 'hidden lg:flex'}`}>
         {selectedGroup ? (
           <>
-            <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-              <div>
-                <h3 className="font-display font-bold text-navy-950 text-lg flex items-center gap-2">
-                  <span className="text-gold">#</span> {selectedGroup.name}
+            <div className="p-3 lg:p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-2">
+              {/* Botón "regresar" — solo móvil */}
+              <button
+                onClick={() => setSelectedGroup(null)}
+                className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-navy-50 text-navy-700 hover:bg-navy-100 transition-colors"
+                title="Volver a la lista de grupos"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display font-bold text-navy-950 text-base lg:text-lg flex items-center gap-2 truncate">
+                  <span className="text-gold flex-shrink-0">#</span><span className="truncate">{selectedGroup.name}</span>
                 </h3>
-                <p className="text-xs text-navy-500 mt-0.5">{selectedGroup.description}</p>
+                <p className="text-xs text-navy-500 mt-0.5 truncate">{selectedGroup.description}</p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex -space-x-2 mr-2">
+              <div className="flex items-center gap-4 flex-shrink-0">
+                <div className="hidden lg:flex -space-x-2 mr-2">
                   {/* Simulated active users indicator */}
                   <div className="w-8 h-8 rounded-full bg-navy-100 border-2 border-white flex items-center justify-center text-xs font-bold text-navy-600">A</div>
                   <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-xs font-bold text-emerald-600">S</div>
@@ -258,7 +268,7 @@ export default function ForoModule() {
             </div>
 
             {/* Mensajes */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('/pattern.png')] bg-repeat opacity-95">
+            <div className="flex-1 overflow-y-auto p-3 lg:p-6 space-y-4 lg:space-y-6 bg-[url('/pattern.png')] bg-repeat opacity-95">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3">
                   <svg className="w-12 h-12 opacity-50 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
@@ -269,7 +279,7 @@ export default function ForoModule() {
                   const isMe = m.user_id === user?.id;
                   return (
                     <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex gap-3 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <div className={`flex gap-2 lg:gap-3 max-w-[85%] lg:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         {!isMe && (
                           <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-xs flex-shrink-0">
                             {m.user_name.charAt(0)}
@@ -292,7 +302,7 @@ export default function ForoModule() {
                                     <img
                                       src={m.file_url}
                                       alt={m.file_name || 'imagen'}
-                                      className="max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-zoom-in border border-black/5 group-hover:opacity-90 transition"
+                                      className="w-full max-w-[220px] lg:max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-zoom-in border border-black/5 group-hover:opacity-90 transition"
                                     />
                                   </button>
                                 ) : (
@@ -330,7 +340,7 @@ export default function ForoModule() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-gray-100">
+            <div className="p-3 lg:p-4 bg-white border-t border-gray-100">
               {fileInput && (
                 <div className="mb-3 flex items-center gap-3 bg-gold/5 border border-gold/30 rounded-lg px-3 py-2 w-fit max-w-full">
                   {fileInput.type?.startsWith('image/') ? (
