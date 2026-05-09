@@ -22,6 +22,13 @@ export default function ForoModule() {
   const [newGroupForm, setNewGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
   const [editGroupForm, setEditGroupForm] = useState({ name: '', description: '', access_type: 'all', access_list: [] });
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  // Vinculación de tickets/reuniones
+  const [availableTickets, setAvailableTickets] = useState([]);
+  const [availableMeetings, setAvailableMeetings] = useState([]);
+  const [pickerType, setPickerType] = useState(null); // 'ticket' | 'meeting' | null
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pendingRef, setPendingRef] = useState(null); // { type, id, title }
+  const [viewingRef, setViewingRef] = useState(null); // { type, data }
   const messagesEndRef = useRef(null);
 
   // Helper: detectar si una URL es de imagen
@@ -29,10 +36,39 @@ export default function ForoModule() {
   // Helper: formatear tamaño de archivo
   const formatSize = (bytes) => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`;
 
-  // Cargar grupos iniciales
+  // Helper: extraer referencias [[BOSA-REF:TYPE:ID]] del contenido
+  const parseMessageContent = (content) => {
+    if (!content) return { text: '', refs: [] };
+    const refRegex = /\[\[BOSA-REF:(TICKET|MEETING):(\d+)\]\]/g;
+    const refs = [];
+    let m;
+    while ((m = refRegex.exec(content)) !== null) {
+      refs.push({ type: m[1].toLowerCase(), id: parseInt(m[2], 10) });
+    }
+    return { text: content.replace(refRegex, '').trim(), refs };
+  };
+  // Helper: obtener datos de una referencia
+  const getRefData = (ref) => {
+    if (ref.type === 'ticket') return availableTickets.find(t => t.id === ref.id);
+    if (ref.type === 'meeting') return availableMeetings.find(m => m.id === ref.id);
+    return null;
+  };
+
+  // Cargar grupos iniciales + tickets y reuniones para vincular
   useEffect(() => {
     fetchGroups();
+    axios.get('/api/tickets').then(r => setAvailableTickets(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    axios.get('/api/meetings').then(r => setAvailableMeetings(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
+
+  // Refrescar lista cuando se abre el selector
+  useEffect(() => {
+    if (pickerType === 'ticket') {
+      axios.get('/api/tickets').then(r => setAvailableTickets(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    } else if (pickerType === 'meeting') {
+      axios.get('/api/meetings').then(r => setAvailableMeetings(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    }
+  }, [pickerType]);
 
   useEffect(() => {
     if ((isCreatingGroup || isEditingGroup) && allUsers.length === 0) {
@@ -146,11 +182,17 @@ export default function ForoModule() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!messageInput.trim() && !fileInput) return;
+    if (!messageInput.trim() && !fileInput && !pendingRef) return;
+
+    let finalContent = messageInput.trim();
+    if (pendingRef) {
+      const refTag = `[[BOSA-REF:${pendingRef.type.toUpperCase()}:${pendingRef.id}]]`;
+      finalContent = finalContent ? `${finalContent}\n${refTag}` : refTag;
+    }
 
     const formData = new FormData();
     formData.append('user_id', user.id);
-    formData.append('content', messageInput);
+    formData.append('content', finalContent);
     if (fileInput) {
       formData.append('file', fileInput);
     }
@@ -161,6 +203,7 @@ export default function ForoModule() {
       });
       setMessageInput('');
       setFileInput(null);
+      setPendingRef(null);
       fetchMessages();
     } catch (err) {
       console.error(err);
@@ -290,7 +333,65 @@ export default function ForoModule() {
                           <div className={`px-4 py-3 rounded-2xl shadow-sm ${
                             isMe ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-100 text-navy-900 rounded-bl-none'
                           }`}>
-                            {m.content && <p className="text-sm whitespace-pre-wrap">{m.content}</p>}
+                            {(() => {
+                              const { text, refs } = parseMessageContent(m.content);
+                              return (
+                                <>
+                                  {text && <p className="text-sm whitespace-pre-wrap">{text}</p>}
+                                  {refs.map((ref, idx) => {
+                                    const data = getRefData(ref);
+                                    const isTicket = ref.type === 'ticket';
+                                    return (
+                                      <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => data && setViewingRef({ type: ref.type, data })}
+                                        className={`mt-2 first:mt-0 ${text ? 'mt-2' : ''} flex items-stretch gap-3 rounded-lg overflow-hidden text-left min-w-[220px] max-w-[280px] transition hover:opacity-90 ${
+                                          isMe ? 'bg-navy-800/60 border border-gold/30' : 'bg-gray-50 border border-gray-200'
+                                        }`}
+                                      >
+                                        <div className={`w-1 flex-shrink-0 ${isTicket ? 'bg-gold' : 'bg-emerald-500'}`} />
+                                        <div className="flex-1 min-w-0 py-2 pr-2">
+                                          <div className="flex items-center gap-1.5 mb-1">
+                                            {isTicket ? (
+                                              <svg className={`w-3 h-3 ${isMe ? 'text-gold' : 'text-navy-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
+                                              </svg>
+                                            ) : (
+                                              <svg className={`w-3 h-3 ${isMe ? 'text-emerald-300' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                                              </svg>
+                                            )}
+                                            <span className={`text-[9px] font-bold tracking-widest uppercase ${isMe ? 'text-gold' : 'text-navy-500'}`}>
+                                              {isTicket ? `Ticket #${ref.id}` : 'Reunión'}
+                                            </span>
+                                          </div>
+                                          {data ? (
+                                            <>
+                                              <p className={`text-xs font-bold leading-tight line-clamp-2 ${isMe ? 'text-white' : 'text-navy-950'}`}>
+                                                {data.title || '—'}
+                                              </p>
+                                              <p className={`text-[10px] mt-0.5 truncate ${isMe ? 'text-white/60' : 'text-navy-500'}`}>
+                                                {isTicket
+                                                  ? `${(data.priority || '').toUpperCase()} · ${(data.status || '').replace('_',' ').toUpperCase()}`
+                                                  : (data.start_time
+                                                      ? `${new Date(data.start_time).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()} · ${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                      : 'Sin fecha')
+                                                }
+                                              </p>
+                                            </>
+                                          ) : (
+                                            <p className={`text-xs italic ${isMe ? 'text-white/60' : 'text-gray-400'}`}>
+                                              {isTicket ? 'Ticket no disponible' : 'Reunión no disponible'}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </>
+                              );
+                            })()}
                             {m.file_url && (
                               <div className={m.content ? 'mt-2' : ''}>
                                 {isImage(m.file_url) ? (
@@ -341,6 +442,31 @@ export default function ForoModule() {
 
             {/* Input Area */}
             <div className="p-3 lg:p-4 bg-white border-t border-gray-100">
+              {pendingRef && (
+                <div className="mb-3 flex items-center gap-3 bg-navy-50 border border-navy-200 rounded-lg px-3 py-2 w-fit max-w-full">
+                  <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${pendingRef.type === 'ticket' ? 'bg-gold/15 text-gold' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {pendingRef.type === 'ticket' ? (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold text-navy-500 tracking-widest uppercase">
+                      {pendingRef.type === 'ticket' ? `Ticket #${pendingRef.id} vinculado` : 'Reunión vinculada'}
+                    </p>
+                    <p className="text-xs font-bold text-navy-900 truncate">{pendingRef.title || '—'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingRef(null)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Quitar"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
               {fileInput && (
                 <div className="mb-3 flex items-center gap-3 bg-gold/5 border border-gold/30 rounded-lg px-3 py-2 w-fit max-w-full">
                   {fileInput.type?.startsWith('image/') ? (
@@ -393,6 +519,28 @@ export default function ForoModule() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                 </label>
+                {/* Botón Vincular Ticket */}
+                <button
+                  type="button"
+                  title="Vincular ticket"
+                  onClick={() => { setPickerType('ticket'); setPickerSearch(''); }}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-gold hover:text-white cursor-pointer transition-colors border border-gray-200"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
+                  </svg>
+                </button>
+                {/* Botón Vincular Reunión */}
+                <button
+                  type="button"
+                  title="Vincular reunión"
+                  onClick={() => { setPickerType('meeting'); setPickerSearch(''); }}
+                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-emerald-500 hover:text-white cursor-pointer transition-colors border border-gray-200"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                  </svg>
+                </button>
                 <textarea
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
@@ -408,7 +556,7 @@ export default function ForoModule() {
                 />
                 <button
                   type="submit"
-                  disabled={!messageInput.trim() && !fileInput}
+                  disabled={!messageInput.trim() && !fileInput && !pendingRef}
                   className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold text-white disabled:opacity-50 hover:bg-yellow-500 transition-colors shadow-md"
                 >
                   <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
@@ -576,6 +724,183 @@ export default function ForoModule() {
           </div>
         </div>
       )}
+
+      {/* Modal Selector — Vincular Ticket o Reunión */}
+      {pickerType && (() => {
+        const isTicket = pickerType === 'ticket';
+        const items = isTicket ? availableTickets : availableMeetings;
+        const filtered = items.filter(it => {
+          const q = pickerSearch.trim().toLowerCase();
+          if (!q) return true;
+          return (it.title || '').toLowerCase().includes(q) || String(it.id).includes(q);
+        });
+        return (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-navy-950/70 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setPickerType(null)}>
+            <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+              <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div>
+                  <h3 className="font-display font-bold text-navy-950 text-base">
+                    Vincular {isTicket ? 'ticket' : 'reunión'}
+                  </h3>
+                  <p className="text-xs text-navy-500 mt-0.5">Selecciona uno para adjuntarlo al mensaje</p>
+                </div>
+                <button onClick={() => setPickerType(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="px-4 pt-3 pb-2">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder={isTicket ? "Buscar por título o #ID..." : "Buscar por título..."}
+                  value={pickerSearch}
+                  onChange={e => setPickerSearch(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-navy-900 outline-none focus:border-gold transition-colors"
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {filtered.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-gray-400">
+                    {items.length === 0 ? `No hay ${isTicket ? 'tickets' : 'reuniones'} disponibles` : 'Sin resultados'}
+                  </div>
+                ) : (
+                  filtered.map(it => (
+                    <button
+                      key={it.id}
+                      type="button"
+                      onClick={() => {
+                        setPendingRef({ type: pickerType, id: it.id, title: it.title });
+                        setPickerType(null);
+                      }}
+                      className="w-full text-left p-3 rounded-lg border border-gray-100 bg-white hover:border-gold/40 hover:bg-gold/5 transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${isTicket ? 'bg-gold/15 text-gold' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {isTicket ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[9px] font-bold tracking-widest uppercase text-navy-400">
+                              {isTicket ? `#${it.id}` : new Date(it.start_time).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()}
+                            </span>
+                            {isTicket && it.priority && (
+                              <span className="text-[9px] font-bold tracking-wider uppercase text-navy-500">{it.priority}</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-bold text-navy-950 leading-tight line-clamp-2">{it.title}</p>
+                          <p className="text-[10px] text-navy-500 mt-1 truncate">
+                            {isTicket
+                              ? (it.category || 'Sin departamento')
+                              : (it.start_time ? `${new Date(it.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(it.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '')
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal Detalle — vista de un ticket o reunión vinculados */}
+      {viewingRef && (() => {
+        const isTicket = viewingRef.type === 'ticket';
+        const data = viewingRef.data;
+        return (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-navy-950/80 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setViewingRef(null)}>
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+              <div className="bg-navy-950 px-6 py-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isTicket ? 'text-gold' : 'text-emerald-400'}`}>
+                    {isTicket ? `Ticket #${data.id}` : 'Reunión'}
+                  </span>
+                  <button onClick={() => setViewingRef(null)} className="text-white/40 hover:text-white transition-colors p-1">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <h3 className="text-lg font-display font-medium text-white leading-tight">{data.title || '—'}</h3>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                {data.description && (
+                  <div>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Descripción</p>
+                    <p className="text-sm text-navy-800 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">
+                      {data.description}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {isTicket ? (
+                    <>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Estado</p>
+                        <p className="text-xs font-bold text-navy-950 capitalize">{(data.status || '').replace('_',' ')}</p>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Prioridad</p>
+                        <p className="text-xs font-bold text-navy-950 capitalize">{data.priority || '—'}</p>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Departamento</p>
+                        <p className="text-xs font-bold text-navy-950">{data.category || '—'}</p>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Asignado</p>
+                        <p className="text-xs font-bold text-navy-950 truncate">{data.assigned_name || 'Sin asignar'}</p>
+                      </div>
+                      {data.due_date && (
+                        <div className="col-span-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Fecha límite</p>
+                          <p className="text-xs font-bold text-navy-950">
+                            {new Date(data.due_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Fecha</p>
+                        <p className="text-xs font-bold text-navy-950">
+                          {data.start_time ? new Date(data.start_time).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Horario</p>
+                        <p className="text-xs font-bold text-navy-950">
+                          {data.start_time ? `${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(data.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '—'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Participantes</p>
+                        <p className="text-xs font-bold text-navy-950">{Array.isArray(data.attendees) ? data.attendees.length : 0} asistentes</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={() => setViewingRef(null)}
+                  className="px-5 py-2 rounded-lg bg-navy-950 text-gold text-[10px] font-black uppercase tracking-widest hover:bg-navy-900 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Lightbox para imágenes */}
       {lightboxUrl && (
