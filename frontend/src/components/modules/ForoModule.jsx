@@ -169,7 +169,7 @@ export default function ForoModule() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-180px)] lg:h-[calc(100vh-140px)] lg:gap-6 animate-fade-in">
+    <div className="flex flex-col lg:flex-row h-[calc(100dvh-260px)] min-h-[400px] lg:h-[calc(100vh-140px)] lg:min-h-0 lg:gap-6 animate-fade-in">
       {/* Columna Izquierda: Lista de Grupos */}
       <div className={`w-full lg:w-1/3 bg-white rounded-xl shadow-sm border border-gray-100 flex-col overflow-hidden ${selectedGroup ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 lg:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
