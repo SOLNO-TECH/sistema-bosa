@@ -1,5 +1,6 @@
 const { getDb } = require('../database/init');
 const { sendTicketNotification } = require('../services/emailService');
+const { notifyUser } = require('../services/notificationService');
 const path = require('path');
 const fs = require('fs');
 
@@ -81,11 +82,18 @@ const createTicket = (req, res) => {
     db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
       .run(ticketId, created_by, 'created', 'Ticket creado inicialmente');
 
-    // Notify assigned user
+    // Notify assigned user (correo + notificación interna)
     if (assigned_to) {
       const user = db.prepare('SELECT name, email FROM users WHERE id = ?').get(assigned_to);
       if (user) {
         sendTicketNotification(user.name, user.email, { title, description, priority: priority || 'medium' });
+        notifyUser(assigned_to, {
+          type: 'ticket',
+          title: 'Nuevo ticket asignado',
+          message: `Se te asignó el ticket "${title}" (prioridad ${priority || 'media'}).`,
+          module: 'tickets',
+          related_id: ticketId,
+        });
       }
       db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
         .run(ticketId, created_by, 'assigned', `Asignado a ${user?.name || 'Usuario'}`);
@@ -123,6 +131,24 @@ const updateTicketStatus = (req, res) => {
       }
     }
 
+    // Notificar al creador y asignado (si no son quien hizo el cambio)
+    try {
+      const full = db.prepare('SELECT title, created_by, assigned_to FROM tickets WHERE id = ?').get(id);
+      const statusLabels = { open: 'Pendiente', in_progress: 'En Progreso', resolved: 'En Revisión', closed: 'Completado' };
+      const recipients = new Set();
+      if (full?.created_by && full.created_by !== user_id) recipients.add(full.created_by);
+      if (full?.assigned_to && full.assigned_to !== user_id) recipients.add(full.assigned_to);
+      for (const rid of recipients) {
+        notifyUser(rid, {
+          type: 'ticket',
+          title: 'Cambio de estado en ticket',
+          message: `"${full.title}" pasó a ${statusLabels[status] || status}.`,
+          module: 'tickets',
+          related_id: parseInt(id, 10),
+        });
+      }
+    } catch (_) { /* no romper el endpoint si la notificación falla */ }
+
     res.json({ message: 'Estado del ticket actualizado', oldStatus, newStatus: status });
   } catch (err) {
     console.error('updateTicketStatus error:', err);
@@ -144,6 +170,24 @@ const addComment = (req, res) => {
 
     db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
       .run(id, user_id, 'comment', 'Se añadió un comentario');
+
+    // Notificar a creador y asignado (excepto quien comentó)
+    try {
+      const full = db.prepare('SELECT title, created_by, assigned_to FROM tickets WHERE id = ?').get(id);
+      const author = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
+      const recipients = new Set();
+      if (full?.created_by && full.created_by !== user_id) recipients.add(full.created_by);
+      if (full?.assigned_to && full.assigned_to !== user_id) recipients.add(full.assigned_to);
+      for (const rid of recipients) {
+        notifyUser(rid, {
+          type: 'comment',
+          title: 'Nuevo comentario en ticket',
+          message: `${author?.name || 'Alguien'} comentó en "${full.title}".`,
+          module: 'tickets',
+          related_id: parseInt(id, 10),
+        });
+      }
+    } catch (_) {}
 
     res.status(201).json({ message: 'Comentario añadido' });
   } catch (err) {

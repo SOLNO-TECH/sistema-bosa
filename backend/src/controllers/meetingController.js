@@ -1,5 +1,6 @@
 const { getDb } = require('../database/init');
 const { sendMeetingNotification } = require('../services/emailService');
+const { notifyUser } = require('../services/notificationService');
 
 const getMeetings = (req, res) => {
   try {
@@ -35,18 +36,34 @@ const createMeeting = (req, res) => {
     `);
 
     const info = stmt.run(title, description || '', start_time, end_time, created_by, JSON.stringify(attendees || []));
+    const meetingId = info.lastInsertRowid;
 
-    // Notificar a los asistentes
+    // Notificar a los asistentes (correo + notificación interna)
     if (attendees && Array.isArray(attendees)) {
+      const when = (() => {
+        try {
+          const d = new Date(start_time);
+          return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' · ' +
+                 d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch { return start_time; }
+      })();
       attendees.forEach(userId => {
+        if (userId === created_by) return;
         const attendee = db.prepare('SELECT name, email FROM users WHERE id = ?').get(userId);
         if (attendee) {
           sendMeetingNotification(attendee.name, attendee.email, { title, start_time, end_time });
+          notifyUser(userId, {
+            type: 'meeting',
+            title: 'Te invitaron a una reunión',
+            message: `"${title}" — ${when}`,
+            module: 'calendar',
+            related_id: meetingId,
+          });
         }
       });
     }
 
-    res.status(201).json({ id: info.lastInsertRowid, message: 'Reunión creada exitosamente' });
+    res.status(201).json({ id: meetingId, message: 'Reunión creada exitosamente' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear reunión' });

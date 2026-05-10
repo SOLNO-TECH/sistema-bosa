@@ -1,5 +1,6 @@
 const { getDb } = require('../database/init');
 const { sendAvisoNotification } = require('../services/emailService');
+const { notifyAllActive } = require('../services/notificationService');
 
 const getAvisos = (req, res) => {
   try {
@@ -27,14 +28,24 @@ const createAviso = (req, res) => {
     `);
 
     const info = stmt.run(title, content, category || 'general', created_by);
+    const avisoId = info.lastInsertRowid;
 
-    // Notify all active users (or a specific group if needed, here we notify all)
-    const users = db.prepare('SELECT name, email FROM users WHERE is_active = 1').all();
+    // Notify all active users (correo + notificación interna), excluyendo al autor
+    const users = db.prepare('SELECT id, name, email FROM users WHERE is_active = 1').all();
     users.forEach(user => {
-      sendAvisoNotification(user.name, user.email, { title, content });
+      if (user.id !== created_by) {
+        sendAvisoNotification(user.name, user.email, { title, content });
+      }
     });
+    notifyAllActive({
+      type: 'aviso',
+      title: `Nuevo aviso: ${title}`,
+      message: content.length > 140 ? content.slice(0, 137) + '…' : content,
+      module: 'avisos',
+      related_id: avisoId,
+    }, created_by);
 
-    res.status(201).json({ id: info.lastInsertRowid, message: 'Aviso creado exitosamente' });
+    res.status(201).json({ id: avisoId, message: 'Aviso creado exitosamente' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear aviso' });

@@ -121,11 +121,27 @@ export default function Dashboard() {
   
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
   const [kpis, setKpis] = useState({ resolutionRate: 0, inProgress: 0, urgent: 0, overdue: 0, meetingsThisWeek: 0, activeAvisos: 0 });
+  const [recentNotifs, setRecentNotifs] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchRecentNotifications = async () => {
+    try {
+      const [{ data: items }, { data: cnt }] = await Promise.all([
+        axios.get('/api/notifications', { params: { limit: 5 } }),
+        axios.get('/api/notifications/unread-count'),
+      ]);
+      setRecentNotifs(Array.isArray(items) ? items : []);
+      setUnreadCount(cnt?.count || 0);
+    } catch (err) { /* silencioso */ }
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
-    return () => clearTimeout(t);
+    fetchRecentNotifications();
+    // refrescar notificaciones cada 30 segundos
+    const interval = setInterval(fetchRecentNotifications, 30000);
+    return () => { clearTimeout(t); clearInterval(interval); };
   }, []);
 
   const fetchStats = async () => {
@@ -283,26 +299,70 @@ export default function Dashboard() {
             <div className="flex items-center pl-2 border-l border-gray-200 relative">
               <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-navy-600 hover:text-gold transition-colors">
                 <IconBell />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
-              
+
               {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
-                  <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <span className="font-sans font-bold text-navy-950 text-sm">Notificaciones</span>
-                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-bold">1 Nueva</span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <div className="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
-                      <p className="text-xs font-bold text-navy-800">Bienvenido a BOSA</p>
-                      <p className="text-[10px] text-navy-500 mt-1 line-clamp-2">Revisa los últimos avisos y actualizaciones del sistema.</p>
-                      <span className="text-[9px] text-gray-400 mt-1 block">Hace un momento</span>
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                      <span className="font-sans font-bold text-navy-950 text-sm">Notificaciones</span>
+                      {unreadCount > 0 ? (
+                        <span className="text-[10px] bg-gold/15 text-gold px-2 py-0.5 rounded-full font-bold">{unreadCount} sin leer</span>
+                      ) : (
+                        <span className="text-[10px] text-navy-500">Al día</span>
+                      )}
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {recentNotifs.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-navy-500">Sin notificaciones aún</div>
+                      ) : (
+                        recentNotifs.map(n => (
+                          <button
+                            key={n.id}
+                            onClick={async () => {
+                              if (!n.is_read) {
+                                try { await axios.patch(`/api/notifications/${n.id}/read`); } catch(_) {}
+                              }
+                              if (n.module) setActive(n.module === 'avisos' ? 'avisos' : n.module === 'calendar' ? 'calendar' : n.module === 'tickets' ? 'tickets' : n.module === 'foro' ? 'foro' : 'notifications');
+                              else setActive('notifications');
+                              setShowNotifications(false);
+                              fetchRecentNotifications();
+                            }}
+                            className={`w-full text-left p-3 border-b border-gray-100 hover:bg-gold/5 cursor-pointer transition-colors block ${!n.is_read ? 'bg-gold/5' : ''}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              {!n.is_read && <span className="w-1.5 h-1.5 bg-gold rounded-full mt-1.5 flex-shrink-0" />}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-navy-900 truncate">{n.title}</p>
+                                <p className="text-[10px] text-navy-600 mt-0.5 line-clamp-2">{n.message}</p>
+                                <span className="text-[9px] text-navy-500 mt-1 block">
+                                  {(() => {
+                                    if (!n.created_at) return '';
+                                    const d = new Date(n.created_at.replace(' ', 'T') + (n.created_at.includes('Z') ? '' : 'Z'));
+                                    const diffMin = Math.floor((Date.now() - d) / 60000);
+                                    if (diffMin < 1) return 'Ahora mismo';
+                                    if (diffMin < 60) return `Hace ${diffMin} min`;
+                                    if (diffMin < 1440) return `Hace ${Math.floor(diffMin/60)} h`;
+                                    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                                  })()}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <div className="p-2 text-center bg-gray-50 border-t border-gray-200">
+                      <button onClick={() => { setActive('notifications'); setShowNotifications(false); }} className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
                     </div>
                   </div>
-                  <div className="p-2 text-center bg-gray-50 border-t border-gray-200">
-                    <button onClick={() => { setActive('notifications'); setShowNotifications(false); }} className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
-                  </div>
-                </div>
+                </>
               )}
             </div>
           </div>

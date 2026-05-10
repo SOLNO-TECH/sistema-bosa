@@ -107,6 +107,21 @@ function initDatabase() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
+    -- Notificaciones internas del sistema
+    CREATE TABLE IF NOT EXISTS notifications (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL, -- destinatario
+      type        TEXT    NOT NULL DEFAULT 'system', -- ticket | comment | aviso | meeting | forum | system
+      title       TEXT    NOT NULL,
+      message     TEXT    NOT NULL,
+      module      TEXT,             -- 'tickets' | 'calendar' | 'avisos' | 'foro' | 'notifications'
+      related_id  INTEGER,          -- id del ticket/aviso/reunion relacionado
+      is_read     INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
+
     CREATE TRIGGER IF NOT EXISTS update_users_timestamp
     AFTER UPDATE ON users
     BEGIN
