@@ -23,8 +23,9 @@ function login(req, res) {
     role: user.role,
   };
 
-  const secret = process.env.JWT_SECRET || 'bosa-default-secret-key-change-me-in-prod';
-  const expires = process.env.JWT_EXPIRES_IN || '24h';
+  // JWT_SECRET ya está validado en el arranque del servidor; no usamos fallback inseguro
+  const secret = process.env.JWT_SECRET;
+  const expires = process.env.JWT_EXPIRES_IN || '8h';
 
   const token = jwt.sign(payload, secret, {
     expiresIn: expires,

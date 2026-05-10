@@ -13,14 +13,19 @@ const getAvisos = (req, res) => {
 
 const createAviso = (req, res) => {
   try {
-    const { title, content, category, created_by } = req.body;
+    const { title, content, category } = req.body;
+    // created_by siempre desde el token, no del body (evita suplantación)
+    const created_by = req.user?.id;
+    if (!created_by) return res.status(401).json({ error: 'No autenticado' });
+    if (!title || !content) return res.status(400).json({ error: 'Título y contenido son requeridos' });
+
     const db = getDb();
-    
+
     const stmt = db.prepare(`
       INSERT INTO avisos (title, content, category, created_by)
       VALUES (?, ?, ?, ?)
     `);
-    
+
     const info = stmt.run(title, content, category || 'general', created_by);
 
     // Notify all active users (or a specific group if needed, here we notify all)

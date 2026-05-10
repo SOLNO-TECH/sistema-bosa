@@ -4,14 +4,23 @@ const cors = require('cors');
 const { initDatabase } = require('./database/init');
 const path = require('path');
 
+// ── Validación de secretos en arranque ─────────────────────
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+  console.error('\n❌ FATAL: la variable de entorno JWT_SECRET es obligatoria y debe tener al menos 16 caracteres.');
+  console.error('   Define JWT_SECRET en tu archivo .env antes de iniciar el servidor.\n');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// CORS — en producción debería ser una lista blanca; en desarrollo se permite cualquier origen
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Inicializar BD y seed al arrancar
 initDatabase();
@@ -41,8 +50,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🏨  BOSA Hospitality API corriendo en http://localhost:${PORT}`);
-  console.log(`    Credenciales por defecto:`);
-  console.log(`    SuperAdmin → superadmin@bosa.mx / Bosa@SuperAdmin2024!`);
-  console.log(`    Admin     → admin@bosa.mx / Bosa@Admin2024!\n`);
+  console.log(`\n🏨  BOSA Hospitality API corriendo en http://localhost:${PORT}\n`);
 });

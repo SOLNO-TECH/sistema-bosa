@@ -90,14 +90,29 @@ const changePassword = (req, res) => {
   try {
     const { id } = req.params;
     const { password } = req.body;
-    
+    const targetId = parseInt(id, 10);
+
     if (!password) return res.status(400).json({ error: 'Nueva contraseña es requerida' });
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    // Solo el propio usuario o un superadmin pueden cambiar la contraseña
+    const isOwner    = req.user?.id === targetId;
+    const isSuperAdm = req.user?.role === 'superadmin';
+    if (!isOwner && !isSuperAdm) {
+      return res.status(403).json({ error: 'No tienes permisos para cambiar esta contraseña' });
+    }
 
     const db = getDb();
+    const exists = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+    if (!exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+
     const hashed = bcrypt.hashSync(password, 12);
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashed, id);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashed, targetId);
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error al cambiar contraseña' });
   }
 };

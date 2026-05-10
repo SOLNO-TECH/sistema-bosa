@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../database/init');
+const { authenticate } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -18,7 +19,13 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+// Todas las rutas de foros requieren autenticación
+router.use(authenticate);
 
 // Obtener todos los grupos
 router.get('/', (req, res) => {
@@ -35,13 +42,17 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const db = getDb();
-    const { name, description, created_by, access_type, access_list } = req.body;
+    const { name, description, access_type, access_list } = req.body;
+    const created_by = req.user?.id;
+    if (!created_by) return res.status(401).json({ error: 'No autenticado' });
+    if (!name) return res.status(400).json({ error: 'Nombre del grupo requerido' });
     const stmt = db.prepare('INSERT INTO workgroups (name, description, created_by, access_type, access_list) VALUES (?, ?, ?, ?, ?)');
     const info = stmt.run(name, description, created_by, access_type || 'all', JSON.stringify(access_list || []));
     const newGroup = db.prepare('SELECT * FROM workgroups WHERE id = ?').get(info.lastInsertRowid);
     res.json(newGroup);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear grupo' });
   }
 });
 
@@ -94,10 +105,13 @@ router.get('/:id/messages', (req, res) => {
 router.post('/:id/messages', upload.single('file'), (req, res) => {
   try {
     const db = getDb();
-    const { user_id, content } = req.body;
+    const { content } = req.body;
+    // user_id siempre desde el token, no del body (evita suplantación)
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
     let file_url = null;
     let file_name = null;
-    
+
     if (req.file) {
       file_url = '/api/uploads/' + req.file.filename;
       file_name = req.file.originalname;

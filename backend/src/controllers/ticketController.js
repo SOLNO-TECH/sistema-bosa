@@ -62,14 +62,18 @@ const getTicketDetails = (req, res) => {
 
 const createTicket = (req, res) => {
   try {
-    const { title, description, priority, category, assigned_to, created_by, due_date } = req.body;
+    const { title, description, priority, category, assigned_to, due_date } = req.body;
+    // El creador siempre se toma del token, NO del body (evita suplantación)
+    const created_by = req.user?.id;
+    if (!created_by) return res.status(401).json({ error: 'No autenticado' });
+
     const db = getDb();
-    
+
     const stmt = db.prepare(`
       INSERT INTO tickets (title, description, priority, category, assigned_to, created_by, due_date)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    
+
     const info = stmt.run(title, description, priority || 'medium', category, assigned_to, created_by, due_date);
     const ticketId = info.lastInsertRowid;
 
@@ -97,7 +101,9 @@ const createTicket = (req, res) => {
 const updateTicketStatus = (req, res) => {
   try {
     const { id } = req.params;
-    const { status, user_id } = req.body;
+    const { status } = req.body;
+    // user_id siempre desde el token, no del body
+    const user_id = req.user?.id;
     const db = getDb();
 
     if (!status) return res.status(400).json({ error: 'Falta el campo status' });
@@ -108,48 +114,40 @@ const updateTicketStatus = (req, res) => {
 
     db.prepare(`UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
 
-    // Resolver el user_id válido (si no viene o no existe, usar el primer admin existente)
-    let validUserId = null;
     if (user_id) {
-      const u = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
-      if (u) validUserId = u.id;
-    }
-    if (!validUserId) {
-      const fallback = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
-      validUserId = fallback?.id;
-    }
-
-    if (validUserId) {
       try {
         db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-          .run(id, validUserId, 'status_change', `Estado cambiado de ${oldStatus} a ${status}`);
+          .run(id, user_id, 'status_change', `Estado cambiado de ${oldStatus} a ${status}`);
       } catch (histErr) {
         console.warn('No se pudo registrar el historial:', histErr.message);
-        // No falla todo el endpoint si solo falla el historial
       }
     }
 
     res.json({ message: 'Estado del ticket actualizado', oldStatus, newStatus: status });
   } catch (err) {
     console.error('updateTicketStatus error:', err);
-    res.status(500).json({ error: err.message || 'Error al actualizar ticket' });
+    res.status(500).json({ error: 'Error al actualizar ticket' });
   }
 };
 
 const addComment = (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, content } = req.body;
+    const { content } = req.body;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+    if (!content || !String(content).trim()) return res.status(400).json({ error: 'Contenido vacío' });
+
     const db = getDb();
-    
     db.prepare(`INSERT INTO ticket_comments (ticket_id, user_id, content) VALUES (?, ?, ?)` )
       .run(id, user_id, content);
-      
+
     db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
       .run(id, user_id, 'comment', 'Se añadió un comentario');
 
     res.status(201).json({ message: 'Comentario añadido' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error al añadir comentario' });
   }
 };
@@ -157,7 +155,8 @@ const addComment = (req, res) => {
 const uploadAttachment = (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
     const file = req.file;
 
     if (!file) return res.status(400).json({ error: 'No se subió ningún archivo' });
@@ -166,13 +165,14 @@ const uploadAttachment = (req, res) => {
     db.prepare(`
       INSERT INTO ticket_attachments (ticket_id, filename, mimetype, path, uploaded_by)
       VALUES (?, ?, ?, ?, ?)
-    `).run(id, file.originalname, file.mimetype, file.path, user_id || 1);
+    `).run(id, file.originalname, file.mimetype, file.path, user_id);
 
     db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
-      .run(id, user_id || 1, 'attachment', `Archivo subido: ${file.originalname}`);
+      .run(id, user_id, 'attachment', `Archivo subido: ${file.originalname}`);
 
     res.status(201).json({ message: 'Archivo subido correctamente', file: file.originalname });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error al subir archivo' });
   }
 };
@@ -180,25 +180,25 @@ const uploadAttachment = (req, res) => {
 const deleteAttachment = (req, res) => {
   try {
     const { id, attachmentId } = req.params;
-    const { user_id } = req.body;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
 
     const db = getDb();
     const att = db.prepare('SELECT * FROM ticket_attachments WHERE id = ? AND ticket_id = ?').get(attachmentId, id);
     if (!att) return res.status(404).json({ error: 'Archivo no encontrado' });
 
-    // Borrar del disco si existe
     try {
-      const fs = require('fs');
       if (att.path && fs.existsSync(att.path)) fs.unlinkSync(att.path);
     } catch (_) { /* ignorar errores de disco */ }
 
     db.prepare('DELETE FROM ticket_attachments WHERE id = ?').run(attachmentId);
 
     db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-      .run(id, user_id || 1, 'attachment_delete', `Archivo eliminado: ${att.filename}`);
+      .run(id, user_id, 'attachment_delete', `Archivo eliminado: ${att.filename}`);
 
     res.json({ message: 'Archivo eliminado' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error al eliminar archivo' });
   }
 };

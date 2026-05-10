@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -33,8 +34,8 @@ export default function UsersModule() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/users');
-      if (res.ok) setUsers(await res.json());
+      const { data } = await axios.get('/api/users');
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -47,57 +48,43 @@ export default function UsersModule() {
   const handleSave = async (e) => {
     e.preventDefault();
     const isEdit = !!editingUser;
-    const url = isEdit ? `/api/users/${editingUser.id}` : '/api/users';
-    const method = isEdit ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        setIsFormOpen(false);
-        fetchUsers();
+      if (isEdit) {
+        await axios.put(`/api/users/${editingUser.id}`, formData);
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || data.message || `Error del servidor: ${res.status}`);
+        await axios.post('/api/users', formData);
       }
+      setIsFormOpen(false);
+      fetchUsers();
     } catch (err) {
-      console.error("Fetch error:", err);
-      alert(`Error de conexión al guardar usuario: ${err.message}`);
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
+      console.error('Error:', err);
+      alert(`Error al guardar usuario: ${msg}`);
     }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de que deseas eliminar permanentemente este usuario?')) return;
     try {
-      await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      await axios.delete(`/api/users/${id}`);
       fetchUsers();
     } catch (err) {
-      alert('Error eliminando usuario');
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
+      alert(`Error eliminando usuario: ${msg}`);
     }
   };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`/api/users/${editingUser.id}/password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: passwordData })
-      });
-      if (res.ok) {
-        setIsPasswordOpen(false);
-        setPasswordData('');
-        alert('Contraseña actualizada exitosamente');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || data.message || `Error cambiando contraseña: ${res.status}`);
-      }
+      await axios.put(`/api/users/${editingUser.id}/password`, { password: passwordData });
+      setIsPasswordOpen(false);
+      setPasswordData('');
+      alert('Contraseña actualizada exitosamente');
     } catch (err) {
-      console.error("Fetch error:", err);
-      alert(`Error de conexión al cambiar contraseña: ${err.message}`);
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
+      console.error('Error:', err);
+      alert(`Error cambiando contraseña: ${msg}`);
     }
   };
 

@@ -13,6 +13,14 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
+      # ⚠️ IMPORTANTE: cambia JWT_SECRET por una cadena aleatoria larga única para tu deploy.
+      # Puedes generarla con: openssl rand -hex 32
+      # Si lo defines en un archivo .env junto al docker-compose, este valor se sobrescribe.
+      - JWT_SECRET=${JWT_SECRET:-7c4a8d92f6e3b5a1d8c2f7e4b9a6d3c1f8e5b2a7d4c9f6e3b1a8d5c2f7e4b9a6}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-8h}
+      # CORS: para mayor seguridad, define los dominios permitidos separados por coma.
+      # Ejemplo: CORS_ORIGINS=https://mi-dominio.com,https://app.mi-dominio.com
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
     restart: always
 
 volumes:
