@@ -27,6 +27,7 @@ const PRIORITY_STYLES = {
 export default function TicketsModule() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
+  const [draggedTicket, setDraggedTicket] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
@@ -78,6 +79,20 @@ export default function TicketsModule() {
       await axios.patch(`/api/tickets/${ticket.id}/status`, { status: statusId, user_id: user?.id });
       fetchTickets();
     } catch (err) { console.error(err); }
+  };
+
+  const handleDragStart = (e, ticket) => {
+    setDraggedTicket(ticket);
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => e.target.classList.add('opacity-50'), 0);
+  };
+  const handleDragEnd = (e) => { e.target.classList.remove('opacity-50'); setDraggedTicket(null); };
+  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  const handleDrop = async (e, statusId) => {
+    e.preventDefault();
+    if (!draggedTicket) return;
+    await changeStatus(draggedTicket, statusId);
+    setDraggedTicket(null);
   };
 
   const handleSaveTicket = async () => {
@@ -167,6 +182,8 @@ export default function TicketsModule() {
             <div
               key={col.id}
               className="flex-shrink-0 w-72 flex flex-col rounded-sm overflow-hidden border border-gray-200 shadow-sm"
+              onDragOver={handleDragOver}
+              onDrop={e => handleDrop(e, col.id)}
             >
               {/* Cabecera de columna — navy oscuro con línea de acento */}
               <div
@@ -201,6 +218,8 @@ export default function TicketsModule() {
                     ticket={ticket}
                     onClick={t => fetchTicketDetails(t.id)}
                     onChangeStatus={changeStatus}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
                   />
                 ))}
               </AnimatedColumn>
@@ -629,7 +648,7 @@ function AnimatedColumn({ children, className, ...props }) {
   return <div ref={ref} className={className} {...props}>{children}</div>;
 }
 
-function TicketCard({ ticket, onClick, onChangeStatus }) {
+function TicketCard({ ticket, onClick, onChangeStatus, onDragStart, onDragEnd }) {
   const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date() && ticket.status !== 'closed';
 
   // Acciones de estado disponibles (sin incluir el actual)
@@ -642,8 +661,11 @@ function TicketCard({ ticket, onClick, onChangeStatus }) {
 
   return (
     <div
+      draggable
+      onDragStart={e => onDragStart && onDragStart(e, ticket)}
+      onDragEnd={onDragEnd}
       onClick={() => onClick(ticket)}
-      className={`bg-white rounded-sm border transition-all duration-150 cursor-pointer group hover:shadow-md select-none ${
+      className={`bg-white rounded-sm border transition-all duration-150 cursor-pointer lg:cursor-grab lg:active:cursor-grabbing group hover:shadow-md hover:-translate-y-px select-none ${
         isOverdue ? 'border-red-200' : 'border-gray-200 hover:border-gold/50'
       }`}
     >
