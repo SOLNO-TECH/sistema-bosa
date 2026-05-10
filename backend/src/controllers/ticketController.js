@@ -155,11 +155,38 @@ const uploadAttachment = (req, res) => {
   }
 };
 
+const deleteAttachment = (req, res) => {
+  try {
+    const { id, attachmentId } = req.params;
+    const { user_id } = req.body;
+
+    const db = getDb();
+    const att = db.prepare('SELECT * FROM ticket_attachments WHERE id = ? AND ticket_id = ?').get(attachmentId, id);
+    if (!att) return res.status(404).json({ error: 'Archivo no encontrado' });
+
+    // Borrar del disco si existe
+    try {
+      const fs = require('fs');
+      if (att.path && fs.existsSync(att.path)) fs.unlinkSync(att.path);
+    } catch (_) { /* ignorar errores de disco */ }
+
+    db.prepare('DELETE FROM ticket_attachments WHERE id = ?').run(attachmentId);
+
+    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
+      .run(id, user_id || 1, 'attachment_delete', `Archivo eliminado: ${att.filename}`);
+
+    res.json({ message: 'Archivo eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar archivo' });
+  }
+};
+
 module.exports = {
   getTickets,
   getTicketDetails,
   createTicket,
   updateTicketStatus,
   addComment,
-  uploadAttachment
+  uploadAttachment,
+  deleteAttachment
 };

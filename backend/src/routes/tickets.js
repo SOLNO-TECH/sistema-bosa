@@ -31,5 +31,6 @@ router.post('/', ticketController.createTicket);
 router.patch('/:id/status', ticketController.updateTicketStatus);
 router.post('/:id/comments', ticketController.addComment);
 router.post('/:id/attachments', upload.single('file'), ticketController.uploadAttachment);
+router.delete('/:id/attachments/:attachmentId', ticketController.deleteAttachment);
 
 module.exports = router;

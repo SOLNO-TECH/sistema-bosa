@@ -36,6 +36,18 @@ export default function TicketsModule() {
   const [activeTab, setActiveTab] = useState('info');
   const [newComment, setNewComment] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
+  const handleDeleteAttachment = async (attachmentId, filename) => {
+    if (!window.confirm(`¿Eliminar el archivo "${filename}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      await axios.delete(`/api/tickets/${selectedTicket.id}/attachments/${attachmentId}`, { data: { user_id: user?.id } });
+      fetchTicketDetails(selectedTicket.id);
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar el archivo');
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -454,23 +466,57 @@ export default function TicketsModule() {
                         return (
                           <div key={f.id} className="group relative border border-gray-200 rounded-lg overflow-hidden aspect-square bg-white">
                             {isImg ? (
-                              <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setLightboxUrl(url)}
+                                className="w-full h-full block cursor-zoom-in"
+                              >
+                                <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                              </button>
                             ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50">
-                                <svg className="w-10 h-10 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <svg className="w-10 h-10 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                 </svg>
-                                <span className="text-[10px] font-bold text-navy-600 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                                <span className="text-[10px] font-bold text-navy-700 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                              </a>
+                            )}
+
+                            {/* Botones flotantes — eliminar y descargar */}
+                            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {isImg && (
+                                <a
+                                  href={url}
+                                  download={f.filename}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-7 h-7 rounded-md bg-navy-950/80 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm transition"
+                                  title="Descargar"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                  </svg>
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(f.id, f.filename); }}
+                                className="w-7 h-7 rounded-md bg-red-500/90 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition"
+                                title="Eliminar"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* Indicador de zoom para imágenes */}
+                            {isImg && (
+                              <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-navy-950/70 text-gold text-[8px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm pointer-events-none">
+                                Click para ampliar
                               </div>
                             )}
-                            <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="absolute inset-0 bg-navy-950/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex flex-col items-center gap-1">
-                                <svg className="w-7 h-7 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                                </svg>
-                                <span className="text-[9px] font-bold text-white uppercase tracking-widest">Descargar</span>
-                              </div>
-                            </a>
                           </div>
                         );
                       })}
@@ -531,6 +577,41 @@ export default function TicketsModule() {
           </div>
         );
       })()}
+
+      {/* Lightbox para imágenes */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="vista ampliada"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+            title="Cerrar"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <a
+            href={lightboxUrl}
+            download
+            onClick={e => e.stopPropagation()}
+            className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+            title="Descargar"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+          </a>
+        </div>
+      )}
     </div>
   );
 }
