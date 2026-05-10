@@ -324,7 +324,7 @@ export default function TicketsModule() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`relative flex items-center gap-2 py-3.5 px-4 text-[10px] font-bold tracking-widest uppercase transition-colors whitespace-nowrap ${
-                      activeTab === tab.id ? 'text-navy-950' : 'text-navy-400 hover:text-navy-700'
+                      activeTab === tab.id ? 'text-navy-950' : 'text-navy-700 hover:text-navy-950'
                     }`}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -332,7 +332,7 @@ export default function TicketsModule() {
                     </svg>
                     {tab.label}
                     {tab.count !== null && tab.count > 0 && (
-                      <span className={`text-[9px] font-bold px-1.5 rounded-full tabular-nums ${activeTab === tab.id ? 'bg-gold text-navy-950' : 'bg-gray-100 text-navy-500'}`}>
+                      <span className={`text-[9px] font-bold px-1.5 rounded-full tabular-nums ${activeTab === tab.id ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-800'}`}>
                         {tab.count}
                       </span>
                     )}
