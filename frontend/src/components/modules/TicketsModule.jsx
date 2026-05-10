@@ -304,7 +304,6 @@ export default function TicketsModule() {
           closed:      { label: 'Completado',  color: '#10b981' },
         };
         const sInfo = STATUS_INFO[selectedTicket.status] || { label: selectedTicket.status, color: '#94a3b8' };
-        const priority = PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium;
         const isOverdue = selectedTicket.due_date && new Date(selectedTicket.due_date) < new Date() && selectedTicket.status !== 'closed';
 
         // Helper para construir URL de archivo desde el path almacenado
@@ -329,9 +328,6 @@ export default function TicketsModule() {
                       <span className="w-1 h-1 rounded-full bg-white/30" />
                       <span className="text-[9px] font-bold tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm" style={{ background: sInfo.color + '25', color: sInfo.color }}>
                         {sInfo.label}
-                      </span>
-                      <span className={`text-[9px] font-bold tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm border ${priority.cls}`}>
-                        {priority.label}
                       </span>
                       {isOverdue && (
                         <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-sm bg-red-500/20 text-red-300 border border-red-400/30">
