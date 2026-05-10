@@ -27,7 +27,6 @@ const PRIORITY_STYLES = {
 export default function TicketsModule() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
-  const [draggedTicket, setDraggedTicket] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
@@ -73,22 +72,12 @@ export default function TicketsModule() {
   const defaultForm = { title: '', description: '', priority: 'medium', category: DEPARTAMENTOS[0], assigned_to: null, due_date: '' };
   const [formData, setFormData] = useState(defaultForm);
 
-  const handleDragStart = (e, ticket) => {
-    setDraggedTicket(ticket);
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => e.target.classList.add('opacity-50'), 0);
-  };
-  const handleDragEnd = (e) => { e.target.classList.remove('opacity-50'); setDraggedTicket(null); };
-  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
-
-  const handleDrop = async (e, statusId) => {
-    e.preventDefault();
-    if (!draggedTicket || draggedTicket.status === statusId) return;
+  const changeStatus = async (ticket, statusId) => {
+    if (!ticket || ticket.status === statusId) return;
     try {
-      await axios.patch(`/api/tickets/${draggedTicket.id}/status`, { status: statusId, user_id: user?.id });
+      await axios.patch(`/api/tickets/${ticket.id}/status`, { status: statusId, user_id: user?.id });
       fetchTickets();
     } catch (err) { console.error(err); }
-    setDraggedTicket(null);
   };
 
   const handleSaveTicket = async () => {
@@ -178,8 +167,6 @@ export default function TicketsModule() {
             <div
               key={col.id}
               className="flex-shrink-0 w-72 flex flex-col rounded-sm overflow-hidden border border-gray-200 shadow-sm"
-              onDragOver={handleDragOver}
-              onDrop={e => handleDrop(e, col.id)}
             >
               {/* Cabecera de columna — navy oscuro con línea de acento */}
               <div
@@ -212,9 +199,8 @@ export default function TicketsModule() {
                   <TicketCard
                     key={ticket.id}
                     ticket={ticket}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
                     onClick={t => fetchTicketDetails(t.id)}
+                    onChangeStatus={changeStatus}
                   />
                 ))}
               </AnimatedColumn>
@@ -643,17 +629,21 @@ function AnimatedColumn({ children, className, ...props }) {
   return <div ref={ref} className={className} {...props}>{children}</div>;
 }
 
-function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
+function TicketCard({ ticket, onClick, onChangeStatus }) {
   const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date() && ticket.status !== 'closed';
-  const priority = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES.medium;
+
+  // Acciones de estado disponibles (sin incluir el actual)
+  const STATUS_ACTIONS = [
+    { id: 'in_progress', label: 'Progreso',  short: 'En curso',   accent: '#CBAC80', textOn: '#071221' },
+    { id: 'resolved',    label: 'Revisión',  short: 'Revisar',    accent: '#3b82f6', textOn: '#ffffff' },
+    { id: 'closed',      label: 'Completar', short: 'Completar',  accent: '#10b981', textOn: '#ffffff' },
+  ];
+  const availableActions = STATUS_ACTIONS.filter(a => a.id !== ticket.status);
 
   return (
     <div
-      draggable
-      onDragStart={e => onDragStart(e, ticket)}
-      onDragEnd={onDragEnd}
       onClick={() => onClick(ticket)}
-      className={`bg-white rounded-sm border transition-all duration-150 cursor-grab active:cursor-grabbing group hover:shadow-md hover:-translate-y-px select-none ${
+      className={`bg-white rounded-sm border transition-all duration-150 cursor-pointer group hover:shadow-md select-none ${
         isOverdue ? 'border-red-200' : 'border-gray-200 hover:border-gold/50'
       }`}
     >
@@ -665,12 +655,12 @@ function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
       }`} />
 
       <div className="p-3.5">
-        {/* ID + prioridad */}
+        {/* ID */}
         <div className="flex items-center justify-between mb-2.5">
-          <span className="font-label text-[9px] tracking-[0.2em] text-navy-400 uppercase">#{ticket.id}</span>
-          <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-sm border ${priority.cls}`}>
-            {priority.label}
-          </span>
+          <span className="font-label text-[9px] tracking-[0.2em] text-navy-500 uppercase font-bold">#{ticket.id}</span>
+          {isOverdue && (
+            <span className="text-[8px] font-bold text-red-600 uppercase tracking-wide bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-sm">Vencido</span>
+          )}
         </div>
 
         {/* Título */}
@@ -680,26 +670,38 @@ function TicketCard({ ticket, onDragStart, onDragEnd, onClick }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
-          <span className="font-label text-[8px] tracking-wider text-navy-500 uppercase truncate max-w-[110px]">
+          <span className="font-label text-[8px] tracking-wider text-navy-600 uppercase truncate max-w-[110px] font-bold">
             {ticket.category}
           </span>
-          <div className="flex items-center gap-2">
-            {isOverdue && (
-              <span className="text-[8px] font-bold text-red-500 uppercase tracking-wide">Vencido</span>
-            )}
-            {ticket.assigned_name ? (
-              <div className="w-6 h-6 rounded-sm bg-navy-950 text-gold flex items-center justify-center text-[10px] font-bold border border-gold/20">
-                {ticket.assigned_name.charAt(0).toUpperCase()}
-              </div>
-            ) : (
-              <div className="w-6 h-6 rounded-sm bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
-                <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-            )}
-          </div>
+          {ticket.assigned_name ? (
+            <div className="w-6 h-6 rounded-sm bg-navy-950 text-gold flex items-center justify-center text-[10px] font-bold border border-gold/20">
+              {ticket.assigned_name.charAt(0).toUpperCase()}
+            </div>
+          ) : (
+            <div className="w-6 h-6 rounded-sm bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
+              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          )}
         </div>
+
+        {/* Botones de cambio de estado — solo móvil/tablet */}
+        {onChangeStatus && availableActions.length > 0 && (
+          <div className="lg:hidden mt-3 pt-2.5 border-t border-gray-100 flex gap-1">
+            {availableActions.map(act => (
+              <button
+                key={act.id}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onChangeStatus(ticket, act.id); }}
+                className="flex-1 py-1.5 rounded-sm text-[9px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                style={{ background: act.accent, color: act.textOn }}
+              >
+                {act.short}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
