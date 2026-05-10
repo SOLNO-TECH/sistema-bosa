@@ -226,9 +226,9 @@ export default function Dashboard() {
         className={`fixed inset-y-0 left-0 z-40 w-60 flex flex-col border-r border-surface lg:relative lg:translate-x-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{ background: 'linear-gradient(180deg, #0A1930 0%, #071221 100%)' }}
       >
-        <div className="px-5 py-6 border-b border-surface flex items-center h-[96px] relative">
+        <div className="px-5 py-6 border-b border-surface flex items-center justify-center h-[96px] relative">
           <img src="/logo.png" alt="BOSA Logo" className="w-40" />
-          <button onClick={() => setSidebar(false)} className="lg:hidden ml-auto text-slate-muted hover:text-gold">
+          <button onClick={() => setSidebar(false)} className="lg:hidden absolute right-5 top-1/2 -translate-y-1/2 text-slate-muted hover:text-gold">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
