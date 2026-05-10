@@ -81,9 +81,11 @@ export default function TicketsModule() {
       await axios.patch(`/api/tickets/${ticket.id}/status`, { status: statusId, user_id: user?.id });
       fetchTickets(); // refresca datos (historial, etc.)
     } catch (err) {
-      console.error('Error al cambiar estado del ticket:', err);
+      const code = err?.response?.status;
+      const msg  = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Error desconocido';
+      console.error('Error al cambiar estado del ticket:', { code, msg, err });
       fetchTickets(); // revierte al estado real si falló
-      alert('No se pudo cambiar el estado del ticket.');
+      alert(`No se pudo cambiar el estado del ticket.\nCódigo: ${code || 'sin respuesta'}\nMotivo: ${msg}`);
     }
   };
 
