@@ -349,7 +349,7 @@ export default function TicketsModule() {
                   <div className="p-6 space-y-5">
                     {/* Descripción */}
                     <div>
-                      <p className="font-label text-[9px] tracking-[0.25em] text-navy-400 uppercase mb-2">Descripción del requerimiento</p>
+                      <p className="font-label text-[10px] tracking-[0.25em] text-navy-700 uppercase font-bold mb-2">Descripción del requerimiento</p>
                       <div className="bg-white p-4 rounded-lg border border-gray-200 relative">
                         <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-gold rounded-r" />
                         <p className="text-navy-800 text-sm leading-relaxed whitespace-pre-wrap pl-3">
@@ -397,8 +397,8 @@ export default function TicketsModule() {
                               <path strokeLinecap="round" strokeLinejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
                           </div>
-                          <p className="text-xs text-navy-400 font-bold uppercase tracking-widest">Sin comentarios todavía</p>
-                          <p className="text-[10px] text-gray-400">Escribe el primero abajo</p>
+                          <p className="text-xs text-navy-700 font-bold uppercase tracking-widest">Sin comentarios todavía</p>
+                          <p className="text-[10px] text-navy-500">Escribe el primero abajo</p>
                         </div>
                       ) : (
                         selectedTicket.comments.map(c => {
@@ -409,13 +409,13 @@ export default function TicketsModule() {
                                 {(c.user_name || '?').charAt(0).toUpperCase()}
                               </div>
                               <div className={`flex flex-col max-w-[80%] ${mine ? 'items-end' : 'items-start'}`}>
-                                <span className="text-[9px] font-bold text-navy-400 mb-0.5 px-1">{c.user_name}</span>
+                                <span className="text-[10px] font-bold text-navy-700 mb-0.5 px-1">{c.user_name}</span>
                                 <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
                                   mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'
                                 }`}>
                                   <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
                                 </div>
-                                <span className="text-[9px] text-gray-400 mt-1 px-1">
+                                <span className="text-[10px] text-navy-500 mt-1 px-1">
                                   {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} · {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
@@ -489,7 +489,7 @@ export default function TicketsModule() {
                       </label>
                     </div>
                     {(!selectedTicket.attachments || selectedTicket.attachments.length === 0) && (
-                      <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-6">Sin archivos adjuntos aún</p>
+                      <p className="text-center text-[10px] text-navy-600 font-bold uppercase tracking-widest mt-6">Sin archivos adjuntos aún</p>
                     )}
                   </div>
                 )}
@@ -500,11 +500,11 @@ export default function TicketsModule() {
                     {(!selectedTicket.history || selectedTicket.history.length === 0) ? (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                         <div className="w-12 h-12 rounded-full bg-navy-50 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <svg className="w-6 h-6 text-navy-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                        <p className="text-xs text-navy-400 font-bold uppercase tracking-widest">Sin actividad registrada</p>
+                        <p className="text-xs text-navy-700 font-bold uppercase tracking-widest">Sin actividad registrada</p>
                       </div>
                     ) : (
                       <div className="relative">
@@ -515,7 +515,7 @@ export default function TicketsModule() {
                               <div className="w-4 h-4 rounded-full bg-white border-2 border-gold mt-1 flex-shrink-0 z-10" />
                               <div className="flex-1 bg-white p-3 rounded-lg border border-gray-200">
                                 <p className="text-xs font-bold text-navy-950 leading-snug">{h.details}</p>
-                                <p className="text-[10px] text-navy-400 font-medium mt-1">
+                                <p className="text-[10px] text-navy-600 font-medium mt-1">
                                   {h.user_name} · {new Date(h.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} · {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
@@ -539,8 +539,8 @@ function DetailItem({ label, value, icon, accent, muted }) {
   const accentClasses = {
     red: 'border-red-200 bg-red-50/40',
   };
-  const valueClass = accent === 'red' ? 'text-red-600' : muted ? 'text-gray-400 italic' : 'text-navy-950';
-  const iconClass = accent === 'red' ? 'text-red-400 bg-red-100' : 'text-navy-500 bg-navy-50';
+  const valueClass = accent === 'red' ? 'text-red-700' : muted ? 'text-gray-500 italic' : 'text-navy-950';
+  const iconClass = accent === 'red' ? 'text-red-600 bg-red-100' : 'text-navy-700 bg-navy-50';
   return (
     <div className={`bg-white p-3.5 rounded-lg border ${accentClasses[accent] || 'border-gray-200'} flex items-center gap-3`}>
       <div className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 ${iconClass}`}>
@@ -549,7 +549,7 @@ function DetailItem({ label, value, icon, accent, muted }) {
         </svg>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-label text-[9px] tracking-[0.2em] text-navy-400 uppercase">{label}</p>
+        <p className="font-label text-[10px] tracking-[0.2em] text-navy-700 uppercase font-bold">{label}</p>
         <p className={`text-sm font-bold mt-0.5 truncate ${valueClass}`}>{value}</p>
       </div>
     </div>
