@@ -97,20 +97,42 @@ const createTicket = (req, res) => {
 const updateTicketStatus = (req, res) => {
   try {
     const { id } = req.params;
-    const { status, user_id } = req.body; // user_id of who is changing it
+    const { status, user_id } = req.body;
     const db = getDb();
-    
-    const oldStatus = db.prepare('SELECT status FROM tickets WHERE id = ?').get(id)?.status;
-    
-    db.prepare('UPDATE tickets SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, id);
-    
-    // Log history
-    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
-      .run(id, user_id || 1, 'status_change', `Estado cambiado de ${oldStatus} a ${status}`);
 
-    res.json({ message: 'Estado del ticket actualizado' });
+    if (!status) return res.status(400).json({ error: 'Falta el campo status' });
+
+    const ticket = db.prepare('SELECT status FROM tickets WHERE id = ?').get(id);
+    if (!ticket) return res.status(404).json({ error: `Ticket ${id} no encontrado` });
+    const oldStatus = ticket.status;
+
+    db.prepare('UPDATE tickets SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, id);
+
+    // Resolver el user_id válido (si no viene o no existe, usar el primer admin existente)
+    let validUserId = null;
+    if (user_id) {
+      const u = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
+      if (u) validUserId = u.id;
+    }
+    if (!validUserId) {
+      const fallback = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
+      validUserId = fallback?.id;
+    }
+
+    if (validUserId) {
+      try {
+        db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
+          .run(id, validUserId, 'status_change', `Estado cambiado de ${oldStatus} a ${status}`);
+      } catch (histErr) {
+        console.warn('No se pudo registrar el historial:', histErr.message);
+        // No falla todo el endpoint si solo falla el historial
+      }
+    }
+
+    res.json({ message: 'Estado del ticket actualizado', oldStatus, newStatus: status });
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar ticket' });
+    console.error('updateTicketStatus error:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar ticket' });
   }
 };
 
