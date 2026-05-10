@@ -258,152 +258,300 @@ export default function TicketsModule() {
         </div>
       )}
 
-      {/* DETALLE AVANZADO (SIDEBAR/DRAWER) */}
-      {selectedTicket && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-end bg-navy-950/50 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedTicket(null)}>
-          <div className="bg-white h-full w-full max-w-xl shadow-2xl flex flex-col animate-slide-left" onClick={e => e.stopPropagation()}>
-            {/* Header del Ticket */}
-            <div className="p-6 bg-navy-950 text-white flex justify-between items-start">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-gold text-navy-950 px-2 py-0.5 rounded text-[10px] font-black tracking-widest uppercase">ID-{selectedTicket.id}</span>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border border-white/20`}>{selectedTicket.status}</span>
-                </div>
-                <h3 className="text-xl font-display font-bold leading-tight">{selectedTicket.title}</h3>
-              </div>
-              <button onClick={() => setSelectedTicket(null)} className="text-white/60 hover:text-white transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
+      {/* ── DETALLE DEL TICKET — modal centrado ── */}
+      {selectedTicket && (() => {
+        const STATUS_INFO = {
+          open:        { label: 'Pendiente',   color: '#94a3b8' },
+          in_progress: { label: 'En Progreso', color: '#CBAC80' },
+          resolved:    { label: 'En Revisión', color: '#3b82f6' },
+          closed:      { label: 'Completado',  color: '#10b981' },
+        };
+        const sInfo = STATUS_INFO[selectedTicket.status] || { label: selectedTicket.status, color: '#94a3b8' };
+        const priority = PRIORITY_STYLES[selectedTicket.priority] || PRIORITY_STYLES.medium;
+        const isOverdue = selectedTicket.due_date && new Date(selectedTicket.due_date) < new Date() && selectedTicket.status !== 'closed';
 
-            {/* Pestañas */}
-            <div className="flex border-b border-gray-200 bg-gray-50">
-              {[
-                { id: 'info', label: 'Información', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-                { id: 'chat', label: 'Comentarios', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
-                { id: 'files', label: 'Archivos', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-                { id: 'log', label: 'Historial', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-              ].map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 py-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 ${
-                    activeTab === tab.id ? 'border-gold bg-white text-navy-950' : 'border-transparent text-gray-400 hover:text-navy-600 hover:bg-gray-100'
-                  }`}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} /></svg>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+        // Helper para construir URL de archivo desde el path almacenado
+        const fileUrl = (f) => {
+          if (!f?.path) return '';
+          if (f.path.startsWith('/api/') || f.path.startsWith('http')) return f.path;
+          const parts = f.path.replace(/\\/g, '/').split('/');
+          return `/api/uploads/${parts[parts.length - 1]}`;
+        };
 
-            {/* Contenido Pestañas */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {activeTab === 'info' && (
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-2">Descripción del Requerimiento</h4>
-                    <p className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-navy-800 text-sm leading-relaxed whitespace-pre-wrap">{selectedTicket.description || 'Sin descripción detallada.'}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Prioridad</p>
-                      <p className="text-sm font-black text-navy-950 capitalize">{selectedTicket.priority}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Fecha Límite</p>
-                      <p className={`text-sm font-black ${new Date(selectedTicket.due_date) < new Date() ? 'text-red-600' : 'text-navy-950'}`}>
-                        {selectedTicket.due_date ? new Date(selectedTicket.due_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'long' }) : 'No asignada'}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Asignado a</p>
-                      <p className="text-sm font-black text-navy-950">{selectedTicket.assigned_name || 'Sin asignar'}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <p className="text-[9px] font-bold text-navy-400 uppercase tracking-widest mb-1">Departamento</p>
-                      <p className="text-sm font-black text-navy-950">{selectedTicket.category}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        return (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/70 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSelectedTicket(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
 
-              {activeTab === 'chat' && (
-                <div className="flex flex-col h-full space-y-4">
-                  <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-                    {selectedTicket.comments?.length === 0 && <p className="text-center text-gray-400 py-10 text-xs">No hay comentarios aún.</p>}
-                    {selectedTicket.comments?.map(c => (
-                      <div key={c.id} className={`flex flex-col ${c.user_id === user?.id ? 'items-end' : 'items-start'}`}>
-                        <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${c.user_id === user?.id ? 'bg-navy-950 text-white rounded-tr-none' : 'bg-gray-100 text-navy-900 rounded-tl-none'}`}>
-                          <p className="font-bold text-[10px] mb-1 opacity-70">{c.user_name}</p>
-                          <p>{c.content}</p>
-                        </div>
-                        <p className="text-[9px] text-gray-400 mt-1">{new Date(c.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-4 border-t border-gray-200">
-                    <div className="flex gap-2">
-                      <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddComment()}
-                        placeholder="Escribe un comentario..." className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-gold outline-none" />
-                      <button onClick={handleAddComment} className="w-10 h-10 bg-navy-950 text-gold rounded-full flex items-center justify-center hover:scale-105 transition-transform">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'files' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedTicket.attachments?.map(f => (
-                      <div key={f.id} className="group relative border border-gray-200 rounded-xl overflow-hidden aspect-square bg-gray-50 flex items-center justify-center">
-                        {f.mimetype.startsWith('image/') ? (
-                          <img src={`/api/uploads/${path.basename(f.path)}`} alt={f.filename} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="flex flex-col items-center gap-2">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            <span className="text-[10px] font-bold text-gray-500 uppercase px-2 text-center truncate w-full">{f.filename}</span>
-                          </div>
-                        )}
-                        <a href={`/api/uploads/${path.basename(f.path)}`} download={f.filename} className="absolute inset-0 bg-navy-950/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                           <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        </a>
-                      </div>
-                    ))}
-                    <label className={`border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-amber-50 transition-all ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
-                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-                      {isUploading ? (
-                        <div className="w-6 h-6 border-4 border-gold border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Subir Evidencia</span>
-                        </>
+              {/* Header */}
+              <div className="bg-navy-950 px-6 py-5 relative flex-shrink-0">
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                      <span className="font-label text-[9px] tracking-[0.25em] text-gold uppercase">Ticket #{selectedTicket.id}</span>
+                      <span className="w-1 h-1 rounded-full bg-white/30" />
+                      <span className="text-[9px] font-bold tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm" style={{ background: sInfo.color + '25', color: sInfo.color }}>
+                        {sInfo.label}
+                      </span>
+                      <span className={`text-[9px] font-bold tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm border ${priority.cls}`}>
+                        {priority.label}
+                      </span>
+                      {isOverdue && (
+                        <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-sm bg-red-500/20 text-red-300 border border-red-400/30">
+                          Vencido
+                        </span>
                       )}
-                    </label>
+                    </div>
+                    <h3 className="text-xl font-display font-medium text-white leading-tight">{selectedTicket.title}</h3>
                   </div>
+                  <button onClick={() => setSelectedTicket(null)} className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              )}
+              </div>
 
-              {activeTab === 'log' && (
-                <div className="space-y-6">
-                  {selectedTicket.history?.map((h, i, arr) => (
-                    <div key={h.id} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-2 h-2 rounded-full bg-navy-950 mt-1.5" />
-                        {i < arr.length - 1 && <div className="w-px flex-1 bg-gray-200 my-1" />}
-                      </div>
-                      <div className="pb-4">
-                        <p className="text-xs font-bold text-navy-950">{h.details}</p>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">{h.user_name} · {new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</p>
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 bg-white px-2 flex-shrink-0 overflow-x-auto">
+                {[
+                  { id: 'info',  label: 'Información', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', count: null },
+                  { id: 'chat',  label: 'Comentarios', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', count: selectedTicket.comments?.length || 0 },
+                  { id: 'files', label: 'Archivos',    icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13', count: selectedTicket.attachments?.length || 0 },
+                  { id: 'log',   label: 'Historial',   icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', count: selectedTicket.history?.length || 0 },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative flex items-center gap-2 py-3.5 px-4 text-[10px] font-bold tracking-widest uppercase transition-colors whitespace-nowrap ${
+                      activeTab === tab.id ? 'text-navy-950' : 'text-navy-400 hover:text-navy-700'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
+                    </svg>
+                    {tab.label}
+                    {tab.count !== null && tab.count > 0 && (
+                      <span className={`text-[9px] font-bold px-1.5 rounded-full tabular-nums ${activeTab === tab.id ? 'bg-gold text-navy-950' : 'bg-gray-100 text-navy-500'}`}>
+                        {tab.count}
+                      </span>
+                    )}
+                    {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
+                  </button>
+                ))}
+              </div>
+
+              {/* Contenido */}
+              <div className="flex-1 overflow-y-auto bg-gray-50/50">
+
+                {/* INFO */}
+                {activeTab === 'info' && (
+                  <div className="p-6 space-y-5">
+                    {/* Descripción */}
+                    <div>
+                      <p className="font-label text-[9px] tracking-[0.25em] text-navy-400 uppercase mb-2">Descripción del requerimiento</p>
+                      <div className="bg-white p-4 rounded-lg border border-gray-200 relative">
+                        <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-gold rounded-r" />
+                        <p className="text-navy-800 text-sm leading-relaxed whitespace-pre-wrap pl-3">
+                          {selectedTicket.description || <span className="italic text-gray-400">Sin descripción detallada.</span>}
+                        </p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Grid de detalles */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <DetailItem
+                        label="Asignado a"
+                        value={selectedTicket.assigned_name || 'Sin asignar'}
+                        icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"
+                        muted={!selectedTicket.assigned_name}
+                      />
+                      <DetailItem
+                        label="Departamento"
+                        value={selectedTicket.category || '—'}
+                        icon="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21"
+                      />
+                      <DetailItem
+                        label="Fecha límite"
+                        value={selectedTicket.due_date ? new Date(selectedTicket.due_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : 'No asignada'}
+                        icon="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                        accent={isOverdue ? 'red' : null}
+                      />
+                      <DetailItem
+                        label="Creado"
+                        value={selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                        icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* COMENTARIOS */}
+                {activeTab === 'chat' && (
+                  <div className="flex flex-col h-full">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                      {(!selectedTicket.comments || selectedTicket.comments.length === 0) ? (
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                          <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                          </div>
+                          <p className="text-xs text-navy-400 font-bold uppercase tracking-widest">Sin comentarios todavía</p>
+                          <p className="text-[10px] text-gray-400">Escribe el primero abajo</p>
+                        </div>
+                      ) : (
+                        selectedTicket.comments.map(c => {
+                          const mine = c.user_id === user?.id;
+                          return (
+                            <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-700'}`}>
+                                {(c.user_name || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div className={`flex flex-col max-w-[80%] ${mine ? 'items-end' : 'items-start'}`}>
+                                <span className="text-[9px] font-bold text-navy-400 mb-0.5 px-1">{c.user_name}</span>
+                                <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
+                                  mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'
+                                }`}>
+                                  <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
+                                </div>
+                                <span className="text-[9px] text-gray-400 mt-1 px-1">
+                                  {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} · {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={newComment}
+                          onChange={e => setNewComment(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddComment()}
+                          placeholder="Escribe un comentario..."
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2.5 text-sm text-navy-900 focus:outline-none focus:border-gold focus:bg-white transition"
+                        />
+                        <button onClick={handleAddComment} disabled={!newComment.trim()} className="w-10 h-10 bg-gold text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-yellow-500 transition shadow-md flex-shrink-0">
+                          <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ARCHIVOS */}
+                {activeTab === 'files' && (
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {selectedTicket.attachments?.map(f => {
+                        const url = fileUrl(f);
+                        const isImg = f.mimetype?.startsWith('image/');
+                        return (
+                          <div key={f.id} className="group relative border border-gray-200 rounded-lg overflow-hidden aspect-square bg-white">
+                            {isImg ? (
+                              <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50">
+                                <svg className="w-10 h-10 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span className="text-[10px] font-bold text-navy-600 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                              </div>
+                            )}
+                            <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="absolute inset-0 bg-navy-950/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex flex-col items-center gap-1">
+                                <svg className="w-7 h-7 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                                <span className="text-[9px] font-bold text-white uppercase tracking-widest">Descargar</span>
+                              </div>
+                            </a>
+                          </div>
+                        );
+                      })}
+                      <label className={`border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-gold/5 transition-all ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                        <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                        {isUploading ? (
+                          <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <svg className="w-7 h-7 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest text-center px-2">Subir evidencia</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                    {(!selectedTicket.attachments || selectedTicket.attachments.length === 0) && (
+                      <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-6">Sin archivos adjuntos aún</p>
+                    )}
+                  </div>
+                )}
+
+                {/* HISTORIAL */}
+                {activeTab === 'log' && (
+                  <div className="p-6">
+                    {(!selectedTicket.history || selectedTicket.history.length === 0) ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                        <div className="w-12 h-12 rounded-full bg-navy-50 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs text-navy-400 font-bold uppercase tracking-widest">Sin actividad registrada</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200" />
+                        <div className="space-y-4">
+                          {selectedTicket.history.map((h) => (
+                            <div key={h.id} className="flex gap-4 relative">
+                              <div className="w-4 h-4 rounded-full bg-white border-2 border-gold mt-1 flex-shrink-0 z-10" />
+                              <div className="flex-1 bg-white p-3 rounded-lg border border-gray-200">
+                                <p className="text-xs font-bold text-navy-950 leading-snug">{h.details}</p>
+                                <p className="text-[10px] text-navy-400 font-medium mt-1">
+                                  {h.user_name} · {new Date(h.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} · {new Date(h.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+    </div>
+  );
+}
+
+function DetailItem({ label, value, icon, accent, muted }) {
+  const accentClasses = {
+    red: 'border-red-200 bg-red-50/40',
+  };
+  const valueClass = accent === 'red' ? 'text-red-600' : muted ? 'text-gray-400 italic' : 'text-navy-950';
+  const iconClass = accent === 'red' ? 'text-red-400 bg-red-100' : 'text-navy-500 bg-navy-50';
+  return (
+    <div className={`bg-white p-3.5 rounded-lg border ${accentClasses[accent] || 'border-gray-200'} flex items-center gap-3`}>
+      <div className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 ${iconClass}`}>
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-label text-[9px] tracking-[0.2em] text-navy-400 uppercase">{label}</p>
+        <p className={`text-sm font-bold mt-0.5 truncate ${valueClass}`}>{value}</p>
+      </div>
     </div>
   );
 }
