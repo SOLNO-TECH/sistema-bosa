@@ -75,24 +75,42 @@ export default function TicketsModule() {
 
   const changeStatus = async (ticket, statusId) => {
     if (!ticket || ticket.status === statusId) return;
+    // Actualización optimista: mover la tarjeta de inmediato
+    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: statusId } : t));
     try {
       await axios.patch(`/api/tickets/${ticket.id}/status`, { status: statusId, user_id: user?.id });
-      fetchTickets();
-    } catch (err) { console.error(err); }
+      fetchTickets(); // refresca datos (historial, etc.)
+    } catch (err) {
+      console.error('Error al cambiar estado del ticket:', err);
+      fetchTickets(); // revierte al estado real si falló
+      alert('No se pudo cambiar el estado del ticket.');
+    }
   };
 
   const handleDragStart = (e, ticket) => {
     setDraggedTicket(ticket);
+    // Pasar la info por dataTransfer para evitar problemas de state asíncrono
+    try { e.dataTransfer.setData('application/json', JSON.stringify({ id: ticket.id, status: ticket.status })); } catch (_) {}
     e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => e.target.classList.add('opacity-50'), 0);
+    setTimeout(() => { try { e.target.classList.add('opacity-50'); } catch (_) {} }, 0);
   };
-  const handleDragEnd = (e) => { e.target.classList.remove('opacity-50'); setDraggedTicket(null); };
+  const handleDragEnd = (e) => { try { e.target.classList.remove('opacity-50'); } catch (_) {} setDraggedTicket(null); };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
   const handleDrop = async (e, statusId) => {
     e.preventDefault();
-    if (!draggedTicket) return;
-    await changeStatus(draggedTicket, statusId);
+    e.stopPropagation();
+    // Intentar leer del dataTransfer primero, fallback al state
+    let ticket = draggedTicket;
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        ticket = tickets.find(t => t.id === parsed.id) || ticket;
+      }
+    } catch (_) {}
+    if (!ticket) return;
     setDraggedTicket(null);
+    await changeStatus(ticket, statusId);
   };
 
   const handleSaveTicket = async () => {
