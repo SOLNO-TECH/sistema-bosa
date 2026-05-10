@@ -9,8 +9,6 @@ const DEPARTAMENTOS = [
   'Mantenimiento','Almacén','Marketing','Restaurantes','Berry Yum'
 ];
 
-const GRUPOS = ['Todos los departamentos','Directivos','Operativos','Administrativos'];
-
 const PRIORIDAD_STYLES = {
   normal: 'bg-blue-50 text-blue-700 border-blue-200',
   importante: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -39,8 +37,18 @@ export default function AvisosModule() {
     prioridad: 'normal',
     tipo: 'departamento',
     departamentos: [],
-    grupo: '',
+    foroId: '',
+    usuarioId: '',
   });
+
+  // Fuentes para los selectores nuevos
+  const [forums, setForums] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+
+  useEffect(() => {
+    axios.get('/api/forums').then(r => setForums(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    axios.get('/api/users').then(r => setUsersList(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, []);
 
   const fetchAvisos = async () => {
     try {
@@ -75,8 +83,33 @@ export default function AvisosModule() {
 
   const handleSend = async () => {
     if (!form.titulo || !form.mensaje) return;
-    const destinatarios = form.tipo === 'grupo' ? [form.grupo || GRUPOS[0]] : form.departamentos;
-    
+
+    // Validar destinatario según tipo
+    if (form.tipo === 'foro' && !form.foroId) {
+      alert('Selecciona un foro');
+      return;
+    }
+    if (form.tipo === 'individual' && !form.usuarioId) {
+      alert('Selecciona un usuario');
+      return;
+    }
+    if (form.tipo === 'departamento' && form.departamentos.length === 0) {
+      alert('Selecciona al menos un departamento');
+      return;
+    }
+
+    // Calcular etiquetas de destinatarios
+    let destinatarios = [];
+    if (form.tipo === 'foro') {
+      const f = forums.find(x => String(x.id) === String(form.foroId));
+      destinatarios = [`Foro: ${f?.name || 'desconocido'}`];
+    } else if (form.tipo === 'individual') {
+      const u = usersList.find(x => String(x.id) === String(form.usuarioId));
+      destinatarios = [`${u?.name || ''} ${u?.apellido || ''}`.trim() || 'Usuario'];
+    } else {
+      destinatarios = form.departamentos;
+    }
+
     setSending(true);
     try {
       await axios.post('/api/avisos', {
@@ -85,7 +118,22 @@ export default function AvisosModule() {
         category: form.prioridad,
         created_by: user?.id,
       });
-      
+
+      // Si va a un foro, también lo publicamos como mensaje en el chat de ese foro
+      if (form.tipo === 'foro' && form.foroId) {
+        try {
+          const fd = new FormData();
+          fd.append('user_id', user?.id || '');
+          const prioLabel = form.prioridad === 'urgente' ? 'URGENTE' : form.prioridad === 'importante' ? 'IMPORTANTE' : 'AVISO';
+          fd.append('content', `📢 ${prioLabel} — ${form.titulo}\n\n${form.mensaje}`);
+          await axios.post(`/api/forums/${form.foroId}/messages`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+        } catch (e) {
+          console.warn('No se pudo publicar el aviso en el foro:', e);
+        }
+      }
+
       const now = new Date();
       setAvisos(prev => [{
         id: `AV-NEW`,
@@ -109,7 +157,7 @@ export default function AvisosModule() {
     } finally {
       setSending(false);
       setIsModalOpen(false);
-      setForm({ titulo: '', mensaje: '', prioridad: 'normal', tipo: 'departamento', departamentos: [], grupo: '' });
+      setForm({ titulo: '', mensaje: '', prioridad: 'normal', tipo: 'departamento', departamentos: [], foroId: '', usuarioId: '' });
     }
   };
 
@@ -224,12 +272,14 @@ export default function AvisosModule() {
                     {aviso.estado === 'enviado' ? '✓ Enviado' : aviso.estado === 'programado' ? '⏰ Programado' : 'Borrador'}
                   </span>
                   <span className="bg-gray-100 text-navy-600 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border border-gray-200 flex items-center gap-1">
-                    {aviso.tipo === 'grupo' ? (
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    {aviso.tipo === 'foro' ? (
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
+                    ) : aviso.tipo === 'individual' ? (
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     ) : (
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                     )}
-                    {aviso.tipo === 'grupo' ? 'Grupo' : 'Departamento'}
+                    {aviso.tipo === 'foro' ? 'Foro' : aviso.tipo === 'individual' ? 'Individual' : 'Departamento'}
                   </span>
                 </div>
                 <h3 className="font-bold text-navy-950 text-base group-hover:text-gold transition-colors mb-1">{aviso.titulo}</h3>
@@ -289,22 +339,27 @@ export default function AvisosModule() {
               {/* Tipo de destinatario */}
               <div className="space-y-1.5">
                 <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Enviar a</label>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button onClick={() => setForm({...form, tipo: 'departamento'})}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-xs font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${form.tipo === 'departamento' ? 'border-gold bg-gold/10 text-gold' : 'border-gray-200 text-gray-500'}`}>
+                    className={`py-2.5 rounded-lg border-2 text-[11px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 ${form.tipo === 'departamento' ? 'border-gold bg-gold/10 text-gold' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                    Departamentos
+                    Departamento
                   </button>
-                  <button onClick={() => setForm({...form, tipo: 'grupo'})}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-xs font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${form.tipo === 'grupo' ? 'border-gold bg-gold/10 text-gold' : 'border-gray-200 text-gray-500'}`}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    Grupo
+                  <button onClick={() => setForm({...form, tipo: 'foro'})}
+                    className={`py-2.5 rounded-lg border-2 text-[11px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 ${form.tipo === 'foro' ? 'border-gold bg-gold/10 text-gold' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
+                    Foro
+                  </button>
+                  <button onClick={() => setForm({...form, tipo: 'individual'})}
+                    className={`py-2.5 rounded-lg border-2 text-[11px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 ${form.tipo === 'individual' ? 'border-gold bg-gold/10 text-gold' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    Individual
                   </button>
                 </div>
               </div>
 
               {/* Selector de destinatarios */}
-              {form.tipo === 'departamento' ? (
+              {form.tipo === 'departamento' && (
                 <div className="space-y-1.5">
                   <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">
                     Departamentos ({form.departamentos.length} seleccionados)
@@ -327,13 +382,56 @@ export default function AvisosModule() {
                     ))}
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {form.tipo === 'foro' && (
                 <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Grupo</label>
-                  <select value={form.grupo} onChange={e => setForm({...form, grupo: e.target.value})}
-                    className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none bg-white">
-                    {GRUPOS.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
+                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">
+                    Foro destino ({forums.length} disponibles)
+                  </label>
+                  {forums.length === 0 ? (
+                    <p className="text-xs text-navy-500 italic bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      No hay foros creados todavía. Crea uno en el módulo de Foro primero.
+                    </p>
+                  ) : (
+                    <select
+                      value={form.foroId}
+                      onChange={e => setForm({...form, foroId: e.target.value})}
+                      className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none bg-white"
+                    >
+                      <option value="">— Selecciona un foro —</option>
+                      {forums.map(f => (
+                        <option key={f.id} value={f.id}># {f.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-[10px] text-navy-500 mt-1">El aviso se publicará también como mensaje en el chat del foro.</p>
+                </div>
+              )}
+
+              {form.tipo === 'individual' && (
+                <div className="space-y-1.5">
+                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">
+                    Usuario destino ({usersList.length} disponibles)
+                  </label>
+                  {usersList.length === 0 ? (
+                    <p className="text-xs text-navy-500 italic bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      No hay usuarios registrados.
+                    </p>
+                  ) : (
+                    <select
+                      value={form.usuarioId}
+                      onChange={e => setForm({...form, usuarioId: e.target.value})}
+                      className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none bg-white"
+                    >
+                      <option value="">— Selecciona un usuario —</option>
+                      {usersList.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.apellido || ''}{u.puesto ? ` — ${u.puesto}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
 
