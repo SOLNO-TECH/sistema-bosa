@@ -29,7 +29,30 @@ export default function ForoModule() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pendingRef, setPendingRef] = useState(null); // { type, id, title }
   const [viewingRef, setViewingRef] = useState(null); // { type, data }
+  const [showMembers, setShowMembers] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Helper: obtener los usuarios con acceso al grupo seleccionado
+  const getGroupMembers = (group) => {
+    if (!group || allUsers.length === 0) return [];
+    const accessType = group.access_type || 'all';
+    let accessList = [];
+    try {
+      accessList = typeof group.access_list === 'string'
+        ? JSON.parse(group.access_list || '[]')
+        : (group.access_list || []);
+    } catch { accessList = []; }
+
+    if (accessType === 'all') return allUsers;
+    if (accessType === 'department') return allUsers.filter(u => accessList.includes(u.departamento));
+    if (accessType === 'users') return allUsers.filter(u => accessList.includes(u.id));
+    return [];
+  };
+  const accessTypeLabel = (type) => {
+    if (type === 'department') return 'Por departamento';
+    if (type === 'users') return 'Usuarios seleccionados';
+    return 'Todo el equipo';
+  };
 
   // Helper: detectar si una URL es de imagen
   const isImage = (url) => /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(url || '');
@@ -70,11 +93,10 @@ export default function ForoModule() {
     }
   }, [pickerType]);
 
+  // Cargar todos los usuarios al montar (para mostrar miembros con acceso)
   useEffect(() => {
-    if ((isCreatingGroup || isEditingGroup) && allUsers.length === 0) {
-      axios.get('/api/users').then(res => setAllUsers(res.data)).catch(console.error);
-    }
-  }, [isCreatingGroup, isEditingGroup]);
+    axios.get('/api/users').then(res => setAllUsers(Array.isArray(res.data) ? res.data : [])).catch(() => {});
+  }, []);
 
   const toggleAccessList = (item, isEdit = false) => {
     if (isEdit) {
@@ -96,6 +118,7 @@ export default function ForoModule() {
 
   // Polling para mensajes del grupo seleccionado
   useEffect(() => {
+    setShowMembers(false); // cerrar popover al cambiar de grupo
     if (!selectedGroup) return;
     fetchMessages();
     const interval = setInterval(fetchMessages, 2000);
@@ -285,12 +308,93 @@ export default function ForoModule() {
                 <p className="text-xs text-navy-500 mt-0.5 truncate">{selectedGroup.description}</p>
               </div>
               <div className="flex items-center gap-4 flex-shrink-0">
-                <div className="hidden lg:flex -space-x-2 mr-2">
-                  {/* Simulated active users indicator */}
-                  <div className="w-8 h-8 rounded-full bg-navy-100 border-2 border-white flex items-center justify-center text-xs font-bold text-navy-600">A</div>
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-xs font-bold text-emerald-600">S</div>
-                  <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-bold text-gray-500">+</div>
-                </div>
+                {(() => {
+                  const members = getGroupMembers(selectedGroup);
+                  const visibleCount = 3;
+                  const visible = members.slice(0, visibleCount);
+                  const remaining = members.length - visible.length;
+                  return (
+                    <div className="hidden lg:block relative mr-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowMembers(s => !s)}
+                        className="flex -space-x-2 hover:opacity-80 transition-opacity"
+                        title="Ver miembros con acceso"
+                      >
+                        {visible.map((u, i) => (
+                          <div
+                            key={u.id}
+                            title={`${u.name || ''} ${u.apellido || ''}${u.puesto ? ' · ' + u.puesto : ''}`}
+                            className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
+                              i === 0 ? 'bg-gold/20 text-gold' : i === 1 ? 'bg-navy-100 text-navy-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}
+                            style={{ zIndex: visibleCount - i }}
+                          >
+                            {(u.name || '?').charAt(0).toUpperCase()}
+                          </div>
+                        ))}
+                        {remaining > 0 && (
+                          <div
+                            title={`Y ${remaining} más`}
+                            className="w-8 h-8 rounded-full bg-navy-950 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gold"
+                          >
+                            +{remaining}
+                          </div>
+                        )}
+                        {members.length === 0 && (
+                          <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-400">
+                            0
+                          </div>
+                        )}
+                      </button>
+
+                      {showMembers && (
+                        <>
+                          {/* Click-outside backdrop */}
+                          <div className="fixed inset-0 z-40" onClick={() => setShowMembers(false)} />
+                          {/* Popover */}
+                          <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-fade-in">
+                            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                              <div>
+                                <h4 className="font-display font-bold text-navy-950 text-sm">Miembros con acceso</h4>
+                                <p className="text-[10px] text-navy-600 mt-0.5 font-medium">{accessTypeLabel(selectedGroup.access_type)}</p>
+                              </div>
+                              <span className="text-[10px] font-bold text-gold bg-gold/10 px-2 py-0.5 rounded">{members.length}</span>
+                            </div>
+                            <div className="max-h-72 overflow-y-auto p-2 space-y-1">
+                              {members.length === 0 ? (
+                                <p className="text-center text-xs text-navy-500 py-6">Sin miembros con acceso</p>
+                              ) : (
+                                members.map(u => (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gold/5 transition-colors text-left"
+                                  >
+                                    <div className="w-9 h-9 rounded-full bg-navy-100 flex items-center justify-center text-xs font-bold text-navy-700 flex-shrink-0">
+                                      {(u.name || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-bold text-navy-950 truncate">
+                                        {u.name} {u.apellido || ''}
+                                      </p>
+                                      <p className="text-[10px] text-navy-600 truncate">
+                                        {u.puesto || u.departamento || u.email || '—'}
+                                      </p>
+                                    </div>
+                                    {u.id === user?.id && (
+                                      <span className="text-[8px] font-bold text-gold bg-gold/10 px-1.5 py-0.5 rounded uppercase tracking-widest flex-shrink-0">Tú</span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
                 {user?.role === 'superadmin' || selectedGroup.created_by === user?.id ? (
                   <button 
                     onClick={() => {
