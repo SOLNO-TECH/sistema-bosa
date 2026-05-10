@@ -106,7 +106,7 @@ const updateTicketStatus = (req, res) => {
     if (!ticket) return res.status(404).json({ error: `Ticket ${id} no encontrado` });
     const oldStatus = ticket.status;
 
-    db.prepare('UPDATE tickets SET status = ?, updated_at = datetime("now") WHERE id = ?').run(status, id);
+    db.prepare(`UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
 
     // Resolver el user_id válido (si no viene o no existe, usar el primer admin existente)
     let validUserId = null;
