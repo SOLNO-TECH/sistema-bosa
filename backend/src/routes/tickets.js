@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ticketController = require('../controllers/ticketController');
 const { authenticate } = require('../middleware/auth');
+const { fileFilter } = require('../middleware/uploadFilter');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -23,6 +24,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
+  fileFilter,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 

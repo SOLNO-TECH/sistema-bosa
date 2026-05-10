@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getDb } = require('../database/init');
 
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -7,12 +8,33 @@ function authenticate(req, res, next) {
   }
 
   const token = authHeader.split(' ')[1];
+  let payload;
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
+    payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
     return res.status(401).json({ message: 'Token inválido o expirado.' });
   }
+
+  // Solo aceptar tokens de acceso (no de refresh)
+  if (payload.type === 'refresh') {
+    return res.status(401).json({ message: 'Tipo de token incorrecto.' });
+  }
+
+  // Verificar que el usuario sigue existiendo y activo
+  try {
+    const db = getDb();
+    const dbUser = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE id = ?').get(payload.id);
+    if (!dbUser || !dbUser.is_active) {
+      return res.status(401).json({ message: 'Cuenta inactiva o eliminada.' });
+    }
+    // Usar datos frescos (rol pudo haber cambiado)
+    req.user = { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role };
+  } catch (err) {
+    console.error('authenticate DB error:', err);
+    return res.status(500).json({ message: 'Error interno al validar sesión.' });
+  }
+
+  next();
 }
 
 function requireRole(...roles) {

@@ -2,6 +2,27 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../database/init');
 
+// Secreto para refresh tokens (separado del access para defensa en profundidad)
+const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || (process.env.JWT_SECRET + '-refresh');
+
+const signTokens = (user) => {
+  const payload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  };
+  const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  });
+  const refreshToken = jwt.sign(
+    { id: user.id, type: 'refresh' },
+    getRefreshSecret(),
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+  );
+  return { accessToken, refreshToken, payload };
+};
+
 function login(req, res) {
   const { email, password } = req.body;
 
@@ -16,24 +37,46 @@ function login(req, res) {
     return res.status(401).json({ message: 'Credenciales incorrectas.' });
   }
 
-  const payload = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-  };
-
-  // JWT_SECRET ya está validado en el arranque del servidor; no usamos fallback inseguro
-  const secret = process.env.JWT_SECRET;
-  const expires = process.env.JWT_EXPIRES_IN || '8h';
-
-  const token = jwt.sign(payload, secret, {
-    expiresIn: expires,
-  });
+  const { accessToken, refreshToken, payload } = signTokens(user);
 
   return res.json({
-    token,
+    token: accessToken,        // backwards compat
+    accessToken,
+    refreshToken,
     user: payload,
+  });
+}
+
+function refresh(req, res) {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(400).json({ message: 'refreshToken es requerido.' });
+  }
+
+  let payload;
+  try {
+    payload = jwt.verify(refreshToken, getRefreshSecret());
+  } catch {
+    return res.status(401).json({ message: 'Refresh token inválido o expirado.' });
+  }
+
+  if (payload.type !== 'refresh') {
+    return res.status(401).json({ message: 'Tipo de token incorrecto.' });
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_active = 1').get(payload.id);
+  if (!user) {
+    return res.status(401).json({ message: 'Usuario no encontrado o inactivo.' });
+  }
+
+  const { accessToken, refreshToken: newRefresh, payload: userPayload } = signTokens(user);
+
+  return res.json({
+    token: accessToken,
+    accessToken,
+    refreshToken: newRefresh,
+    user: userPayload,
   });
 }
 
@@ -86,4 +129,4 @@ function toggleUser(req, res) {
   return res.json({ message: `Usuario ${user.is_active ? 'desactivado' : 'activado'}.` });
 }
 
-module.exports = { login, me, getUsers, createUser, toggleUser };
+module.exports = { login, refresh, me, getUsers, createUser, toggleUser };
