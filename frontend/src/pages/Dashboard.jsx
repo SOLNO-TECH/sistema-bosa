@@ -62,6 +62,35 @@ const PieTooltip = ({ active, payload }) => {
   );
 };
 
+// ── KPI Card ─────────────────────────────────────────────
+function KpiCard({ label, value, sub, icon, progress, tone = 'navy' }) {
+  const tones = {
+    gold:    { bg: 'bg-gold/5',         border: 'border-gold/30',     accent: '#CBAC80', iconBg: 'bg-gold/10',     iconText: 'text-gold' },
+    navy:    { bg: 'bg-white',          border: 'border-gray-200',    accent: '#1e3a5f', iconBg: 'bg-navy-50',     iconText: 'text-navy-700' },
+    red:     { bg: 'bg-red-50/40',      border: 'border-red-200',     accent: '#ef4444', iconBg: 'bg-red-100',     iconText: 'text-red-600' },
+    amber:   { bg: 'bg-amber-50/40',    border: 'border-amber-200',   accent: '#f59e0b', iconBg: 'bg-amber-100',   iconText: 'text-amber-600' },
+    emerald: { bg: 'bg-emerald-50/40',  border: 'border-emerald-200', accent: '#10b981', iconBg: 'bg-emerald-100', iconText: 'text-emerald-600' },
+  };
+  const t = tones[tone] || tones.navy;
+  return (
+    <div className={`rounded-sm p-5 border shadow-sm ${t.bg} ${t.border}`}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="font-label text-navy-700 text-[10px] tracking-[0.2em] uppercase font-bold">{label}</p>
+        <div className={`w-7 h-7 rounded-sm flex items-center justify-center ${t.iconBg} ${t.iconText}`}>
+          {icon}
+        </div>
+      </div>
+      <p className="font-display text-navy-950 text-3xl font-light tabular-nums">{value}</p>
+      {progress !== undefined && (
+        <div className="mt-3 h-1 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, progress))}%`, background: t.accent }} />
+        </div>
+      )}
+      {sub && <p className="font-sans text-navy-500 text-[10px] mt-2 font-medium">{sub}</p>}
+    </div>
+  );
+}
+
 // ── Metric Card ──────────────────────────────────────────
 function MetricCard({ title, value, sub, icon, highlight, onClick }) {
   return (
@@ -91,6 +120,7 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
+  const [kpis, setKpis] = useState({ resolutionRate: 0, inProgress: 0, urgent: 0, overdue: 0, meetingsThisWeek: 0, activeAvisos: 0 });
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
@@ -106,14 +136,50 @@ export default function Dashboard() {
         axios.get('/api/tickets'),
         axios.get('/api/avisos')
       ]);
+
+      const users = Array.isArray(uRes.data) ? uRes.data : [];
+      const meetings = Array.isArray(mRes.data) ? mRes.data : [];
+      const tickets = Array.isArray(tRes.data) ? tRes.data : [];
+      const avisos = Array.isArray(aRes.data) ? aRes.data : [];
+
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+
       setStats({
-        users: Array.isArray(uRes.data) ? uRes.data.length : 0,
-        meetings: Array.isArray(mRes.data) ? mRes.data.filter(m => {
-          const today = new Date().toISOString().split('T')[0];
-          return m.start_time.startsWith(today);
-        }).length : 0,
-        tickets: Array.isArray(tRes.data) ? tRes.data.length : 0,
-        avisos: Array.isArray(aRes.data) ? aRes.data.length : 0
+        users: users.length,
+        meetings: meetings.filter(m => m.start_time && m.start_time.startsWith(todayStr)).length,
+        tickets: tickets.length,
+        avisos: avisos.length
+      });
+
+      // ── KPIs ───────────────────────────────────────────────
+      const total = tickets.length;
+      const closed = tickets.filter(t => t.status === 'closed' || t.status === 'resolved').length;
+      const inProgress = tickets.filter(t => t.status === 'in_progress').length;
+      const urgent = tickets.filter(t => t.priority === 'urgent' && t.status !== 'closed').length;
+      const overdue = tickets.filter(t => t.due_date && new Date(t.due_date) < today && t.status !== 'closed').length;
+
+      // Reuniones de la semana actual (Dom → Sáb)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 7);
+      const meetingsThisWeek = meetings.filter(m => {
+        if (!m.start_time) return false;
+        const s = new Date(m.start_time);
+        return s >= startOfWeek && s < endOfWeek;
+      }).length;
+
+      const activeAvisos = avisos.filter(a => a.is_active === undefined || a.is_active === 1 || a.is_active === true).length;
+
+      setKpis({
+        resolutionRate: total > 0 ? Math.round((closed / total) * 100) : 0,
+        inProgress,
+        urgent,
+        overdue,
+        meetingsThisWeek,
+        activeAvisos,
       });
     } catch (err) { console.error(err); }
   };
@@ -329,6 +395,73 @@ export default function Dashboard() {
                   </div>
                 );
               })()}
+
+              {/* ── KPIs ── */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-4 bg-gold rounded-full" />
+                  <p className="font-label text-navy-700 text-[10px] tracking-[0.25em] uppercase font-bold">Indicadores Clave (KPIs)</p>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KpiCard
+                    label="Tasa de Resolución"
+                    value={`${kpis.resolutionRate}%`}
+                    sub={`${stats.tickets} tickets totales`}
+                    progress={kpis.resolutionRate}
+                    tone="gold"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  />
+                  <KpiCard
+                    label="En Progreso"
+                    value={kpis.inProgress}
+                    sub="Tickets siendo atendidos"
+                    tone="navy"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  />
+                  <KpiCard
+                    label="Urgentes Activos"
+                    value={kpis.urgent}
+                    sub="Requieren atención inmediata"
+                    tone="red"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}
+                  />
+                  <KpiCard
+                    label="Vencidos"
+                    value={kpis.overdue}
+                    sub="Pasaron su fecha límite"
+                    tone="amber"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>}
+                  />
+                  <KpiCard
+                    label="Reuniones esta Semana"
+                    value={kpis.meetingsThisWeek}
+                    sub="Programadas de Dom a Sáb"
+                    tone="emerald"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>}
+                  />
+                  <KpiCard
+                    label="Avisos Activos"
+                    value={kpis.activeAvisos}
+                    sub={`${stats.avisos} comunicados totales`}
+                    tone="navy"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535" /></svg>}
+                  />
+                  <KpiCard
+                    label="Carga Promedio"
+                    value={stats.users > 0 ? (stats.tickets / stats.users).toFixed(1) : '0'}
+                    sub="Tickets por colaborador"
+                    tone="navy"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>}
+                  />
+                  <KpiCard
+                    label="Pendientes Críticos"
+                    value={kpis.urgent + kpis.overdue}
+                    sub="Urgentes + vencidos"
+                    tone="red"
+                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-60">
