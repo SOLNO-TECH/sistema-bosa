@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import autoAnimate from '@formkit/auto-animate';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -43,6 +44,7 @@ export default function TicketsModule() {
     try {
       await axios.delete(`/api/tickets/${selectedTicket.id}/attachments/${attachmentId}`, { data: { user_id: user?.id } });
       fetchTicketDetails(selectedTicket.id);
+      PushEvents.ticketFileDel(filename);
     } catch (err) {
       console.error(err);
       alert('Error al eliminar el archivo');
@@ -80,6 +82,8 @@ export default function TicketsModule() {
     try {
       await axios.patch(`/api/tickets/${ticket.id}/status`, { status: statusId, user_id: user?.id });
       fetchTickets(); // refresca datos (historial, etc.)
+      const labels = { open: 'Pendientes', in_progress: 'En Progreso', resolved: 'En Revisión', closed: 'Completados' };
+      PushEvents.ticketMoved(ticket.title, labels[statusId] || statusId);
     } catch (err) {
       const code = err?.response?.status;
       const msg  = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Error desconocido';
@@ -125,6 +129,7 @@ export default function TicketsModule() {
       fetchTickets();
       setIsModalOpen(false);
       setFormData(defaultForm);
+      PushEvents.ticketCreated(formData.title);
     } catch (err) { console.error(err); }
   };
 
@@ -137,6 +142,7 @@ export default function TicketsModule() {
       });
       setNewComment('');
       fetchTicketDetails(selectedTicket.id);
+      PushEvents.ticketComment(selectedTicket.title);
     } catch (err) { console.error(err); }
   };
 
@@ -153,6 +159,7 @@ export default function TicketsModule() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       fetchTicketDetails(selectedTicket.id);
+      PushEvents.ticketFileUp(file.name);
     } catch (err) { console.error(err); }
     setIsUploading(false);
   };

@@ -1,13 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { isSupported, getPermission, isEnabled, setEnabled, requestPermission, pushNotify } from '../../utils/pushNotify';
 
 export default function ConfigModule() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [notis, setNotis] = useState({ emailAlerts: true, systemAlerts: true, newLogins: false, weeklyReports: true });
   const [prefs, setPrefs] = useState({ language: 'es', timezone: 'America/Mexico_City', dateFormat: 'DD/MM/YYYY' });
+  // Estado del browser push
+  const [pushPermission, setPushPermission] = useState(() => getPermission());
+  const [pushOn, setPushOn] = useState(() => isEnabled());
+
   const handleToggle = (key) => setNotis({ ...notis, [key]: !notis[key] });
+
+  const togglePush = async () => {
+    if (!isSupported()) {
+      alert('Tu navegador no soporta notificaciones push.');
+      return;
+    }
+    if (pushPermission === 'denied') {
+      alert('Permitiste denegar las notificaciones. Para activarlas, ve a la configuración del navegador (ícono de candado junto a la URL) y permite notificaciones para este sitio.');
+      return;
+    }
+    if (pushPermission !== 'granted') {
+      const result = await requestPermission();
+      setPushPermission(result);
+      if (result === 'granted') {
+        setEnabled(true);
+        setPushOn(true);
+        pushNotify('Notificaciones activadas', { body: 'Recibirás un aviso por cada actividad del sistema.' });
+      }
+      return;
+    }
+    // Permission ya concedido — togglear preferencia local
+    const newVal = !pushOn;
+    setEnabled(newVal);
+    setPushOn(newVal);
+    if (newVal) {
+      pushNotify('Notificaciones activadas', { body: 'Recibirás un aviso por cada actividad del sistema.' });
+    }
+  };
+
+  // Refrescar el estado de permiso si cambia desde fuera (otras pestañas, etc.)
+  useEffect(() => {
+    const onFocus = () => setPushPermission(getPermission());
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   const tabs = [
     {
@@ -123,18 +163,70 @@ export default function ConfigModule() {
             {/* ── TAB NOTIFICACIONES ── */}
             {activeTab === 'notifications' && (
               <div className="max-w-2xl space-y-3 animate-fade-in">
+
+                {/* Banner de estado del permiso */}
+                {!isSupported() ? (
+                  <div className="p-3 rounded-lg bg-gray-100 border border-gray-200 text-xs text-navy-700">
+                    Tu navegador no soporta notificaciones push.
+                  </div>
+                ) : pushPermission === 'denied' ? (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                    <strong>Notificaciones bloqueadas.</strong> Para activarlas, haz clic en el ícono de candado junto a la URL del navegador y permite las notificaciones para este sitio.
+                  </div>
+                ) : pushPermission === 'default' ? (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                    Aún no has dado permiso para recibir notificaciones. Activa el toggle de abajo para habilitarlas.
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+                    <strong>Notificaciones push activadas.</strong> Recibirás un aviso del navegador por cada actividad del sistema.
+                  </div>
+                )}
+
+                {/* Toggle real de browser push */}
+                <div className="flex items-center justify-between p-4 bg-white border border-gold/30 rounded-xl">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${pushOn && pushPermission === 'granted' ? 'bg-gold/15 text-gold' : 'bg-gray-100 text-gray-400'}`}>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-navy-900 font-bold text-sm">Notificaciones push del navegador</h4>
+                      <p className="text-navy-500 text-xs mt-0.5">Recibe un aviso emergente del sistema operativo por cada actividad (tickets, avisos, reuniones, mensajes, etc.).</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={togglePush}
+                    disabled={!isSupported() || pushPermission === 'denied'}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${pushOn && pushPermission === 'granted' ? 'bg-gold' : 'bg-gray-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${pushOn && pushPermission === 'granted' ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+
+                {pushPermission === 'granted' && (
+                  <button
+                    onClick={() => pushNotify('Notificación de prueba', { body: 'Si ves este mensaje, las notificaciones están funcionando correctamente.' })}
+                    className="w-full py-2.5 rounded-lg border border-gold/30 text-gold text-xs font-bold uppercase tracking-widest hover:bg-gold/5 transition-colors"
+                  >
+                    Probar notificación
+                  </button>
+                )}
+
+                {/* Otras categorías (correo, reportes — preferencias guardadas localmente, sin efecto activo aún) */}
+                <p className="pt-4 text-[10px] font-bold text-navy-500 uppercase tracking-widest">Otras alertas</p>
                 {[
                   { key: 'emailAlerts', title: 'Alertas por Correo', desc: 'Recibe resúmenes de actividad y alertas críticas en tu buzón.', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg> },
-                  { key: 'systemAlerts', title: 'Notificaciones del Sistema', desc: 'Muestra notificaciones push dentro del panel de control.', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg> },
                   { key: 'newLogins', title: 'Avisos de Inicio de Sesión', desc: 'Te avisaremos si tu cuenta se usa desde un dispositivo nuevo.', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg> },
                   { key: 'weeklyReports', title: 'Reportes Semanales', desc: 'Resumen automatizado de operaciones enviado cada lunes.', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg> },
                 ].map(n => (
                   <div key={n.key} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-gold/30 transition-colors group">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${notis[n.key] ? 'bg-gold/10 text-gold' : 'bg-gray-100 text-gray-400'}`}>
                         {n.icon}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <h4 className="text-navy-900 font-bold text-sm">{n.title}</h4>
                         <p className="text-navy-500 text-xs mt-0.5">{n.desc}</p>
                       </div>

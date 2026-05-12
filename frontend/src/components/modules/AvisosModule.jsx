@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const DEPARTAMENTOS = [
   'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
@@ -151,6 +152,7 @@ export default function AvisosModule() {
       }, ...prev]);
 
       setTimeout(fetchAvisos, 1000);
+      PushEvents.avisoCreated(form.titulo);
     } catch (err) {
       console.error(err);
       alert('Error al guardar el aviso en la base de datos.');

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const DEPARTAMENTOS = [
   'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
@@ -166,6 +167,7 @@ export default function ForoModule() {
       setIsCreatingGroup(false);
       setNewGroupForm({ name: '', description: '', access_type: 'all', access_list: [] });
       setSelectedGroup(res.data);
+      PushEvents.forumGroupNew(res.data.name);
     } catch (err) {
       console.error(err);
     }
@@ -184,6 +186,7 @@ export default function ForoModule() {
       setGroups(groups.map(g => g.id === selectedGroup.id ? res.data : g));
       setSelectedGroup(res.data);
       setIsEditingGroup(false);
+      PushEvents.forumGroupEdit(res.data.name);
     } catch (err) {
       console.error(err);
       alert('Error al actualizar el grupo');
@@ -193,10 +196,12 @@ export default function ForoModule() {
   const handleDeleteGroup = async () => {
     if (!window.confirm(`¿Estás seguro de que deseas eliminar el grupo "${selectedGroup.name}" y todos sus mensajes? Esta acción no se puede deshacer.`)) return;
     try {
+      const gName = selectedGroup.name;
       await axios.delete(`/api/forums/${selectedGroup.id}`);
       setGroups(groups.filter(g => g.id !== selectedGroup.id));
       setSelectedGroup(null);
       setIsEditingGroup(false);
+      PushEvents.forumGroupDel(gName);
     } catch (err) {
       console.error(err);
       alert('Error al eliminar el grupo');
@@ -228,6 +233,7 @@ export default function ForoModule() {
       setFileInput(null);
       setPendingRef(null);
       fetchMessages();
+      PushEvents.forumMessage(selectedGroup?.name || 'foro');
     } catch (err) {
       console.error(err);
       alert('Error al enviar mensaje');

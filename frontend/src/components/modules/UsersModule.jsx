@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -56,6 +57,8 @@ export default function UsersModule() {
       }
       setIsFormOpen(false);
       fetchUsers();
+      const fullName = `${formData.name || ''} ${formData.apellido || ''}`.trim() || 'Usuario';
+      if (isEdit) PushEvents.userUpdated(fullName); else PushEvents.userCreated(fullName);
     } catch (err) {
       const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
       console.error('Error:', err);
@@ -66,8 +69,10 @@ export default function UsersModule() {
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de que deseas eliminar permanentemente este usuario?')) return;
     try {
+      const target = users.find(u => u.id === id);
       await axios.delete(`/api/users/${id}`);
       fetchUsers();
+      PushEvents.userDeleted(target ? `${target.name} ${target.apellido || ''}`.trim() : `ID ${id}`);
     } catch (err) {
       const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
       alert(`Error eliminando usuario: ${msg}`);
@@ -81,6 +86,7 @@ export default function UsersModule() {
       setIsPasswordOpen(false);
       setPasswordData('');
       alert('Contraseña actualizada exitosamente');
+      PushEvents.passwordChanged();
     } catch (err) {
       const msg = err?.response?.data?.error || err?.response?.data?.message || err.message;
       console.error('Error:', err);

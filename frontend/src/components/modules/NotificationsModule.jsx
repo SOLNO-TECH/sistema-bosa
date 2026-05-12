@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const ICONS = {
   ticket:  <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>,
@@ -35,10 +36,26 @@ export default function NotificationsModule() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
 
+  const lastIdRef = useRef(parseInt(localStorage.getItem('bosa_last_notif_id') || '0', 10) || 0);
+  const firstLoadRef = useRef(true);
+
   const fetchNotifications = useCallback(async () => {
     try {
       const { data } = await axios.get('/api/notifications', { params: { limit: 100 } });
-      setNotifications(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      setNotifications(arr);
+
+      // Disparar push del navegador para notificaciones nuevas (excepto en la primera carga)
+      if (!firstLoadRef.current && arr.length > 0) {
+        const fresh = arr.filter(n => n.id > lastIdRef.current && !n.is_read);
+        fresh.reverse().forEach(n => PushEvents.fromServer(n));
+      }
+      const maxId = arr.reduce((m, n) => n.id > m ? n.id : m, lastIdRef.current);
+      if (maxId > lastIdRef.current) {
+        lastIdRef.current = maxId;
+        localStorage.setItem('bosa_last_notif_id', String(maxId));
+      }
+      firstLoadRef.current = false;
     } catch (err) {
       console.error('Error al obtener notificaciones:', err);
     } finally {
@@ -48,8 +65,8 @@ export default function NotificationsModule() {
 
   useEffect(() => {
     fetchNotifications();
-    // Polling cada 30s para que aparezcan nuevas notificaciones
-    const interval = setInterval(fetchNotifications, 30000);
+    // Polling cada 10s para que las push se sientan en tiempo real
+    const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 

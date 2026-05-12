@@ -10,6 +10,7 @@ import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
+import { PushEvents } from '../utils/pushNotify';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -123,24 +124,42 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState({ resolutionRate: 0, inProgress: 0, urgent: 0, overdue: 0, meetingsThisWeek: 0, activeAvisos: 0 });
   const [recentNotifs, setRecentNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Para detectar notificaciones nuevas y dispararlas como push del navegador
+  const [lastSeenNotifId, setLastSeenNotifId] = useState(() => {
+    const v = parseInt(localStorage.getItem('bosa_last_notif_id') || '0', 10);
+    return isNaN(v) ? 0 : v;
+  });
 
-  const fetchRecentNotifications = async () => {
+  const fetchRecentNotifications = async (firePush = true) => {
     try {
       const [{ data: items }, { data: cnt }] = await Promise.all([
-        axios.get('/api/notifications', { params: { limit: 5 } }),
+        axios.get('/api/notifications', { params: { limit: 10 } }),
         axios.get('/api/notifications/unread-count'),
       ]);
-      setRecentNotifs(Array.isArray(items) ? items : []);
+      const arr = Array.isArray(items) ? items : [];
+      setRecentNotifs(arr.slice(0, 5));
       setUnreadCount(cnt?.count || 0);
+
+      // Disparar push del navegador para notificaciones nuevas (ID > lastSeen)
+      if (firePush && arr.length > 0) {
+        const fresh = arr.filter(n => n.id > lastSeenNotifId && !n.is_read);
+        fresh.reverse().forEach(n => PushEvents.fromServer(n));
+        const maxId = arr.reduce((m, n) => n.id > m ? n.id : m, lastSeenNotifId);
+        if (maxId > lastSeenNotifId) {
+          setLastSeenNotifId(maxId);
+          localStorage.setItem('bosa_last_notif_id', String(maxId));
+        }
+      }
     } catch (err) { /* silencioso */ }
   };
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
-    fetchRecentNotifications();
-    // refrescar notificaciones cada 30 segundos
-    const interval = setInterval(fetchRecentNotifications, 30000);
+    // Primer fetch sin disparar push (evita spam al cargar la app)
+    fetchRecentNotifications(false);
+    // refrescar cada 10 segundos para que el push se sienta en tiempo real
+    const interval = setInterval(() => fetchRecentNotifications(true), 10000);
     return () => { clearTimeout(t); clearInterval(interval); };
   }, []);
 

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { requestPermission } from '../utils/pushNotify';
 
 const AuthContext = createContext(null);
 
@@ -136,6 +137,8 @@ export function AuthProvider({ children }) {
     setAuthHeader(data.accessToken || data.token);
     if (data.refreshToken) setRefreshToken(data.refreshToken);
     setUser(data.user);
+    // Pedir permiso de notificaciones push del navegador (no bloquea)
+    requestPermission().catch(() => {});
     return data.user;
   };
 

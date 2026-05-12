@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { PushEvents } from '../../utils/pushNotify';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -111,6 +112,14 @@ export default function CalendarModule() {
       fetchMeetings();
       setIsModalOpen(false);
       resetForm();
+      // Push de confirmación
+      try {
+        const d = new Date(`${formData.date}T${formData.start_time}`);
+        const when = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' + formData.start_time;
+        PushEvents.meetingCreated(formData.title, when);
+      } catch (_) {
+        PushEvents.meetingCreated(formData.title);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -504,13 +513,15 @@ export default function CalendarModule() {
                   <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Confirmada</span>
                 </div>
                 
-                <button 
+                <button
                   onClick={async () => {
                     if (window.confirm('¿Deseas cancelar y eliminar esta reunión?')) {
                       try {
+                        const tName = selectedMeeting.title;
                         await axios.delete(`/api/meetings/${selectedMeeting.id}`);
                         fetchMeetings();
                         setSelectedMeeting(null);
+                        PushEvents.meetingDeleted(tName);
                       } catch (err) { console.error(err); }
                     }
                   }}
