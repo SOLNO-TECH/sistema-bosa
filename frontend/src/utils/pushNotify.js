@@ -1,5 +1,8 @@
-// Helper para notificaciones push del navegador (Browser Notifications API).
-// Aparecen como pop-up del sistema operativo aunque la pestaña no esté visible.
+// Helper de notificaciones. Combina dos canales:
+// 1. Toast in-app (siempre se muestra dentro de la app, no requiere permisos)
+// 2. Notificación del navegador (pop-up del SO, requiere HTTPS + permiso)
+
+import { emitToast } from './toastBus';
 
 const PREF_KEY = 'bosa_push_enabled';
 
@@ -37,19 +40,32 @@ export async function requestPermission() {
 }
 
 /**
- * Dispara una notificación del navegador.
+ * Dispara una notificación. SIEMPRE muestra un toast dentro de la app,
+ * y además una notificación del navegador si el permiso fue concedido.
  * @param {string} title - Título visible
- * @param {object} options - { body, tag, onClick, requireInteraction }
+ * @param {object} options - { body, type, tag, onClick, requireInteraction }
  */
 export function pushNotify(title, options = {}) {
-  if (!isEnabled()) return null;
+  // 1) Toast in-app (siempre)
+  try {
+    emitToast({
+      title,
+      body: options.body || '',
+      type: options.type || inferTypeFromTag(options.tag),
+      onClick: options.onClick,
+    });
+  } catch (err) {
+    console.warn('toast emit error:', err);
+  }
 
+  // 2) Notificación del navegador (si está habilitada y permitida)
+  if (!isEnabled()) return null;
   try {
     const n = new Notification(title, {
       body: options.body || '',
       icon: '/logo.png',
       badge: '/logo.png',
-      tag: options.tag,        // mismo tag reemplaza la anterior
+      tag: options.tag,
       requireInteraction: options.requireInteraction || false,
       silent: false,
     });
@@ -61,7 +77,6 @@ export function pushNotify(title, options = {}) {
         n.close();
       };
     }
-    // Auto cerrar después de 8s salvo que requireInteraction
     if (!options.requireInteraction) {
       setTimeout(() => { try { n.close(); } catch (_) {} }, 8000);
     }
@@ -70,6 +85,19 @@ export function pushNotify(title, options = {}) {
     console.warn('pushNotify error:', err);
     return null;
   }
+}
+
+// Inferir tipo de evento a partir del tag (para colorear el toast)
+function inferTypeFromTag(tag) {
+  if (!tag) return 'system';
+  if (tag.startsWith('ticket-comment')) return 'comment';
+  if (tag.startsWith('ticket'))         return 'ticket';
+  if (tag.startsWith('aviso'))          return 'aviso';
+  if (tag.startsWith('meeting'))        return 'meeting';
+  if (tag.startsWith('forum'))          return 'forum';
+  if (tag.startsWith('user') || tag.startsWith('password')) return 'user';
+  if (tag.startsWith('srv-'))           return 'system';
+  return 'system';
 }
 
 // Atajos por tipo de evento — homogeniza títulos
@@ -99,5 +127,9 @@ export const PushEvents = {
   passwordChanged: () => pushNotify('Contraseña actualizada', { body: 'El cambio se aplicó correctamente.', tag: 'password' }),
 
   // Notificación genérica (usada por polling cuando llega algo del backend)
-  fromServer: (n) => pushNotify(n.title || 'Notificación', { body: n.message || '', tag: `srv-${n.id}` }),
+  fromServer: (n) => pushNotify(n.title || 'Notificación', {
+    body: n.message || '',
+    tag: `srv-${n.id}`,
+    type: n.type || 'system',
+  }),
 };

@@ -10,6 +10,7 @@ import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
+import ToastContainer from '../components/ToastContainer';
 import { PushEvents } from '../utils/pushNotify';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -255,6 +256,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
+
+      {/* Toast notifications in-app (siempre visibles) */}
+      <ToastContainer />
 
       {/* SIDEBAR */}
       <aside

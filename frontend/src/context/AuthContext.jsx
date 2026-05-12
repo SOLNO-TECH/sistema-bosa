@@ -127,7 +127,11 @@ export function AuthProvider({ children }) {
     }
     setAuthHeader(token);
     axios.get('/api/auth/me')
-      .then(({ data }) => setUser(data.user))
+      .then(({ data }) => {
+        setUser(data.user);
+        // Si la sesión se restauró (no pasó por login), pedir permiso de notifs aquí
+        requestPermission().catch(() => {});
+      })
       .catch(() => logout())
       .finally(() => setLoading(false));
   }, [logout]);

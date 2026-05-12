@@ -37,13 +37,17 @@ export default {
         'card-lg':  '0 8px 48px rgba(0,0,0,0.55)',
       },
       animation: {
-        'fade-in':  'fadeIn 0.5s ease-out forwards',
-        'slide-up': 'slideUp 0.5s ease-out forwards',
-        'shimmer':  'shimmer 2.5s linear infinite',
+        'fade-in':    'fadeIn 0.5s ease-out forwards',
+        'fade-out':   'fadeOut 0.3s ease-in forwards',
+        'slide-up':   'slideUp 0.5s ease-out forwards',
+        'slide-left': 'slideLeft 0.35s cubic-bezier(0.16,1,0.3,1) forwards',
+        'shimmer':    'shimmer 2.5s linear infinite',
       },
       keyframes: {
-        fadeIn:  { from: { opacity: 0 }, to: { opacity: 1 } },
-        slideUp: { from: { opacity: 0, transform: 'translateY(16px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+        fadeIn:    { from: { opacity: 0 }, to: { opacity: 1 } },
+        fadeOut:   { from: { opacity: 1 }, to: { opacity: 0 } },
+        slideUp:   { from: { opacity: 0, transform: 'translateY(16px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+        slideLeft: { from: { opacity: 0, transform: 'translateX(24px)' }, to: { opacity: 1, transform: 'translateX(0)' } },
         shimmer: {
           '0%':   { backgroundPosition: '-200% center' },
           '100%': { backgroundPosition:  '200% center' },
