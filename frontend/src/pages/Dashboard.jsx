@@ -388,7 +388,18 @@ export default function Dashboard() {
         </header>
 
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8">
-          {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? <UsersModule /> : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? (user?.role === 'superadmin' ? <UsersModule /> : (
+            <div className="flex flex-col items-center justify-center py-32 gap-4 text-center max-w-md mx-auto">
+              <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+                <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+              <p className="font-display font-bold text-navy-950">Acceso restringido</p>
+              <p className="text-sm text-navy-600">Esta sección solo está disponible para Super Administradores.</p>
+              <button onClick={() => setActive('overview')} className="btn-gold mt-2">Volver al inicio</button>
+            </div>
+          )) : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <SparkleIcon size={16} className="text-gold" />
@@ -396,7 +407,7 @@ export default function Dashboard() {
               </div>
               <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} onClick={() => setActive('users')} />
+                <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} onClick={user?.role === 'superadmin' ? () => setActive('users') : undefined} />
                 <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy" icon={<IconCalendar />} onClick={() => setActive('calendar')} />
                 <MetricCard title="Tickets" value={stats.tickets} sub="Pendientes de revisión" icon={<IconBuilding />} onClick={() => setActive('tickets')} />
                 <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} onClick={() => setActive('avisos')} />
