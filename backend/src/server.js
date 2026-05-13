@@ -58,6 +58,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/avisos', require('./routes/avisos'));
+app.use('/api/minutes', require('./routes/minutes'));
 app.use('/api/forums', require('./routes/forums'));
 app.use('/api/notifications', require('./routes/notifications'));
 

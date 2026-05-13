@@ -10,6 +10,7 @@ import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
+import MinutasModule from '../components/modules/MinutasModule';
 import ToastContainer from '../components/ToastContainer';
 import { PushEvents } from '../utils/pushNotify';
 import {
@@ -35,6 +36,7 @@ const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 2
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
 const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
+const IconMinuta = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>;
 
 // ── Chart colors ─────────────────────────────────────────
 const CHART_DATA_KEYS = [
@@ -236,6 +238,7 @@ export default function Dashboard() {
         items: [
           { id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> },
           { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
+          { id: 'minutas', label: 'Minutas', icon: <IconMinuta /> },
         ],
       }
     ];
@@ -266,7 +269,7 @@ export default function Dashboard() {
         style={{ background: 'linear-gradient(180deg, #0A1930 0%, #071221 100%)' }}
       >
         <div className="px-5 py-6 border-b border-surface flex items-center justify-center h-[96px] relative">
-          <img src="/logo.png" alt="BOSA Logo" className="w-40" />
+          <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-40 h-auto" />
           <button onClick={() => setSidebar(false)} className="lg:hidden absolute right-5 top-1/2 -translate-y-1/2 text-slate-muted hover:text-gold">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -403,7 +406,7 @@ export default function Dashboard() {
               <p className="text-sm text-navy-600">Esta sección solo está disponible para Super Administradores.</p>
               <button onClick={() => setActive('overview')} className="btn-gold mt-2">Volver al inicio</button>
             </div>
-          )) : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          )) : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'minutas' ? <MinutasModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <SparkleIcon size={16} className="text-gold" />
@@ -567,7 +570,7 @@ export default function Dashboard() {
       </div>
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-surface flex items-center justify-around px-2 py-2 bg-navy-950">
-        {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'avisos'].includes(item.id)).map(item => (
+        {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'avisos', 'minutas'].includes(item.id)).map(item => (
           <button key={item.id} onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
             <span className="w-5 h-5">{item.icon}</span>
             <span className="text-[8px] font-black uppercase truncate max-w-[50px]">{item.label}</span>

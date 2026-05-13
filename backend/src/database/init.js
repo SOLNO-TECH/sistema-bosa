@@ -107,6 +107,22 @@ function initDatabase() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS meeting_minutes (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      lugar           TEXT    NOT NULL DEFAULT '',
+      fecha           TEXT    NOT NULL,
+      hora_inicio     TEXT    NOT NULL DEFAULT '',
+      hora_cierre     TEXT    NOT NULL DEFAULT '',
+      tema            TEXT    NOT NULL DEFAULT '',
+      attendees_json  TEXT    NOT NULL DEFAULT '[]',
+      topics_json     TEXT    NOT NULL DEFAULT '[]',
+      created_by      INTEGER NOT NULL,
+      created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_meeting_minutes_fecha ON meeting_minutes(fecha DESC);
+
     -- Notificaciones internas del sistema
     CREATE TABLE IF NOT EXISTS notifications (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,

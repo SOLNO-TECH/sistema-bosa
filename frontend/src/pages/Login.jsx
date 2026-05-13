@@ -56,7 +56,7 @@ export default function Login() {
 
         {/* Foto de fondo */}
         <img
-          src="/fondo.png"
+          src="/fondo.jpeg"
           alt=""
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover"
@@ -77,7 +77,7 @@ export default function Login() {
 
           {/* Logo */}
           <div className="flex items-start">
-            <img src="/logo.png" alt="BOSA Logo" className="w-64 drop-shadow-2xl" style={{ filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.6))' }} />
+            <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-64 h-auto drop-shadow-2xl" style={{ filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.6))' }} />
           </div>
 
           {/* Centro — propuesta de valor */}
@@ -151,7 +151,7 @@ export default function Login() {
 
           {/* Logo móvil */}
           <div className="lg:hidden flex items-center justify-center mb-10">
-            <img src="/logo.png" alt="BOSA Logo" className="w-56 drop-shadow-xl" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4))' }} />
+            <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-56 h-auto drop-shadow-xl" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4))' }} />
           </div>
 
           {/* Encabezado del form */}
