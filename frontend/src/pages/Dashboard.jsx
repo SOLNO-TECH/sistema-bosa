@@ -121,6 +121,22 @@ function MetricCard({ title, value, sub, icon, highlight, onClick }) {
   );
 }
 
+/** Contador en sidebar: fondo rojo, número blanco; oculto si count ≤ 0 */
+function NavCountBadge({ count }) {
+  const n = Number(count);
+  if (!n || n <= 0) return null;
+  return (
+    <span
+      className="ml-auto flex-shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center"
+      aria-label={`${n} pendientes`}
+    >
+      <span className="text-[9px] font-bold leading-none tabular-nums">
+        {n > 99 ? '99+' : n}
+      </span>
+    </span>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -136,6 +152,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState({ resolutionRate: 0, inProgress: 0, urgent: 0, overdue: 0, meetingsThisWeek: 0, activeAvisos: 0 });
   const [recentNotifs, setRecentNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [navBadges, setNavBadges] = useState({});
   const notifPollReadyRef = useRef(false);
   const lastSeenKey = user?.id ? `bosa_last_notif_id_${user.id}` : 'bosa_last_notif_id';
   const lastSeenNotifIdRef = useRef(0);
@@ -206,8 +223,17 @@ export default function Dashboard() {
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
-    return () => clearTimeout(t);
-  }, []);
+    const statsInterval = setInterval(fetchStats, 60000);
+    return () => {
+      clearTimeout(t);
+      clearInterval(statsInterval);
+    };
+  }, [user?.id]);
+
+  const getNavBadgeCount = (itemId) => {
+    if (itemId === 'notifications') return unreadCount;
+    return navBadges[itemId] ?? 0;
+  };
 
   useEffect(() => {
     setNotificationToastUserId(user?.id ?? null);
@@ -254,17 +280,22 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const [uRes, mRes, tRes, aRes] = await Promise.all([
+      const [uRes, mRes, tRes, aRes, minRes, taskRes] = await Promise.all([
         axios.get('/api/users'),
         axios.get('/api/meetings'),
         axios.get('/api/tickets'),
-        axios.get('/api/avisos')
+        axios.get('/api/avisos'),
+        axios.get('/api/minutes').catch(() => ({ data: [] })),
+        axios.get('/api/ticket-tasks').catch(() => ({ data: [] })),
       ]);
 
       const users = Array.isArray(uRes.data) ? uRes.data : [];
       const meetings = Array.isArray(mRes.data) ? mRes.data : [];
       const tickets = Array.isArray(tRes.data) ? tRes.data : [];
       const avisos = Array.isArray(aRes.data) ? aRes.data : [];
+      const minutes = Array.isArray(minRes.data) ? minRes.data : [];
+      const ticketTasks = Array.isArray(taskRes.data) ? taskRes.data : [];
+      const uid = user?.id;
 
       const today = new Date();
       const todayStr = today.toISOString().split('T')[0];
@@ -296,6 +327,24 @@ export default function Dashboard() {
       }).length;
 
       const activeAvisos = avisos.filter(a => a.is_active === undefined || a.is_active === 1 || a.is_active === true).length;
+
+      const openTickets = tickets.filter((t) => t.status !== 'closed' && t.status !== 'resolved').length;
+      const myPendingTasks = uid
+        ? ticketTasks.filter(
+            (t) =>
+              Number(t.assigned_to) === Number(uid) &&
+              t.status !== 'done' &&
+              t.status !== 'cancelled'
+          ).length
+        : 0;
+
+      setNavBadges({
+        calendar: meetings.length,
+        tickets: openTickets,
+        tasks: myPendingTasks,
+        avisos: activeAvisos,
+        minutas: minutes.length,
+      });
 
       setKpis({
         resolutionRate: total > 0 ? Math.round((closed / total) * 100) : 0,
@@ -378,8 +427,15 @@ export default function Dashboard() {
               <p className="font-label text-slate-muted text-[9px] tracking-[0.35em] uppercase px-3 mb-1.5">{section.title}</p>
               <div className="space-y-0.5">
                 {section.items.map((item) => (
-                  <button key={item.id} onClick={() => { setActive(item.id); setSidebar(false); }} className={active === item.id ? 'nav-item-active' : 'nav-item-default'}>
-                    {item.icon}<span>{item.label}</span>
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => { setActive(item.id); setSidebar(false); }}
+                    className={active === item.id ? 'nav-item-active' : 'nav-item-default'}
+                  >
+                    {item.icon}
+                    <span className="flex-1 min-w-0 truncate text-left">{item.label}</span>
+                    <NavCountBadge count={getNavBadgeCount(item.id)} />
                   </button>
                 ))}
               </div>
@@ -680,9 +736,19 @@ export default function Dashboard() {
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-surface flex items-center justify-around px-2 py-2 bg-navy-950">
         {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'tasks', 'avisos'].includes(item.id)).map(item => {
           const mobileLabel = item.id === 'tasks' ? 'Tareas' : item.id === 'tickets' ? 'Tickets' : item.label;
+          const badge = getNavBadgeCount(item.id);
           return (
-            <button key={item.id} onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
-              <span className="w-5 h-5">{item.icon}</span>
+            <button key={item.id} type="button" onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
+              <span className="relative w-5 h-5 flex items-center justify-center">
+                {item.icon}
+                {badge > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[13px] h-3 px-0.5 rounded-full bg-red-500 text-white flex items-center justify-center">
+                    <span className="text-[7px] font-bold leading-none tabular-nums">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  </span>
+                )}
+              </span>
               <span className="text-[8px] font-black uppercase truncate max-w-[50px]">{mobileLabel}</span>
             </button>
           );
