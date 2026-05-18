@@ -344,16 +344,22 @@ export default function TicketsModule({
     <div className="h-full flex flex-col animate-fade-in space-y-6">
       
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-display font-medium text-navy-950 tracking-tight">Centro de Soporte Avanzado</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-display font-medium text-navy-950 tracking-tight">Centro de Soporte Avanzado</h2>
           <p className="text-sm text-navy-600 mt-1">Gestión integral con historial, comentarios y multimedia</p>
         </div>
-        <button onClick={() => { setFormData({ ...EMPTY_TICKET_FORM }); setNewTicketFiles([]); setIsModalOpen(true); }} className="btn-gold flex items-center gap-2 shadow-md">
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <button
+          type="button"
+          onClick={() => { setFormData({ ...EMPTY_TICKET_FORM }); setNewTicketFiles([]); setIsModalOpen(true); }}
+          className="btn-gold-header self-end sm:self-auto"
+          aria-label="Nuevo requerimiento"
+        >
+          <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
-          Nuevo Requerimiento
+          <span className="sm:hidden">Nuevo</span>
+          <span className="hidden sm:inline">Nuevo Requerimiento</span>
         </button>
       </div>
 

@@ -105,6 +105,37 @@
     box-shadow: 0 0 48px rgba(203, 172, 128, 0.28);
   }
 
+  /* Botón principal de cabecera en módulos — compacto en móvil */
+  .btn-gold-header {
+    @apply inline-flex items-center justify-center gap-1.5 font-sans font-semibold uppercase transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shrink-0;
+    letter-spacing: 0.1em;
+    font-size: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(135deg, #CBAC80 0%, #F0D080 50%, #937C58 100%);
+    color: #050D1A;
+    box-shadow: 0 1px 2px rgba(5, 13, 26, 0.08);
+  }
+
+  .btn-gold-header:hover {
+    box-shadow: 0 0 32px rgba(203, 172, 128, 0.22);
+  }
+
+  @media (min-width: 640px) {
+    .btn-gold-header {
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      padding: 0.875rem 2rem;
+      letter-spacing: 0.18em;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .btn-gold-header:hover {
+      box-shadow: 0 0 48px rgba(203, 172, 128, 0.28);
+    }
+  }
+
   .btn-outline {
     @apply inline-flex items-center justify-center gap-2 font-sans font-medium text-xs uppercase px-8 py-3.5 transition-all duration-200 active:scale-[0.98];
     letter-spacing: 0.18em;

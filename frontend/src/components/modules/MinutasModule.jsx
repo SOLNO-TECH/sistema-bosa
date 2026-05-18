@@ -286,18 +286,24 @@ export default function MinutasModule() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-display font-medium text-navy-950 text-2xl">Minutas de reunión</h3>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="font-display font-medium text-navy-950 text-xl sm:text-2xl">Minutas de reunión</h3>
           <p className="font-sans text-navy-600 text-sm mt-1">
             Registro formal de reuniones, seguimiento y exportación a PDF para archivo operativo.
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-gold flex items-center gap-2 shadow-md">
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="btn-gold-header self-end sm:self-auto"
+          aria-label="Nueva minuta"
+        >
+          <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
-          Nueva minuta
+          <span className="sm:hidden">Nueva</span>
+          <span className="hidden sm:inline">Nueva minuta</span>
         </button>
       </div>
 

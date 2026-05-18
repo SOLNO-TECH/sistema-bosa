@@ -192,16 +192,22 @@ export default function AvisosModule() {
     <div className="space-y-6 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-display font-medium text-navy-950 tracking-tight">Avisos y Comunicados</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-display font-medium text-navy-950 tracking-tight">Avisos y Comunicados</h2>
           <p className="text-sm text-navy-600 mt-1">Envía notificaciones por departamento o grupo con copia al correo</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-gold flex items-center gap-2 shadow-md">
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          className="btn-gold-header self-end sm:self-auto"
+          aria-label="Nuevo aviso"
+        >
+          <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
-          Nuevo Aviso
+          <span className="sm:hidden">Nuevo</span>
+          <span className="hidden sm:inline">Nuevo Aviso</span>
         </button>
       </div>
 
