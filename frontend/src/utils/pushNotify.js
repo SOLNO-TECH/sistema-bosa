@@ -40,25 +40,23 @@ export async function requestPermission() {
 }
 
 /**
- * Dispara una notificación. SIEMPRE muestra un toast dentro de la app,
- * y además una notificación del navegador si el permiso fue concedido.
- * @param {string} title - Título visible
- * @param {object} options - { body, type, tag, onClick, requireInteraction }
+ * Notificación del navegador (pantalla de bloqueo). El toast in-app solo para notificaciones del servidor.
+ * @param {object} options - { body, tag, onClick, toast: true } toast solo si se pide explícitamente
  */
 export function pushNotify(title, options = {}) {
-  // 1) Toast in-app (siempre)
-  try {
-    emitToast({
-      title,
-      body: options.body || '',
-      type: options.type || inferTypeFromTag(options.tag),
-      onClick: options.onClick,
-    });
-  } catch (err) {
-    console.warn('toast emit error:', err);
+  if (options.toast) {
+    try {
+      emitToast({
+        title,
+        body: options.body || '',
+        type: options.type || inferTypeFromTag(options.tag),
+        onClick: options.onClick,
+      });
+    } catch (err) {
+      console.warn('toast emit error:', err);
+    }
   }
 
-  // 2) Notificación del navegador (si está habilitada y permitida)
   if (!isEnabled()) return null;
   try {
     const n = new Notification(title, {
@@ -100,36 +98,31 @@ function inferTypeFromTag(tag) {
   return 'system';
 }
 
-// Atajos por tipo de evento — homogeniza títulos
+/** Acciones propias del usuario: sin toast (evita spam). El aviso al destinatario llega por el servidor. */
 export const PushEvents = {
-  ticketCreated:   (title) => pushNotify('Ticket creado', { body: title, tag: 'ticket' }),
-  ticketAssigned:  (title) => pushNotify('Te asignaron un ticket', { body: title, tag: 'ticket-assigned' }),
-  ticketMoved:     (title, to) => pushNotify('Ticket movido', { body: `"${title}" → ${to}`, tag: 'ticket-move' }),
-  ticketComment:   (title) => pushNotify('Nuevo comentario en ticket', { body: title, tag: 'ticket-comment' }),
-  ticketFileUp:    (filename) => pushNotify('Archivo subido', { body: filename, tag: 'ticket-file' }),
-  ticketFileDel:   (filename) => pushNotify('Archivo eliminado', { body: filename, tag: 'ticket-file' }),
+  ticketCreated:   () => {},
+  ticketAssigned:  () => {},
+  ticketMoved:     () => {},
+  ticketComment:   () => {},
+  ticketFileUp:    () => {},
+  ticketFileDel:   () => {},
 
-  avisoCreated:    (title) => pushNotify('Aviso publicado', { body: title, tag: 'aviso' }),
-  avisoReceived:   (title) => pushNotify('Nuevo aviso', { body: title, tag: 'aviso-rx', requireInteraction: false }),
+  avisoCreated:    () => {},
+  avisoReceived:   () => {},
 
-  meetingCreated:  (title, when) => pushNotify('Reunión agendada', { body: `${title}${when ? ` · ${when}` : ''}`, tag: 'meeting' }),
-  meetingInvite:   (title, when) => pushNotify('Te invitaron a una reunión', { body: `${title}${when ? ` · ${when}` : ''}`, tag: 'meeting-inv' }),
-  meetingDeleted:  (title) => pushNotify('Reunión cancelada', { body: title, tag: 'meeting-del' }),
+  meetingCreated:  () => {},
+  meetingInvite:   () => {},
+  meetingDeleted:  () => {},
 
-  forumMessage:    (groupName) => pushNotify('Mensaje enviado', { body: `En ${groupName}`, tag: 'forum-msg' }),
-  forumGroupNew:   (name) => pushNotify('Grupo creado', { body: name, tag: 'forum-group' }),
-  forumGroupEdit:  (name) => pushNotify('Grupo actualizado', { body: name, tag: 'forum-group' }),
-  forumGroupDel:   (name) => pushNotify('Grupo eliminado', { body: name, tag: 'forum-group' }),
+  forumMessage:    () => {},
+  forumGroupNew:   () => {},
+  forumGroupEdit:  () => {},
+  forumGroupDel:   () => {},
 
-  userCreated:     (name) => pushNotify('Usuario creado', { body: name, tag: 'user' }),
-  userUpdated:     (name) => pushNotify('Usuario actualizado', { body: name, tag: 'user' }),
-  userDeleted:     (name) => pushNotify('Usuario eliminado', { body: name, tag: 'user' }),
-  passwordChanged: () => pushNotify('Contraseña actualizada', { body: 'El cambio se aplicó correctamente.', tag: 'password' }),
+  userCreated:     () => {},
+  userUpdated:     () => {},
+  userDeleted:     () => {},
+  passwordChanged: () => {},
 
-  // Notificación genérica (usada por polling cuando llega algo del backend)
-  fromServer: (n) => pushNotify(n.title || 'Notificación', {
-    body: n.message || '',
-    tag: `srv-${n.id}`,
-    type: n.type || 'system',
-  }),
+  fromServer: () => {},
 };

@@ -3,7 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { initDatabase } = require('./database/init');
+const { initPushService } = require('./services/pushService');
 const path = require('path');
+const fs = require('fs');
 
 // ── Validación de secretos en arranque ─────────────────────
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
@@ -52,15 +54,18 @@ app.use(express.json({ limit: '2mb' }));
 
 // Inicializar BD y seed al arrancar
 initDatabase();
+initPushService();
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/tickets', require('./routes/tickets'));
+app.use('/api/ticket-tasks', require('./routes/ticketTasks'));
 app.use('/api/avisos', require('./routes/avisos'));
 app.use('/api/minutes', require('./routes/minutes'));
 app.use('/api/forums', require('./routes/forums'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/push', require('./routes/push'));
 
 // Archivos subidos — servir con headers de seguridad para evitar ejecución de HTML/SVG malicioso
 app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads'), {
@@ -77,14 +82,28 @@ app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads'), 
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', service: 'BOSA Hospitality API' }));
 
-// Servir Frontend en Producción
+// Servir frontend estático solo si existe el build (p. ej. tras copiar frontend/dist → backend/public)
 const publicPath = path.join(__dirname, '../public');
-app.use(express.static(publicPath));
+const indexHtmlPath = path.join(publicPath, 'index.html');
+const hasStaticFrontend = fs.existsSync(indexHtmlPath);
+
+if (hasStaticFrontend) {
+  app.use(express.static(publicPath));
+}
 
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ message: 'Ruta API no encontrada.' });
-  res.sendFile(path.join(publicPath, 'index.html'));
+  if (!hasStaticFrontend) {
+    return res.status(404).type('text').send(
+      'API BOSA: el front en desarrollo corre en Vite (http://localhost:5173). Para servir la SPA desde este puerto, genere el build y coloque index.html en backend/public.'
+    );
+  }
+  res.sendFile(indexHtmlPath);
 });
+
+if (!hasStaticFrontend && process.env.NODE_ENV !== 'production') {
+  console.log('\nℹ️  Sin backend/public/index.html — use la UI en Vite o haga build para producción.\n');
+}
 
 // Manejador de errores
 app.use((err, req, res, next) => {

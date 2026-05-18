@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 
@@ -8,6 +9,23 @@ const DEPARTAMENTOS = [
   'Recursos Humanos', 'Jurídico', 'Compras', 'Costos', 'Operaciones',
   'Mantenimiento', 'Almacén', 'Marketing', 'Restaurantes', 'Berry Yum'
 ];
+
+const inputClass =
+  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
+
+const sectionTitle = 'mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400';
+
+function userRoleLabel(role) {
+  if (role === 'superadmin') return 'Super Admin';
+  if (role === 'manager') return 'Gerente';
+  return 'Administrador';
+}
+
+function userRoleBadgeClass(role) {
+  if (role === 'superadmin') return 'border-gold text-gold font-bold';
+  if (role === 'manager') return 'border-navy-400 text-navy-800 font-bold';
+  return 'border-gray-200 text-navy-700 font-bold';
+}
 
 export default function UsersModule() {
   const [users, setUsers] = useState([]);
@@ -94,6 +112,13 @@ export default function UsersModule() {
     }
   };
 
+  const closeUserForm = () => setIsFormOpen(false);
+
+  const closePasswordModal = () => {
+    setIsPasswordOpen(false);
+    setPasswordData('');
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -101,10 +126,13 @@ export default function UsersModule() {
           <h3 className="font-display font-medium text-navy-950 text-2xl">Gestión de Usuarios</h3>
           <p className="font-sans text-navy-600 text-sm mt-1">Administra los accesos y roles del sistema operativo BOSA.</p>
         </div>
-        <button 
+        <button
           onClick={() => { setEditingUser(null); setFormData({}); setIsFormOpen(true); }}
-          className="btn-gold"
+          className="btn-gold flex items-center gap-2 shadow-md"
         >
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
           Nuevo Usuario
         </button>
       </div>
@@ -129,6 +157,7 @@ export default function UsersModule() {
             <option value="">Todos los roles</option>
             <option value="superadmin">Super Admin</option>
             <option value="administrator">Administrador</option>
+            <option value="manager">Gerente</option>
           </select>
           <select 
             value={filterDept}
@@ -177,8 +206,8 @@ export default function UsersModule() {
                       <p className="text-navy-500 text-xs mt-0.5 font-medium">{u.puesto || '—'}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`role-badge ${u.role === 'superadmin' ? 'border-gold text-gold font-bold' : 'border-gray-200 text-navy-700 font-bold'}`}>
-                        {u.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                      <span className={`role-badge ${userRoleBadgeClass(u.role)}`}>
+                        {userRoleLabel(u.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -225,8 +254,8 @@ export default function UsersModule() {
                     <p className="text-navy-500 text-xs truncate">{u.email}</p>
                   </div>
                 </div>
-                <span className={`role-badge flex-shrink-0 ${u.role === 'superadmin' ? 'border-gold text-gold font-bold' : 'border-gray-200 text-navy-700 font-bold'}`}>
-                  {u.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                <span className={`role-badge flex-shrink-0 ${userRoleBadgeClass(u.role)}`}>
+                  {userRoleLabel(u.role)}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -257,112 +286,306 @@ export default function UsersModule() {
       </div>
 
       {/* Form Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-          <div className="bg-white rounded-sm w-full max-w-2xl shadow-card-lg overflow-hidden animate-slide-up">
-            <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="font-display font-medium text-navy-950 text-xl">{editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
-              <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-navy-950">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <form onSubmit={handleSave} className="p-6 space-y-5" autoComplete="off">
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Nombre *</label>
-                  <input required type="text" autoComplete="off" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Apellido</label>
-                  <input type="text" autoComplete="off" value={formData.apellido || ''} onChange={e => setFormData({...formData, apellido: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Correo (Login) *</label>
-                  <input required type="email" autoComplete="off" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Teléfono</label>
-                  <input type="tel" autoComplete="off" value={formData.telefono || ''} onChange={e => setFormData({...formData, telefono: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Departamento *</label>
-                  <select required value={formData.departamento || ''} onChange={e => setFormData({...formData, departamento: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm h-[46px]">
-                    <option value="" disabled>Seleccione departamento...</option>
-                    {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Puesto</label>
-                  <select value={formData.puesto || ''} onChange={e => setFormData({...formData, puesto: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm appearance-none">
-                    <option value="">Seleccione un puesto</option>
-                    <option value="Gerente">Gerente</option>
-                    <option value="Sub-Gerente">Sub-Gerente</option>
-                    <option value="Coordinador">Coordinador</option>
-                    <option value="Supervisor">Supervisor</option>
-                    <option value="Auxiliar">Auxiliar</option>
-                    <option value="Asistente">Asistente</option>
-                    <option value="Analista">Analista</option>
-                    <option value="Técnico">Técnico</option>
-                    <option value="Operativo">Operativo</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5 col-span-2">
-                  <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Rol *</label>
-                  <select required value={formData.role || ''} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm h-[46px]">
-                    <option value="" disabled>Seleccione un rol...</option>
-                    <option value="administrator">Administrador</option>
-                    <option value="superadmin">Super Administrador</option>
-                  </select>
-                </div>
-                {!editingUser && (
-                  <div className="space-y-1.5 col-span-2">
-                    <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Contraseña Inicial *</label>
-                    <div className="flex gap-2">
-                      <input required type="text" autoComplete="new-password" value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm flex-1" />
-                      <button type="button" onClick={() => setFormData({...formData, password: generatePassword()})} className="btn-outline !px-4 !text-gold !border-gold hover:!bg-gold/10">Generar</button>
+      {isFormOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            onClick={closeUserForm}
+            role="presentation"
+          >
+            <div
+              className="flex max-h-[min(92dvh,44rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="user-form-title"
+            >
+              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-6 sm:px-8 sm:pt-7">
+                <div className="pointer-events-none absolute -right-20 -top-28 h-60 w-60 rounded-full bg-gold/12 blur-3xl" aria-hidden />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
+                    <div className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/[0.12] sm:flex">
+                      <svg className="h-5 w-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Accesos BOSA</p>
+                      <h2 id="user-form-title" className="mt-1.5 font-display text-xl font-medium leading-tight text-white sm:text-2xl">
+                        {editingUser ? 'Editar usuario' : 'Nuevo usuario'}
+                      </h2>
+                      <p className="mt-1.5 text-sm text-white/55">
+                        {editingUser ? 'Actualiza datos de contacto, área y rol.' : 'Alta de colaborador con correo de acceso y contraseña inicial.'}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
-                <button type="button" onClick={() => setIsFormOpen(false)} className="btn-outline !px-6 !text-navy-700 !border-gray-300 hover:!bg-gray-50">Cancelar</button>
-                <button type="submit" className="btn-gold !px-8">Guardar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Password Modal */}
-      {isPasswordOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-          <div className="bg-white rounded-sm w-full max-w-md shadow-card-lg overflow-hidden animate-slide-up">
-            <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-              <div>
-                <h3 className="font-display font-medium text-navy-950 text-xl">Cambiar Contraseña</h3>
-                <p className="text-navy-600 text-xs mt-1">Usuario: {editingUser?.email}</p>
-              </div>
-              <button onClick={() => setIsPasswordOpen(false)} className="text-gray-400 hover:text-navy-950">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <form onSubmit={handleChangePassword} className="p-6 space-y-5" autoComplete="off">
-              <div className="space-y-1.5">
-                <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Nueva Contraseña *</label>
-                <div className="flex gap-2">
-                  <input required type="text" autoComplete="new-password" value={passwordData} onChange={e => setPasswordData(e.target.value)} className="w-full border-2 border-gray-300 rounded-md px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white shadow-sm flex-1" />
-                  <button type="button" onClick={() => setPasswordData(generatePassword())} className="btn-outline !px-4 !text-gold !border-gold hover:!bg-gold/10">Generar</button>
+                  <button
+                    type="button"
+                    onClick={closeUserForm}
+                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                    aria-label="Cerrar"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
-                <button type="button" onClick={() => setIsPasswordOpen(false)} className="btn-outline !px-6 !text-navy-700 !border-gray-300 hover:!bg-gray-50">Cancelar</button>
-                <button type="submit" className="btn-gold !px-6">Actualizar</button>
+
+              <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave} autoComplete="off">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-8">
+                  <section>
+                    <h3 className={sectionTitle}>Datos personales</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre *</span>
+                        <input
+                          required
+                          type="text"
+                          autoComplete="off"
+                          value={formData.name || ''}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          className={inputClass}
+                          placeholder="Nombre"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Apellido</span>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          value={formData.apellido || ''}
+                          onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                          className={inputClass}
+                          placeholder="Apellido(s)"
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className={sectionTitle}>Contacto</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Correo (inicio de sesión) *</span>
+                        <input
+                          required
+                          type="email"
+                          autoComplete="off"
+                          value={formData.email || ''}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          className={inputClass}
+                          placeholder="correo@empresa.com"
+                        />
+                      </label>
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Teléfono</span>
+                        <input
+                          type="tel"
+                          autoComplete="off"
+                          value={formData.telefono || ''}
+                          onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                          className={inputClass}
+                          placeholder="Opcional"
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className={sectionTitle}>Organización y rol</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Departamento *</span>
+                        <select
+                          required
+                          value={formData.departamento || ''}
+                          onChange={(e) => setFormData({ ...formData, departamento: e.target.value })}
+                          className={`${inputClass} h-[46px] cursor-pointer`}
+                        >
+                          <option value="" disabled>
+                            Seleccione departamento…
+                          </option>
+                          {DEPARTAMENTOS.map((d) => (
+                            <option key={d} value={d}>
+                              {d}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Puesto</span>
+                        <select
+                          value={formData.puesto || ''}
+                          onChange={(e) => setFormData({ ...formData, puesto: e.target.value })}
+                          className={`${inputClass} h-[46px] cursor-pointer`}
+                        >
+                          <option value="">Seleccione un puesto</option>
+                          <option value="Gerente">Gerente</option>
+                          <option value="Sub-Gerente">Sub-Gerente</option>
+                          <option value="Coordinador">Coordinador</option>
+                          <option value="Supervisor">Supervisor</option>
+                          <option value="Auxiliar">Auxiliar</option>
+                          <option value="Asistente">Asistente</option>
+                          <option value="Analista">Analista</option>
+                          <option value="Técnico">Técnico</option>
+                          <option value="Operativo">Operativo</option>
+                        </select>
+                      </label>
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Rol *</span>
+                        <select
+                          required
+                          value={formData.role || ''}
+                          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                          className={`${inputClass} h-[46px] cursor-pointer`}
+                        >
+                          <option value="" disabled>
+                            Seleccione un rol…
+                          </option>
+                          <option value="administrator">Administrador</option>
+                          <option value="manager">Gerente (coordina tickets de su departamento)</option>
+                          <option value="superadmin">Super Administrador</option>
+                        </select>
+                      </label>
+                    </div>
+                  </section>
+
+                  {!editingUser && (
+                    <section>
+                      <h3 className={sectionTitle}>Contraseña inicial</h3>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Contraseña *</span>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            required
+                            type="text"
+                            autoComplete="new-password"
+                            value={formData.password || ''}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className={`${inputClass} min-w-0 flex-1 font-mono text-sm`}
+                            placeholder="Mínimo recomendado: 12 caracteres"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, password: generatePassword() })}
+                            className="shrink-0 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15 sm:self-stretch"
+                          >
+                            Generar
+                          </button>
+                        </div>
+                      </label>
+                    </section>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
+                  <button
+                    type="button"
+                    onClick={closeUserForm}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-navy-900/10 bg-navy-950 px-6 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 sm:min-w-[10rem]"
+                  >
+                    {!editingUser && (
+                      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    )}
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Password Modal */}
+      {isPasswordOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[105] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            onClick={closePasswordModal}
+            role="presentation"
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="user-password-title"
+            >
+              <div className="relative overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-5 sm:px-8 sm:pt-7">
+                <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/12 blur-3xl" aria-hidden />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Seguridad</p>
+                    <h2 id="user-password-title" className="mt-1.5 font-display text-lg font-medium text-white sm:text-xl">
+                      Cambiar contraseña
+                    </h2>
+                    <p className="mt-1 truncate text-sm text-white/50" title={editingUser?.email}>
+                      {editingUser?.email}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closePasswordModal}
+                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                    aria-label="Cerrar"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <form className="p-6 sm:p-8" onSubmit={handleChangePassword} autoComplete="off">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nueva contraseña *</span>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      required
+                      type="text"
+                      autoComplete="new-password"
+                      value={passwordData}
+                      onChange={(e) => setPasswordData(e.target.value)}
+                      className={`${inputClass} min-w-0 flex-1 font-mono text-sm`}
+                      placeholder="Nueva clave"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPasswordData(generatePassword())}
+                      className="shrink-0 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15"
+                    >
+                      Generar
+                    </button>
+                  </div>
+                </label>
+                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closePasswordModal}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-xl border border-navy-900/10 bg-navy-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 sm:min-w-[9rem]"
+                  >
+                    Actualizar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

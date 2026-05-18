@@ -2,6 +2,8 @@ const { getDb } = require('../database/init');
 const bcrypt = require('bcryptjs');
 const { sendWelcomeEmail } = require('../services/emailService');
 
+const ALLOWED_ROLES = ['superadmin', 'administrator', 'manager'];
+
 const getUsers = (req, res) => {
   try {
     const db = getDb();
@@ -19,8 +21,16 @@ const createUser = (req, res) => {
       return res.status(400).json({ error: 'Campos requeridos faltantes (nombre, correo, rol, contraseña)' });
     }
 
+    if (role === 'manager' && !(departamento && String(departamento).trim())) {
+      return res.status(400).json({ error: 'Un usuario Gerente debe tener un departamento asignado.' });
+    }
+
     const db = getDb();
-    
+
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Rol no válido' });
+    }
+
     const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (exists) return res.status(400).json({ error: 'El correo ya está en uso' });
 
@@ -48,9 +58,25 @@ const updateUser = (req, res) => {
     const { name, apellido, email, telefono, departamento, puesto, role, is_active } = req.body;
     const db = getDb();
 
+    const current = db.prepare('SELECT role, departamento FROM users WHERE id = ?').get(id);
+    if (!current) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const newRole = role != null && role !== '' ? role : current.role;
+    const newDept =
+      departamento !== undefined && departamento !== null
+        ? String(departamento)
+        : current.departamento || '';
+    if (newRole === 'manager' && !newDept.trim()) {
+      return res.status(400).json({ error: 'Un usuario Gerente debe tener un departamento asignado.' });
+    }
+
     if (email) {
       const exists = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, id);
       if (exists) return res.status(400).json({ error: 'El correo ya está en uso por otro usuario' });
+    }
+
+    if (role != null && role !== '' && !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Rol no válido' });
     }
 
     const stmt = db.prepare(`

@@ -1,4 +1,5 @@
 const { getDb } = require('../database/init');
+const { notifyMinutaParticipants } = require('../utils/participantNotify');
 
 function safeJson(s, fallback) {
   try {
@@ -135,7 +136,19 @@ const createMinute = (req, res) => {
         JSON.stringify(n.topics),
         created_by
       );
-    res.status(201).json({ id: info.lastInsertRowid, message: 'Minuta creada.' });
+    const minuteId = info.lastInsertRowid;
+    try {
+      const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(minuteId);
+      const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(created_by);
+      notifyMinutaParticipants(db, row, created_by, {
+        type: 'meeting',
+        title: 'Nueva minuta',
+        message: `${actor?.name || 'Alguien'} registró la minuta "${n.tema || 'sin tema'}" (${n.fecha}).`,
+        module: 'minutas',
+        related_id: Number(minuteId),
+      });
+    } catch (_) { /* noop */ }
+    res.status(201).json({ id: minuteId, message: 'Minuta creada.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al crear la minuta.' });
@@ -147,7 +160,7 @@ const updateMinute = (req, res) => {
     const n = normalizePayload(req.body);
     if (n.error) return res.status(400).json({ message: n.error });
     const db = getDb();
-    const exists = db.prepare('SELECT id FROM meeting_minutes WHERE id = ?').get(req.params.id);
+    const exists = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
     if (!exists) return res.status(404).json({ message: 'Minuta no encontrada.' });
 
     db.prepare(
@@ -165,6 +178,17 @@ const updateMinute = (req, res) => {
       JSON.stringify(n.topics),
       req.params.id
     );
+    try {
+      const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
+      const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user?.id);
+      notifyMinutaParticipants(db, row, req.user?.id, {
+        type: 'meeting',
+        title: 'Minuta actualizada',
+        message: `${actor?.name || 'Alguien'} actualizó la minuta "${n.tema || exists.tema || 'sin tema'}".`,
+        module: 'minutas',
+        related_id: Number(req.params.id),
+      });
+    } catch (_) { /* noop */ }
     res.json({ message: 'Minuta actualizada.' });
   } catch (err) {
     console.error(err);
@@ -175,8 +199,19 @@ const updateMinute = (req, res) => {
 const deleteMinute = (req, res) => {
   try {
     const db = getDb();
-    const r = db.prepare('DELETE FROM meeting_minutes WHERE id = ?').run(req.params.id);
-    if (r.changes === 0) return res.status(404).json({ message: 'Minuta no encontrada.' });
+    const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Minuta no encontrada.' });
+    try {
+      const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user?.id);
+      notifyMinutaParticipants(db, row, req.user?.id, {
+        type: 'meeting',
+        title: 'Minuta eliminada',
+        message: `${actor?.name || 'Alguien'} eliminó la minuta "${row.tema || 'sin tema'}".`,
+        module: 'minutas',
+        related_id: Number(req.params.id),
+      });
+    } catch (_) { /* noop */ }
+    db.prepare('DELETE FROM meeting_minutes WHERE id = ?').run(req.params.id);
     res.json({ message: 'Minuta eliminada.' });
   } catch (err) {
     console.error(err);

@@ -37,6 +37,11 @@ const ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
+  task: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+    </svg>
+  ),
 };
 
 const COLORS = {
@@ -47,17 +52,21 @@ const COLORS = {
   forum:   { bar: 'bg-cyan-500',    iconBg: 'bg-cyan-50',     iconText: 'text-cyan-600' },
   user:    { bar: 'bg-purple-500',  iconBg: 'bg-purple-50',   iconText: 'text-purple-600' },
   system:  { bar: 'bg-navy-700',    iconBg: 'bg-navy-50',     iconText: 'text-navy-700' },
+  task:    { bar: 'bg-red-500',     iconBg: 'bg-red-50',      iconText: 'text-red-600' },
 };
 
 function ToastCard({ toast, onClose }) {
   const type = toast.type || 'system';
-  const colors = COLORS[type] || COLORS.system;
+  const isNotification = toast.variant === 'notification';
+  const colors = isNotification
+    ? { bar: 'bg-red-500', iconBg: 'bg-red-100', iconText: 'text-red-600' }
+    : (COLORS[type] || COLORS.system);
   const icon = ICONS[type] || ICONS.system;
 
   return (
     <div
       onClick={() => { if (toast.onClick) toast.onClick(); onClose(); }}
-      className={`bg-white shadow-2xl rounded-lg border border-gray-200 overflow-hidden flex items-stretch min-w-[300px] max-w-sm pointer-events-auto cursor-pointer transition-all hover:shadow-2xl hover:-translate-y-0.5 ${toast.exiting ? 'animate-fade-out' : 'animate-slide-left'}`}
+      className={`shadow-2xl rounded-lg border overflow-hidden flex items-stretch min-w-[300px] max-w-sm pointer-events-auto cursor-pointer transition-all hover:shadow-2xl hover:-translate-y-0.5 ${isNotification ? 'bg-red-50/95 border-red-200' : 'bg-white border-gray-200'} ${toast.exiting ? 'animate-fade-out' : 'animate-slide-left'}`}
       role="alert"
     >
       <div className={`w-1 flex-shrink-0 ${colors.bar}`} />
@@ -66,8 +75,11 @@ function ToastCard({ toast, onClose }) {
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-navy-950 text-sm leading-tight">{toast.title}</p>
-          {toast.body && <p className="text-xs text-navy-600 mt-0.5 leading-snug">{toast.body}</p>}
+          <div className="flex items-center gap-2">
+            {isNotification && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" aria-hidden />}
+            <p className="font-bold text-navy-950 text-sm leading-tight">{toast.title}</p>
+          </div>
+          {toast.body && <p className="text-xs text-navy-700 mt-0.5 leading-snug">{toast.body}</p>}
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}

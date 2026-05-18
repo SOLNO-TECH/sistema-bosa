@@ -30,7 +30,7 @@ function initDatabase() {
       name        TEXT    NOT NULL,
       email       TEXT    NOT NULL UNIQUE,
       password    TEXT    NOT NULL,
-      role        TEXT    NOT NULL CHECK(role IN ('superadmin', 'administrator')),
+      role        TEXT    NOT NULL CHECK(role IN ('superadmin', 'administrator', 'manager')),
       is_active   INTEGER NOT NULL DEFAULT 1,
       created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -138,6 +138,18 @@ function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL,
+      endpoint    TEXT    NOT NULL UNIQUE,
+      p256dh      TEXT    NOT NULL,
+      auth        TEXT    NOT NULL,
+      user_agent  TEXT,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
     CREATE TRIGGER IF NOT EXISTS update_users_timestamp
     AFTER UPDATE ON users
     BEGIN
@@ -176,6 +188,61 @@ function initDatabase() {
     }
   }
 
+  // Permitir rol manager (gerente de departamento): SQLite no puede alterar CHECK
+  try {
+    const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
+    const sql = meta?.sql || '';
+    if (sql.includes("CHECK(role IN ('superadmin', 'administrator'))") && !sql.includes('manager')) {
+      db.pragma('foreign_keys = OFF');
+      db.exec('BEGIN IMMEDIATE;');
+      db.exec('ALTER TABLE users RENAME TO users_old;');
+      db.exec(`
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          email TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('superadmin', 'administrator', 'manager')),
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          apellido TEXT DEFAULT '',
+          telefono TEXT DEFAULT '',
+          departamento TEXT DEFAULT '',
+          puesto TEXT DEFAULT ''
+        );
+      `);
+      db.exec(`
+        INSERT INTO users (id, name, email, password, role, is_active, created_at, updated_at, apellido, telefono, departamento, puesto)
+        SELECT id, name, email, password, role, is_active, created_at, updated_at,
+          COALESCE(apellido, ''), COALESCE(telefono, ''), COALESCE(departamento, ''), COALESCE(puesto, '')
+        FROM users_old;
+      `);
+      db.exec('DROP TABLE users_old;');
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS update_users_timestamp
+        AFTER UPDATE ON users
+        BEGIN
+          UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
+        END;
+      `);
+      db.exec(
+        `INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('users', (SELECT IFNULL(MAX(id), 0) FROM users));`
+      );
+      db.exec('COMMIT;');
+      db.pragma('foreign_keys = ON');
+      console.log('[DB] users: rol manager habilitado (migración CHECK)');
+    }
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK;');
+    } catch (_) {}
+    try {
+      db.pragma('foreign_keys = ON');
+    } catch (_) {}
+    console.warn('[DB] migración role manager:', err.message);
+  }
+
   try {
     db.prepare(`ALTER TABLE tickets ADD COLUMN due_date TEXT`).run();
   } catch (err) {}
@@ -184,6 +251,68 @@ function initDatabase() {
     db.prepare(`ALTER TABLE workgroups ADD COLUMN access_type TEXT DEFAULT 'all'`).run();
     db.prepare(`ALTER TABLE workgroups ADD COLUMN access_list TEXT DEFAULT '[]'`).run();
   } catch (err) {}
+
+  try {
+    db.prepare(`ALTER TABLE workgroups ADD COLUMN extra_allowed_user_ids TEXT DEFAULT '[]'`).run();
+  } catch (err) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS forum_join_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workgroup_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'rejected')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (workgroup_id) REFERENCES workgroups(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(workgroup_id, user_id)
+      );
+    `);
+  } catch (err) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ticket_tasks (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id     INTEGER NOT NULL,
+        title         TEXT    NOT NULL,
+        description   TEXT,
+        assigned_to   INTEGER NOT NULL,
+        created_by    INTEGER NOT NULL,
+        start_date    TEXT    NOT NULL,
+        end_date      TEXT    NOT NULL,
+        status        TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'done', 'cancelled')),
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (ticket_id)   REFERENCES tickets(id) ON DELETE CASCADE,
+        FOREIGN KEY (assigned_to) REFERENCES users(id),
+        FOREIGN KEY (created_by)   REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ticket_tasks_ticket ON ticket_tasks(ticket_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_tasks_assignee ON ticket_tasks(assigned_to);
+    `);
+  } catch (err) {
+    console.warn('[DB] ticket_tasks migration:', err.message);
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL,
+        endpoint    TEXT    NOT NULL UNIQUE,
+        p256dh      TEXT    NOT NULL,
+        auth        TEXT    NOT NULL,
+        user_agent  TEXT,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+    `);
+  } catch (err) {
+    console.warn('[DB] push_subscriptions migration:', err.message);
+  }
 
   seedDefaultUsers(db);
 }

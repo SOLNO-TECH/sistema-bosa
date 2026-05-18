@@ -39,11 +39,21 @@ function login(req, res) {
 
   const { accessToken, refreshToken, payload } = signTokens(user);
 
+  const userProfile = {
+    id: user.id,
+    name: user.name,
+    apellido: user.apellido || '',
+    email: user.email,
+    role: user.role,
+    departamento: user.departamento || '',
+    puesto: user.puesto || '',
+  };
+
   return res.json({
     token: accessToken,        // backwards compat
     accessToken,
     refreshToken,
-    user: payload,
+    user: userProfile,
   });
 }
 
@@ -70,19 +80,31 @@ function refresh(req, res) {
     return res.status(401).json({ message: 'Usuario no encontrado o inactivo.' });
   }
 
-  const { accessToken, refreshToken: newRefresh, payload: userPayload } = signTokens(user);
+  const { accessToken, refreshToken: newRefresh } = signTokens(user);
+
+  const userProfile = {
+    id: user.id,
+    name: user.name,
+    apellido: user.apellido || '',
+    email: user.email,
+    role: user.role,
+    departamento: user.departamento || '',
+    puesto: user.puesto || '',
+  };
 
   return res.json({
     token: accessToken,
     accessToken,
     refreshToken: newRefresh,
-    user: userPayload,
+    user: userProfile,
   });
 }
 
 function me(req, res) {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare(
+    `SELECT id, name, apellido, email, role, departamento, puesto, telefono, is_active, created_at FROM users WHERE id = ?`
+  ).get(req.user.id);
   if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
   return res.json({ user });
 }
@@ -100,7 +122,7 @@ function createUser(req, res) {
     return res.status(400).json({ message: 'Todos los campos son requeridos.' });
   }
 
-  if (!['superadmin', 'administrator'].includes(role)) {
+  if (!['superadmin', 'administrator', 'manager'].includes(role)) {
     return res.status(400).json({ message: 'Rol inválido.' });
   }
 

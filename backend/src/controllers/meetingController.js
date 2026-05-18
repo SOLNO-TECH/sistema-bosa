@@ -1,6 +1,10 @@
 const { getDb } = require('../database/init');
 const { sendMeetingNotification } = require('../services/emailService');
 const { notifyUser } = require('../services/notificationService');
+const {
+  parseMeetingAttendees,
+  notifyMeetingParticipants,
+} = require('../utils/participantNotify');
 
 const getMeetings = (req, res) => {
   try {
@@ -70,10 +74,95 @@ const createMeeting = (req, res) => {
   }
 };
 
+const updateMeeting = (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, start_time, end_time, attendees } = req.body;
+    const db = getDb();
+    const existing = db.prepare('SELECT * FROM meetings WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Reunión no encontrada' });
+
+    const uid = req.user.id;
+    const role = req.user.role;
+    if (existing.created_by !== uid && role !== 'superadmin' && role !== 'administrator') {
+      return res.status(403).json({ error: 'Solo el organizador o un administrador puede editar esta reunión.' });
+    }
+
+    if (!title || !start_time || !end_time) {
+      return res.status(400).json({ error: 'Título, hora de inicio y fin son obligatorios' });
+    }
+
+    const newAttendeeIds = Array.isArray(attendees) ? attendees.map(Number).filter((n) => !Number.isNaN(n)) : [];
+    const oldAttendeeIds = parseMeetingAttendees(existing.attendees).map(Number);
+    const attendeesJson = JSON.stringify(newAttendeeIds);
+
+    db.prepare(`
+      UPDATE meetings
+      SET title = ?, description = ?, start_time = ?, end_time = ?, attendees = ?
+      WHERE id = ?
+    `).run(title, description || '', start_time, end_time, attendeesJson, id);
+
+    const when = (() => {
+      try {
+        const d = new Date(start_time);
+        return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' · ' +
+          d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch {
+        return start_time;
+      }
+    })();
+
+    try {
+      const newlyAdded = newAttendeeIds.filter((aid) => !oldAttendeeIds.includes(aid));
+      for (const userId of newlyAdded) {
+        if (userId === uid) continue;
+        notifyUser(userId, {
+          type: 'meeting',
+          title: 'Te invitaron a una reunión',
+          message: `"${title}" — ${when}`,
+          module: 'calendar',
+          related_id: Number(id),
+        });
+      }
+      const updatedMeeting = { ...existing, title, start_time, end_time, attendees: attendeesJson };
+      notifyMeetingParticipants(
+        db,
+        updatedMeeting,
+        uid,
+        {
+          type: 'meeting',
+          title: 'Reunión actualizada',
+          message: `"${title}" fue modificada (${when}).`,
+          module: 'calendar',
+          related_id: Number(id),
+        },
+        newlyAdded
+      );
+    } catch (_) { /* noop */ }
+
+    res.json({ message: 'Reunión actualizada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar reunión' });
+  }
+};
+
 const deleteMeeting = (req, res) => {
   try {
     const { id } = req.params;
     const db = getDb();
+    const existing = db.prepare('SELECT * FROM meetings WHERE id = ?').get(id);
+    if (existing) {
+      try {
+        notifyMeetingParticipants(db, existing, req.user?.id, {
+          type: 'meeting',
+          title: 'Reunión cancelada',
+          message: `La reunión "${existing.title}" fue eliminada del calendario.`,
+          module: 'calendar',
+          related_id: Number(id),
+        });
+      } catch (_) { /* noop */ }
+    }
     db.prepare('DELETE FROM meetings WHERE id = ?').run(id);
     res.json({ message: 'Reunión eliminada exitosamente' });
   } catch (err) {
@@ -84,5 +173,6 @@ const deleteMeeting = (req, res) => {
 module.exports = {
   getMeetings,
   createMeeting,
+  updateMeeting,
   deleteMeeting
 };

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { requestPermission } from '../utils/pushNotify';
+import { registerPushSubscription } from '../utils/pushSubscribe';
 
 const AuthContext = createContext(null);
 
@@ -131,6 +132,7 @@ export function AuthProvider({ children }) {
         setUser(data.user);
         // Si la sesión se restauró (no pasó por login), pedir permiso de notifs aquí
         requestPermission().catch(() => {});
+        registerPushSubscription().catch(() => {});
       })
       .catch(() => logout())
       .finally(() => setLoading(false));
@@ -143,6 +145,7 @@ export function AuthProvider({ children }) {
     setUser(data.user);
     // Pedir permiso de notificaciones push del navegador (no bloquea)
     requestPermission().catch(() => {});
+    registerPushSubscription().catch(() => {});
     return data.user;
   };
 

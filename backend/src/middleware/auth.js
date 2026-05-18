@@ -23,12 +23,20 @@ function authenticate(req, res, next) {
   // Verificar que el usuario sigue existiendo y activo
   try {
     const db = getDb();
-    const dbUser = db.prepare('SELECT id, name, email, role, is_active FROM users WHERE id = ?').get(payload.id);
+    const dbUser = db.prepare('SELECT id, name, apellido, email, role, departamento, puesto, is_active FROM users WHERE id = ?').get(payload.id);
     if (!dbUser || !dbUser.is_active) {
       return res.status(401).json({ message: 'Cuenta inactiva o eliminada.' });
     }
-    // Usar datos frescos (rol pudo haber cambiado)
-    req.user = { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role };
+    // Usar datos frescos (rol / departamento pueden haber cambiado)
+    req.user = {
+      id: dbUser.id,
+      name: dbUser.name,
+      apellido: dbUser.apellido || '',
+      email: dbUser.email,
+      role: dbUser.role,
+      departamento: dbUser.departamento || '',
+      puesto: dbUser.puesto || '',
+    };
   } catch (err) {
     console.error('authenticate DB error:', err);
     return res.status(500).json({ message: 'Error interno al validar sesión.' });

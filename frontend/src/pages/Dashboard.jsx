@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { EmptyStateIllustration, SparkleIcon } from '../components/Illustrations';
 import UsersModule from '../components/modules/UsersModule';
 import ConfigModule from '../components/modules/ConfigModule';
 import TicketsModule from '../components/modules/TicketsModule';
+import TasksModule from '../components/modules/TasksModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
@@ -12,7 +13,11 @@ import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
 import MinutasModule from '../components/modules/MinutasModule';
 import ToastContainer from '../components/ToastContainer';
-import { PushEvents } from '../utils/pushNotify';
+import {
+  showIncomingNotificationToast,
+  markAllNotificationsToastShown,
+  setNotificationToastUserId,
+} from '../utils/notificationToast';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -21,6 +26,7 @@ import {
 const ROLE_LABELS = {
   superadmin: 'Super Admin',
   administrator: 'Administrador',
+  manager: 'Gerente',
 };
 
 // ── Iconos ──────────────────────────────────────────────
@@ -33,6 +39,7 @@ const IconReports = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 2
 const IconUserAdmin = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>;
 const IconSettings = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 const IconTickets = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>;
+const IconTaskGantt = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0l-3.75-3.75M17.25 21L21 17.25" /></svg>;
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
 const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
@@ -119,6 +126,8 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [active, setActive] = useState('overview');
+  /** Abrir un ticket desde otro módulo (p. ej. tarea → ticket). */
+  const [pendingTicketOpen, setPendingTicketOpen] = useState(null);
   const [sidebarOpen, setSidebar] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -127,13 +136,11 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState({ resolutionRate: 0, inProgress: 0, urgent: 0, overdue: 0, meetingsThisWeek: 0, activeAvisos: 0 });
   const [recentNotifs, setRecentNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  // Para detectar notificaciones nuevas y dispararlas como push del navegador
-  const [lastSeenNotifId, setLastSeenNotifId] = useState(() => {
-    const v = parseInt(localStorage.getItem('bosa_last_notif_id') || '0', 10);
-    return isNaN(v) ? 0 : v;
-  });
+  const notifPollReadyRef = useRef(false);
+  const lastSeenKey = user?.id ? `bosa_last_notif_id_${user.id}` : 'bosa_last_notif_id';
+  const lastSeenNotifIdRef = useRef(0);
 
-  const fetchRecentNotifications = async (firePush = true) => {
+  const fetchRecentNotifications = async () => {
     try {
       const [{ data: items }, { data: cnt }] = await Promise.all([
         axios.get('/api/notifications', { params: { limit: 10 } }),
@@ -143,28 +150,107 @@ export default function Dashboard() {
       setRecentNotifs(arr.slice(0, 5));
       setUnreadCount(cnt?.count || 0);
 
-      // Disparar push del navegador para notificaciones nuevas (ID > lastSeen)
-      if (firePush && arr.length > 0) {
-        const fresh = arr.filter(n => n.id > lastSeenNotifId && !n.is_read);
-        fresh.reverse().forEach(n => PushEvents.fromServer(n));
-        const maxId = arr.reduce((m, n) => n.id > m ? n.id : m, lastSeenNotifId);
-        if (maxId > lastSeenNotifId) {
-          setLastSeenNotifId(maxId);
-          localStorage.setItem('bosa_last_notif_id', String(maxId));
+      const prevMax = lastSeenNotifIdRef.current;
+
+      if (!notifPollReadyRef.current) {
+        markAllNotificationsToastShown(arr);
+        notifPollReadyRef.current = true;
+      } else {
+        const incoming = arr
+          .filter((n) => n.id > prevMax && !n.is_read)
+          .sort((a, b) => a.id - b.id);
+        for (const n of incoming) {
+          showIncomingNotificationToast(n, () => {
+            setShowNotifications(false);
+            openFromPushData({
+              module: n.module,
+              related_id: n.related_id,
+              link_id: n.related_id,
+            });
+          });
         }
       }
+
+      const maxId = arr.reduce((m, n) => (n.id > m ? n.id : m), prevMax);
+      if (maxId > prevMax) {
+        lastSeenNotifIdRef.current = maxId;
+        localStorage.setItem(lastSeenKey, String(maxId));
+      }
     } catch (err) { /* silencioso */ }
+  };
+
+  const openFromPushData = (data) => {
+    if (!data?.module) {
+      setActive('notifications');
+      return;
+    }
+    const ticketId = data.link_id ?? data.related_id;
+    if (data.module === 'tickets' && ticketId) {
+      setPendingTicketOpen({ id: Number(ticketId), tab: 'info' });
+      setActive('tickets');
+      return;
+    }
+    if (data.module === 'tasks' && ticketId) {
+      setPendingTicketOpen({ id: Number(ticketId), tab: 'tasks' });
+      setActive('tickets');
+      return;
+    }
+    if (data.module === 'avisos') setActive('avisos');
+    else if (data.module === 'calendar') setActive('calendar');
+    else if (data.module === 'foro') setActive('foro');
+    else if (data.module === 'minutas') setActive('minutas');
+    else if (data.module === 'tasks') setActive('tasks');
+    else setActive('notifications');
   };
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
-    // Primer fetch sin disparar push (evita spam al cargar la app)
-    fetchRecentNotifications(false);
-    // refrescar cada 10 segundos para que el push se sienta en tiempo real
-    const interval = setInterval(() => fetchRecentNotifications(true), 10000);
-    return () => { clearTimeout(t); clearInterval(interval); };
+    return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    setNotificationToastUserId(user?.id ?? null);
+    const v = parseInt(localStorage.getItem(lastSeenKey) || '0', 10);
+    lastSeenNotifIdRef.current = Number.isNaN(v) ? 0 : v;
+    notifPollReadyRef.current = false;
+
+    fetchRecentNotifications();
+    const interval = setInterval(fetchRecentNotifications, 10000);
+
+    const onSwMessage = (event) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK') {
+        openFromPushData(event.data.data);
+        setShowNotifications(false);
+        return;
+      }
+      if (event.data?.type === 'PUSH_RECEIVED') {
+        const p = event.data.payload || {};
+        const data = p.data || {};
+        const notif = {
+          id: data.notificationId,
+          title: p.title,
+          message: p.body || '',
+          type: data.type || 'system',
+          module: data.module,
+          related_id: data.related_id,
+        };
+        if (notif.id) {
+          showIncomingNotificationToast(notif, () => openFromPushData(data));
+        }
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onSwMessage);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onSwMessage);
+      }
+    };
+  }, [user?.id, lastSeenKey]);
 
   const fetchStats = async () => {
     try {
@@ -237,6 +323,7 @@ export default function Dashboard() {
         title: 'Gestión',
         items: [
           { id: 'tickets', label: 'Tickets de Soporte', icon: <IconTickets /> },
+          { id: 'tasks', label: 'Tareas operativas', icon: <IconTaskGantt /> },
           { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
           { id: 'minutas', label: 'Minutas', icon: <IconMinuta /> },
         ],
@@ -281,7 +368,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-slate-text text-[11px] font-bold truncate tracking-wide">{user?.name} {user?.apellido}</span>
-            <span className="text-gold text-[9px] font-bold mt-1 uppercase tracking-widest">{ROLE_LABELS[user?.role]}</span>
+            <span className="text-gold text-[9px] font-bold mt-1 uppercase tracking-widest">{ROLE_LABELS[user?.role] || user?.role || ''}</span>
           </div>
         </div>
 
@@ -318,7 +405,6 @@ export default function Dashboard() {
             </button>
               <div className="flex items-center gap-4">
                 <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-bold border border-emerald-500/20">v1.3 - CLEAN</span>
               </div>
           </div>
           <div className="flex items-center gap-3">
@@ -355,7 +441,16 @@ export default function Dashboard() {
                               if (!n.is_read) {
                                 try { await axios.patch(`/api/notifications/${n.id}/read`); } catch(_) {}
                               }
-                              if (n.module) setActive(n.module === 'avisos' ? 'avisos' : n.module === 'calendar' ? 'calendar' : n.module === 'tickets' ? 'tickets' : n.module === 'foro' ? 'foro' : 'notifications');
+                              if (n.module) {
+                                const mod = n.module;
+                                if (mod === 'avisos') setActive('avisos');
+                                else if (mod === 'calendar') setActive('calendar');
+                                else if (mod === 'tickets') setActive('tickets');
+                                else if (mod === 'tasks') setActive('tasks');
+                                else if (mod === 'foro') setActive('foro');
+                                else if (mod === 'minutas') setActive('minutas');
+                                else setActive('notifications');
+                              }
                               else setActive('notifications');
                               setShowNotifications(false);
                               fetchRecentNotifications();
@@ -406,7 +501,20 @@ export default function Dashboard() {
               <p className="text-sm text-navy-600">Esta sección solo está disponible para Super Administradores.</p>
               <button onClick={() => setActive('overview')} className="btn-gold mt-2">Volver al inicio</button>
             </div>
-          )) : active === 'tickets' ? <TicketsModule /> : active === 'avisos' ? <AvisosModule /> : active === 'minutas' ? <MinutasModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          )) : active === 'tickets' ? (
+            <TicketsModule
+              openTicketId={pendingTicketOpen?.id ?? null}
+              openTicketTab={pendingTicketOpen?.tab ?? 'info'}
+              onConsumeOpenTicket={() => setPendingTicketOpen(null)}
+            />
+          ) : active === 'tasks' ? (
+            <TasksModule
+              onOpenTicket={(id) => {
+                setPendingTicketOpen({ id, tab: 'info' });
+                setActive('tickets');
+              }}
+            />
+          ) : active === 'avisos' ? <AvisosModule /> : active === 'minutas' ? <MinutasModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <SparkleIcon size={16} className="text-gold" />
@@ -570,12 +678,15 @@ export default function Dashboard() {
       </div>
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-surface flex items-center justify-around px-2 py-2 bg-navy-950">
-        {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'avisos', 'minutas'].includes(item.id)).map(item => (
-          <button key={item.id} onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
-            <span className="w-5 h-5">{item.icon}</span>
-            <span className="text-[8px] font-black uppercase truncate max-w-[50px]">{item.label}</span>
-          </button>
-        ))}
+        {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'tasks', 'avisos'].includes(item.id)).map(item => {
+          const mobileLabel = item.id === 'tasks' ? 'Tareas' : item.id === 'tickets' ? 'Tickets' : item.label;
+          return (
+            <button key={item.id} onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
+              <span className="w-5 h-5">{item.icon}</span>
+              <span className="text-[8px] font-black uppercase truncate max-w-[50px]">{mobileLabel}</span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

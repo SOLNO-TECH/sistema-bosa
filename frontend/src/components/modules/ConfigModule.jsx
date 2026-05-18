@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { isSupported, getPermission, isEnabled, setEnabled, requestPermission, pushNotify } from '../../utils/pushNotify';
+import { registerPushSubscription, unregisterPushSubscription, canUseWebPush } from '../../utils/pushSubscribe';
 
 export default function ConfigModule() {
   const { user } = useAuth();
@@ -29,16 +30,20 @@ export default function ConfigModule() {
       if (result === 'granted') {
         setEnabled(true);
         setPushOn(true);
-        pushNotify('Notificaciones activadas', { body: 'Recibirás un aviso por cada actividad del sistema.' });
+        if (canUseWebPush()) await registerPushSubscription();
+        pushNotify('Notificaciones activadas', { body: 'Recibirás avisos en pantalla de bloqueo y dentro de la app.', toast: true });
       }
       return;
     }
-    // Permission ya concedido — togglear preferencia local
     const newVal = !pushOn;
-    setEnabled(newVal);
-    setPushOn(newVal);
     if (newVal) {
-      pushNotify('Notificaciones activadas', { body: 'Recibirás un aviso por cada actividad del sistema.' });
+      setEnabled(true);
+      setPushOn(true);
+      if (canUseWebPush()) await registerPushSubscription();
+      pushNotify('Notificaciones activadas', { body: 'Recibirás avisos en pantalla de bloqueo y dentro de la app.', toast: true });
+    } else {
+      await unregisterPushSubscription();
+      setPushOn(false);
     }
   };
 
@@ -151,7 +156,7 @@ export default function ConfigModule() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Rol Actual</label>
-                    <input type="text" disabled defaultValue={user?.role === 'superadmin' ? 'Super Administrador' : 'Administrador'} className="w-full border-2 border-gray-100 rounded-lg px-4 py-2.5 text-gray-400 bg-gray-50 cursor-not-allowed" />
+                    <input type="text" disabled defaultValue={user?.role === 'superadmin' ? 'Super Administrador' : user?.role === 'manager' ? 'Gerente' : 'Administrador'} className="w-full border-2 border-gray-100 rounded-lg px-4 py-2.5 text-gray-400 bg-gray-50 cursor-not-allowed" />
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
@@ -207,7 +212,7 @@ export default function ConfigModule() {
 
                 {pushPermission === 'granted' && (
                   <button
-                    onClick={() => pushNotify('Notificación de prueba', { body: 'Si ves este mensaje, las notificaciones están funcionando correctamente.' })}
+                    onClick={() => pushNotify('Notificación de prueba', { body: 'Si ves este mensaje, las notificaciones están funcionando correctamente.', toast: true })}
                     className="w-full py-2.5 rounded-lg border border-gold/30 text-gold text-xs font-bold uppercase tracking-widest hover:bg-gold/5 transition-colors"
                   >
                     Probar notificación

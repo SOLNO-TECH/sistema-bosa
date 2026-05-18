@@ -35,6 +35,7 @@ router.get('/', ticketController.getTickets);
 router.get('/:id', ticketController.getTicketDetails);
 router.post('/', ticketController.createTicket);
 router.patch('/:id/status', ticketController.updateTicketStatus);
+router.patch('/:id', ticketController.updateTicket);
 router.post('/:id/comments', ticketController.addComment);
 router.post('/:id/attachments', upload.single('file'), ticketController.uploadAttachment);
 router.delete('/:id/attachments/:attachmentId', ticketController.deleteAttachment);

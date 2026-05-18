@@ -3,6 +3,7 @@
 
 let listeners = [];
 let nextId = 1;
+const recentDedupe = new Map();
 
 export function onToast(cb) {
   listeners.push(cb);
@@ -10,6 +11,12 @@ export function onToast(cb) {
 }
 
 export function emitToast(toast) {
+  if (toast.dedupeKey) {
+    const last = recentDedupe.get(toast.dedupeKey);
+    if (last && Date.now() - last < 15000) return null;
+    recentDedupe.set(toast.dedupeKey, Date.now());
+  }
+
   const id = nextId++;
   const payload = { id, ...toast };
   listeners.forEach(cb => {

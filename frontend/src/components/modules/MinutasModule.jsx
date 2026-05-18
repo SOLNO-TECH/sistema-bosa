@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { exportMinutaPdf } from '../../utils/exportMinutaPdf';
 
@@ -281,7 +282,7 @@ export default function MinutasModule() {
   };
 
   const inputClass =
-    'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy-950 placeholder:text-gray-400 focus:border-gold focus:ring-1 focus:ring-gold/30 outline-none transition-colors';
+    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -292,7 +293,10 @@ export default function MinutasModule() {
             Registro formal de reuniones, seguimiento y exportación a PDF para archivo operativo.
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-gold">
+        <button type="button" onClick={openCreate} className="btn-gold flex items-center gap-2 shadow-md">
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
           Nueva minuta
         </button>
       </div>
@@ -476,206 +480,359 @@ export default function MinutasModule() {
       </div>
 
       {/* Modal formulario crear / editar */}
-      {(modal === 'create' || modal === 'edit') && (
-        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
-          <button type="button" className="fixed inset-0 bg-black/50" aria-label="Cerrar" onClick={closeModal} />
-          <div className="relative z-10 flex min-h-full justify-center px-3 pt-10 pb-12 sm:px-4 sm:pt-14 sm:pb-16">
-            <div className="relative w-full max-w-3xl max-h-[min(88vh,calc(100dvh-7rem))] sm:max-h-[min(86vh,calc(100dvh-8rem))] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-gray-200">
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white/95 backdrop-blur">
-              <h3 className="font-display text-lg font-semibold text-navy-950">
-                {modal === 'edit' ? 'Editar minuta' : 'Nueva minuta de reunión'}
-              </h3>
-              <button type="button" onClick={closeModal} className="p-2 rounded-lg text-navy-500 hover:bg-gray-100">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-8 pb-28">
-              <section className="space-y-3">
-                <p className="font-label text-[10px] tracking-widest uppercase font-bold text-navy-500">Datos generales</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-bold text-navy-700">Lugar</span>
-                    <input className={`${inputClass} mt-1`} value={form.lugar} onChange={(e) => setForm((f) => ({ ...f, lugar: e.target.value }))} placeholder="Sala, dirección…" />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-bold text-navy-700">Fecha *</span>
-                    <input type="date" className={`${inputClass} mt-1`} value={form.fecha} onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))} required />
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="text-xs font-bold text-navy-700">Inicio</span>
-                      <input type="time" className={`${inputClass} mt-1`} value={form.hora_inicio} onChange={(e) => setForm((f) => ({ ...f, hora_inicio: e.target.value }))} />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-bold text-navy-700">Cierre</span>
-                      <input type="time" className={`${inputClass} mt-1`} value={form.hora_cierre} onChange={(e) => setForm((f) => ({ ...f, hora_cierre: e.target.value }))} />
-                    </label>
+      {(modal === 'create' || modal === 'edit') &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            onClick={closeModal}
+            role="presentation"
+          >
+            <div
+              className="flex max-h-[min(92dvh,52rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="minuta-form-title"
+            >
+              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-6 sm:px-8 sm:pt-7">
+                <div className="pointer-events-none absolute -right-20 -top-28 h-60 w-60 rounded-full bg-gold/12 blur-3xl" aria-hidden />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
+                    <div className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/[0.12] sm:flex">
+                      <svg className="h-5 w-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Acta de reunión</p>
+                      <h2 id="minuta-form-title" className="mt-1.5 font-display text-xl font-medium leading-tight text-white sm:text-2xl">
+                        {modal === 'edit' ? 'Editar minuta' : 'Nueva minuta de reunión'}
+                      </h2>
+                      <p className="mt-1.5 text-sm text-white/55">Completa datos generales, asistentes y hasta tres temas del día.</p>
+                    </div>
                   </div>
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-bold text-navy-700">Tema de la reunión</span>
-                    <input className={`${inputClass} mt-1`} value={form.tema} onChange={(e) => setForm((f) => ({ ...f, tema: e.target.value }))} placeholder="Asunto general" />
-                  </label>
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-label text-[10px] tracking-widest uppercase font-bold text-navy-500">Asistentes</p>
-                  <button type="button" onClick={addAttendeeRow} className="text-xs font-bold text-gold hover:underline">
-                    + Fila
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                    aria-label="Cerrar"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
-                <div className="rounded-xl border border-gray-200 overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm min-w-[520px]">
+              </div>
+
+              <form
+                className="flex min-h-0 flex-1 flex-col"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSave();
+                }}
+              >
+                <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6 sm:px-8 sm:py-7">
+                  <section>
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Datos generales</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Lugar</span>
+                        <input
+                          className={inputClass}
+                          value={form.lugar}
+                          onChange={(e) => setForm((f) => ({ ...f, lugar: e.target.value }))}
+                          placeholder="Sala, dirección u oficina"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Fecha *</span>
+                        <input
+                          type="date"
+                          className={inputClass}
+                          value={form.fecha}
+                          onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+                          required
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-700">Inicio</span>
+                          <input
+                            type="time"
+                            className={inputClass}
+                            value={form.hora_inicio}
+                            onChange={(e) => setForm((f) => ({ ...f, hora_inicio: e.target.value }))}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-700">Cierre</span>
+                          <input
+                            type="time"
+                            className={inputClass}
+                            value={form.hora_cierre}
+                            onChange={(e) => setForm((f) => ({ ...f, hora_cierre: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Tema de la reunión</span>
+                        <input
+                          className={inputClass}
+                          value={form.tema}
+                          onChange={(e) => setForm((f) => ({ ...f, tema: e.target.value }))}
+                          placeholder="Asunto o título general"
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Asistentes</h3>
+                      <button
+                        type="button"
+                        onClick={addAttendeeRow}
+                        className="rounded-lg border border-gold/35 bg-gold/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15"
+                      >
+                        + Añadir fila
+                      </button>
+                    </div>
+                    <div className="overflow-hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-black/[0.03]">
+                      <table className="w-full min-w-[520px] text-sm">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-navy-950 to-navy-900 text-white">
+                            <th className="w-10 px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" />
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide">Nombre</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide">Cargo</th>
+                            <th className="w-[128px] px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide">Asistencia</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {form.attendees.map((row, idx) => (
+                            <tr key={idx} className="bg-white">
+                              <td className="px-1 py-2 align-middle text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeAttendeeRow(idx)}
+                                  className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                  title="Quitar fila"
+                                >
+                                  ×
+                                </button>
+                              </td>
+                              <td className="px-2 py-2">
+                                <input className={inputClass} value={row.nombre} onChange={(e) => setAttendee(idx, 'nombre', e.target.value)} placeholder="Nombre" />
+                              </td>
+                              <td className="px-2 py-2">
+                                <input className={inputClass} value={row.cargo} onChange={(e) => setAttendee(idx, 'cargo', e.target.value)} placeholder="Cargo" />
+                              </td>
+                              <td className="px-2 py-2">
+                                <select className={inputClass} value={row.asistencia} onChange={(e) => setAttendee(idx, 'asistencia', e.target.value)}>
+                                  <option value="Presente">Presente</option>
+                                  <option value="Ausente">Ausente</option>
+                                  <option value="Justificado">Justificado</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Temas del día</h3>
+                    <div className="space-y-4">
+                      {form.topics.map((topic, idx) => {
+                        const st = TOPIC_STYLES[idx];
+                        return (
+                          <div key={idx} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-black/[0.03]">
+                            <div className={`px-4 py-2.5 ${st.head} ${st.headText || 'text-white'}`}>
+                              <span className="text-[10px] font-bold uppercase tracking-wider">{st.label}</span>
+                            </div>
+                            <div className="space-y-3 p-4">
+                              <label className="block">
+                                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Título del tema</span>
+                                <input className={inputClass} value={topic.titulo} onChange={(e) => setTopic(idx, 'titulo', e.target.value)} />
+                              </label>
+                              <label className="block">
+                                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Descripción</span>
+                                <textarea className={`${inputClass} min-h-[76px] resize-y`} value={topic.descripcion} onChange={(e) => setTopic(idx, 'descripcion', e.target.value)} />
+                              </label>
+                              <label className="block">
+                                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Comentarios</span>
+                                <textarea className={`${inputClass} min-h-[76px] resize-y`} value={topic.comentarios} onChange={(e) => setTopic(idx, 'comentarios', e.target.value)} />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-navy-900/10 bg-navy-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 disabled:opacity-50 sm:min-w-[11rem]"
+                  >
+                    {saving ? (
+                      <>
+                        <svg className="h-4 w-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Guardando…
+                      </>
+                    ) : (
+                      <>
+                        {modal === 'create' && (
+                          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        )}
+                        Guardar minuta
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal solo lectura */}
+      {modal === 'view' &&
+        viewRecord &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[105] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            onClick={closeModal}
+            role="presentation"
+          >
+            <div
+              className="flex max-h-[min(92dvh,44rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="minuta-view-title"
+            >
+              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-5 sm:px-8 sm:pt-7">
+                <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-gold/12 blur-3xl" aria-hidden />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Vista previa</p>
+                    <h2 id="minuta-view-title" className="mt-1.5 truncate font-display text-lg font-medium text-white sm:text-xl">
+                      {viewRecord.tema || 'Minuta de reunión'}
+                    </h2>
+                    <p className="mt-1 text-sm text-white/50">
+                      {formatFechaTabla(viewRecord.fecha)}
+                      {viewRecord.lugar ? ` · ${viewRecord.lugar}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePdf(viewRecord)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15"
+                    >
+                      <IconDownload className="h-4 w-4 shrink-0" />
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                      aria-label="Cerrar"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-6 text-sm sm:px-8">
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4 text-xs">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lugar</p>
+                    <p className="mt-0.5 font-semibold text-navy-950">{viewRecord.lugar || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha</p>
+                    <p className="mt-0.5 font-semibold text-navy-950">{formatFechaTabla(viewRecord.fecha)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Inicio</p>
+                    <p className="mt-0.5 font-semibold text-navy-950">{viewRecord.hora_inicio || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Cierre</p>
+                    <p className="mt-0.5 font-semibold text-navy-950">{viewRecord.hora_cierre || '—'}</p>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-navy-950 text-white">
-                        <th className="px-2 py-2 text-left text-[10px] font-bold uppercase w-[36px]" />
-                        <th className="px-2 py-2 text-left text-[10px] font-bold uppercase">Nombre</th>
-                        <th className="px-2 py-2 text-left text-[10px] font-bold uppercase">Cargo</th>
-                        <th className="px-2 py-2 text-left text-[10px] font-bold uppercase w-[120px]">Asistencia</th>
+                        <th className="px-3 py-2 text-left font-bold uppercase tracking-wide">Nombre</th>
+                        <th className="px-3 py-2 text-left font-bold uppercase tracking-wide">Cargo</th>
+                        <th className="px-3 py-2 text-left font-bold uppercase tracking-wide">Asist.</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
-                      {form.attendees.map((row, idx) => (
-                        <tr key={idx}>
-                          <td className="px-1 py-1 align-middle text-center">
-                            <button type="button" onClick={() => removeAttendeeRow(idx)} className="text-stone-400 hover:text-red-800 p-1" title="Quitar fila">
-                              ×
-                            </button>
-                          </td>
-                          <td className="px-2 py-1">
-                            <input className={inputClass} value={row.nombre} onChange={(e) => setAttendee(idx, 'nombre', e.target.value)} placeholder="Nombre" />
-                          </td>
-                          <td className="px-2 py-1">
-                            <input className={inputClass} value={row.cargo} onChange={(e) => setAttendee(idx, 'cargo', e.target.value)} placeholder="Cargo" />
-                          </td>
-                          <td className="px-2 py-1">
-                            <select className={inputClass} value={row.asistencia} onChange={(e) => setAttendee(idx, 'asistencia', e.target.value)}>
-                              <option value="Presente">Presente</option>
-                              <option value="Ausente">Ausente</option>
-                              <option value="Justificado">Justificado</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {(viewRecord.attendees || [])
+                        .filter((a) => (a.nombre || '').trim() || (a.cargo || '').trim())
+                        .map((a, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 text-navy-800">{a.nombre}</td>
+                            <td className="px-3 py-2 text-navy-800">{a.cargo}</td>
+                            <td className="px-3 py-2 text-navy-800">{a.asistencia}</td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
-              </section>
-
-              <section className="space-y-4">
-                <p className="font-label text-[10px] tracking-widest uppercase font-bold text-navy-500">Temas del día</p>
-                {form.topics.map((topic, idx) => {
+                {(viewRecord.topics || []).map((t, idx) => {
                   const st = TOPIC_STYLES[idx];
                   return (
-                    <div key={idx} className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                      <div className={`px-3 py-2 ${st.head} ${st.headText || 'text-white'}`}>
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{st.label}</span>
+                    <div key={idx} className="overflow-hidden rounded-xl border border-slate-200">
+                      <div className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wide ${st.head} ${st.headText || 'text-white'}`}>
+                        {['Tema 1', 'Tema 2', 'Tema 3'][idx]} del día
                       </div>
-                      <div className="p-3 space-y-2 bg-white">
-                        <label className="block">
-                          <span className="text-[10px] font-bold text-navy-500 uppercase">Título del tema</span>
-                          <input className={`${inputClass} mt-1`} value={topic.titulo} onChange={(e) => setTopic(idx, 'titulo', e.target.value)} />
-                        </label>
-                        <label className="block">
-                          <span className="text-[10px] font-bold text-navy-500 uppercase">Descripción</span>
-                          <textarea className={`${inputClass} mt-1 min-h-[72px]`} value={topic.descripcion} onChange={(e) => setTopic(idx, 'descripcion', e.target.value)} />
-                        </label>
-                        <label className="block">
-                          <span className="text-[10px] font-bold text-navy-500 uppercase">Comentarios</span>
-                          <textarea className={`${inputClass} mt-1 min-h-[72px]`} value={topic.comentarios} onChange={(e) => setTopic(idx, 'comentarios', e.target.value)} />
-                        </label>
+                      <div className="space-y-2 bg-slate-50/50 p-4 text-xs leading-relaxed">
+                        <p>
+                          <span className="font-semibold text-slate-600">Título:</span> <span className="text-navy-950">{t.titulo || '—'}</span>
+                        </p>
+                        <p>
+                          <span className="font-semibold text-slate-600">Descripción:</span>
+                          <br />
+                          <span className="text-navy-800">{t.descripcion || '—'}</span>
+                        </p>
+                        <p>
+                          <span className="font-semibold text-slate-600">Comentarios:</span>
+                          <br />
+                          <span className="text-navy-800">{t.comentarios || '—'}</span>
+                        </p>
                       </div>
                     </div>
                   );
                 })}
-              </section>
-            </div>
-
-            <div className="sticky bottom-0 flex gap-2 p-4 border-t border-gray-100 bg-white/95 backdrop-blur">
-              <button type="button" onClick={closeModal} className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-bold text-navy-700 hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button type="button" disabled={saving} onClick={handleSave} className="flex-1 py-3 rounded-xl bg-navy-950 text-gold text-sm font-bold hover:bg-navy-900 disabled:opacity-50">
-                {saving ? 'Guardando…' : 'Guardar minuta'}
-              </button>
-            </div>
-          </div>
-        </div>
-        </div>
-      )}
-
-      {/* Modal solo lectura */}
-      {modal === 'view' && viewRecord && (
-        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
-          <button type="button" className="fixed inset-0 bg-black/50" aria-label="Cerrar" onClick={closeModal} />
-          <div className="relative z-10 flex min-h-full justify-center px-3 pt-10 pb-12 sm:px-4 sm:pt-14 sm:pb-16">
-            <div className="relative w-full max-w-2xl max-h-[min(88vh,calc(100dvh-7rem))] sm:max-h-[min(86vh,calc(100dvh-8rem))] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-gray-200">
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white">
-              <h3 className="font-display text-lg font-semibold text-navy-950">Vista previa</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handlePdf(viewRecord)}
-                  className="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-navy-950 text-gold text-xs font-bold border border-gold/35 shadow-sm hover:bg-navy-900 hover:border-gold/55 transition-colors"
-                >
-                  <IconDownload className="w-4 h-4 text-gold/90 shrink-0" />
-                  Descargar PDF
-                </button>
-                <button type="button" onClick={closeModal} className="p-2 rounded-lg text-navy-500 hover:bg-gray-100">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
               </div>
             </div>
-            <div className="p-5 space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-navy-500 font-bold">Lugar</span><p className="text-navy-950">{viewRecord.lugar || '—'}</p></div>
-                <div><span className="text-navy-500 font-bold">Fecha</span><p className="text-navy-950">{formatFechaTabla(viewRecord.fecha)}</p></div>
-                <div><span className="text-navy-500 font-bold">Inicio</span><p className="text-navy-950">{viewRecord.hora_inicio || '—'}</p></div>
-                <div><span className="text-navy-500 font-bold">Cierre</span><p className="text-navy-950">{viewRecord.hora_cierre || '—'}</p></div>
-                <div className="col-span-2"><span className="text-navy-500 font-bold">Tema</span><p className="text-navy-950 font-medium">{viewRecord.tema || '—'}</p></div>
-              </div>
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-navy-950 text-white">
-                      <th className="px-2 py-1.5 text-left">Nombre</th>
-                      <th className="px-2 py-1.5 text-left">Cargo</th>
-                      <th className="px-2 py-1.5 text-left">Asist.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(viewRecord.attendees || []).filter((a) => (a.nombre || '').trim() || (a.cargo || '').trim()).map((a, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="px-2 py-1.5">{a.nombre}</td>
-                        <td className="px-2 py-1.5">{a.cargo}</td>
-                        <td className="px-2 py-1.5">{a.asistencia}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {(viewRecord.topics || []).map((t, idx) => {
-                const st = TOPIC_STYLES[idx];
-                return (
-                  <div key={idx} className="rounded-lg border border-gray-200 overflow-hidden">
-                    <div className={`px-2 py-1.5 text-[10px] font-bold uppercase ${st.head} ${st.headText || 'text-white'}`}>
-                      {['Tema 1', 'Tema 2', 'Tema 3'][idx]} del día
-                    </div>
-                    <div className="p-3 space-y-2 text-xs bg-gray-50/50">
-                      <p><span className="text-navy-500 font-bold">Título:</span> {t.titulo || '—'}</p>
-                      <p><span className="text-navy-500 font-bold">Descripción:</span><br />{t.descripcion || '—'}</p>
-                      <p><span className="text-navy-500 font-bold">Comentarios:</span><br />{t.comentarios || '—'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

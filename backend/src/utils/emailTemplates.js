@@ -1,5 +1,10 @@
 const getWelcomeEmailTemplate = (name, email, password, role) => {
-  const roleName = role === 'superadmin' ? 'Super Administrador' : 'Administrador';
+  const roleName =
+    role === 'superadmin'
+      ? 'Super Administrador'
+      : role === 'manager'
+        ? 'Gerente de departamento'
+        : 'Administrador';
   
   return `
 <!DOCTYPE html>
