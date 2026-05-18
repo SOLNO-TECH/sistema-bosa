@@ -19,6 +19,12 @@ import {
   setNotificationToastUserId,
 } from '../utils/notificationToast';
 import {
+  NAV_BADGE_MODULES,
+  initNavModuleBaseline,
+  markNavModuleSeen,
+  countUnseenSince,
+} from '../utils/navModuleSeen';
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
@@ -128,7 +134,7 @@ function NavCountBadge({ count }) {
   return (
     <span
       className="ml-auto flex-shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center"
-      aria-label={`${n} pendientes`}
+      aria-label={`${n} sin revisar`}
     >
       <span className="text-[9px] font-bold leading-none tabular-nums">
         {n > 99 ? '99+' : n}
@@ -231,9 +237,33 @@ export default function Dashboard() {
   }, [user?.id]);
 
   const getNavBadgeCount = (itemId) => {
-    if (itemId === 'notifications') return unreadCount;
+    if (itemId === 'notifications') {
+      return active === 'notifications' ? 0 : unreadCount;
+    }
+    if (itemId === active && NAV_BADGE_MODULES.includes(itemId)) return 0;
     return navBadges[itemId] ?? 0;
   };
+
+  const goToModule = (moduleId) => {
+    setActive(moduleId);
+    setSidebar(false);
+  };
+
+  /** Al entrar a un módulo, quitar badge (ya “viste” ese apartado). */
+  useEffect(() => {
+    if (!user?.id) return;
+
+    if (active === 'notifications') {
+      axios.patch('/api/notifications/read-all').catch(() => {});
+      setUnreadCount(0);
+      return;
+    }
+
+    if (NAV_BADGE_MODULES.includes(active)) {
+      markNavModuleSeen(user.id, active);
+      setNavBadges((prev) => ({ ...prev, [active]: 0 }));
+    }
+  }, [active, user?.id]);
 
   useEffect(() => {
     setNotificationToastUserId(user?.id ?? null);
@@ -326,24 +356,42 @@ export default function Dashboard() {
         return s >= startOfWeek && s < endOfWeek;
       }).length;
 
-      const activeAvisos = avisos.filter(a => a.is_active === undefined || a.is_active === 1 || a.is_active === true).length;
+      const isActiveAviso = (a) =>
+        a.is_active === undefined || a.is_active === 1 || a.is_active === true;
+      const isOpenTicket = (t) => t.status !== 'closed' && t.status !== 'resolved';
+      const isMyOpenTask = (t) =>
+        uid &&
+        Number(t.assigned_to) === Number(uid) &&
+        t.status !== 'done' &&
+        t.status !== 'cancelled';
 
-      const openTickets = tickets.filter((t) => t.status !== 'closed' && t.status !== 'resolved').length;
-      const myPendingTasks = uid
-        ? ticketTasks.filter(
-            (t) =>
-              Number(t.assigned_to) === Number(uid) &&
-              t.status !== 'done' &&
-              t.status !== 'cancelled'
-          ).length
-        : 0;
+      const seen = initNavModuleBaseline(uid);
 
       setNavBadges({
-        calendar: meetings.length,
-        tickets: openTickets,
-        tasks: myPendingTasks,
-        avisos: activeAvisos,
-        minutas: minutes.length,
+        calendar: countUnseenSince(meetings, seen.calendar, (m) => m.start_time),
+        tickets: countUnseenSince(
+          tickets,
+          seen.tickets,
+          (t) => t.updated_at || t.created_at,
+          isOpenTicket
+        ),
+        tasks: countUnseenSince(
+          ticketTasks,
+          seen.tasks,
+          (t) => t.updated_at || t.created_at,
+          isMyOpenTask
+        ),
+        avisos: countUnseenSince(
+          avisos,
+          seen.avisos,
+          (a) => a.created_at,
+          isActiveAviso
+        ),
+        minutas: countUnseenSince(
+          minutes,
+          seen.minutas,
+          (m) => m.updated_at || m.created_at
+        ),
       });
 
       setKpis({
@@ -352,7 +400,7 @@ export default function Dashboard() {
         urgent,
         overdue,
         meetingsThisWeek,
-        activeAvisos,
+        activeAvisos: avisos.filter(isActiveAviso).length,
       });
     } catch (err) { console.error(err); }
   };
@@ -430,7 +478,7 @@ export default function Dashboard() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => { setActive(item.id); setSidebar(false); }}
+                    onClick={() => goToModule(item.id)}
                     className={active === item.id ? 'nav-item-active' : 'nav-item-default'}
                   >
                     {item.icon}
@@ -738,7 +786,7 @@ export default function Dashboard() {
           const mobileLabel = item.id === 'tasks' ? 'Tareas' : item.id === 'tickets' ? 'Tickets' : item.label;
           const badge = getNavBadgeCount(item.id);
           return (
-            <button key={item.id} type="button" onClick={() => setActive(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
+            <button key={item.id} type="button" onClick={() => goToModule(item.id)} className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${active === item.id ? 'text-gold bg-gold/10' : 'text-slate-muted'}`}>
               <span className="relative w-5 h-5 flex items-center justify-center">
                 {item.icon}
                 {badge > 0 && (
