@@ -246,8 +246,9 @@ const getMeetingEmailTemplate = (name, meeting) => {
     <p>Has sido invitado a una nueva reunión:</p>
     <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
       <p><strong>Evento:</strong> ${meeting.title}</p>
-      <p><strong>Inicio:</strong> ${new Date(meeting.start_time).toLocaleString()}</p>
-      <p><strong>Fin:</strong> ${new Date(meeting.end_time).toLocaleString()}</p>
+      <p><strong>Organizador:</strong> ${meeting.created_by_name || 'No indicado'}</p>
+      <p><strong>Inicio:</strong> ${new Date(meeting.start_time).toLocaleString('es-MX')}</p>
+      <p><strong>Fin:</strong> ${new Date(meeting.end_time).toLocaleString('es-MX')}</p>
     </div>
   </div>
 </body>

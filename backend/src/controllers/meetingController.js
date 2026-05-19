@@ -42,6 +42,7 @@ const createMeeting = (req, res) => {
 
     const info = stmt.run(title, description || '', start_time, end_time, created_by, JSON.stringify(attendees || []));
     const meetingId = info.lastInsertRowid;
+    const createdByName = [req.user.name, req.user.apellido].filter(Boolean).join(' ').trim() || req.user.name;
 
     try {
       if (attendees && Array.isArray(attendees)) {
@@ -57,7 +58,12 @@ const createMeeting = (req, res) => {
           try {
             const attendee = db.prepare('SELECT name, email FROM users WHERE id = ?').get(userId);
             if (attendee) {
-              sendMeetingNotification(attendee.name, attendee.email, { title, start_time, end_time }).catch(() => {});
+              sendMeetingNotification(attendee.name, attendee.email, {
+                title,
+                start_time,
+                end_time,
+                created_by_name: createdByName,
+              }).catch(() => {});
               notifyUser(userId, {
                 type: 'meeting',
                 title: 'Te invitaron a una reunión',
