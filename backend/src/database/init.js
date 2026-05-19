@@ -16,6 +16,8 @@ function getDb() {
   if (!db) {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = OFF');
+    repairDatabaseState(db);
     db.pragma('foreign_keys = ON');
   }
   return db;
@@ -23,6 +25,13 @@ function getDb() {
 
 function initDatabase() {
   const db = getDb();
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name        TEXT PRIMARY KEY,
+      applied_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -188,66 +197,7 @@ function initDatabase() {
     }
   }
 
-  // Permitir rol manager (gerente de departamento): SQLite no puede alterar CHECK
-  try {
-    const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
-    const sql = meta?.sql || '';
-    if (sql.includes("CHECK(role IN ('superadmin', 'administrator'))") && !sql.includes('manager')) {
-      const usersOldExists = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_old'")
-        .get();
-      if (usersOldExists) {
-        db.exec('DROP TABLE IF EXISTS users_old');
-      }
-      db.pragma('foreign_keys = OFF');
-      db.exec('BEGIN IMMEDIATE;');
-      db.exec('ALTER TABLE users RENAME TO users_old;');
-      db.exec(`
-        CREATE TABLE users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          email TEXT NOT NULL UNIQUE,
-          password TEXT NOT NULL,
-          role TEXT NOT NULL CHECK(role IN ('superadmin', 'administrator', 'manager')),
-          is_active INTEGER NOT NULL DEFAULT 1,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-          apellido TEXT DEFAULT '',
-          telefono TEXT DEFAULT '',
-          departamento TEXT DEFAULT '',
-          puesto TEXT DEFAULT ''
-        );
-      `);
-      db.exec(`
-        INSERT INTO users (id, name, email, password, role, is_active, created_at, updated_at, apellido, telefono, departamento, puesto)
-        SELECT id, name, email, password, role, is_active, created_at, updated_at,
-          COALESCE(apellido, ''), COALESCE(telefono, ''), COALESCE(departamento, ''), COALESCE(puesto, '')
-        FROM users_old;
-      `);
-      db.exec('DROP TABLE users_old;');
-      db.exec(`
-        CREATE TRIGGER IF NOT EXISTS update_users_timestamp
-        AFTER UPDATE ON users
-        BEGIN
-          UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
-        END;
-      `);
-      db.exec(
-        `INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('users', (SELECT IFNULL(MAX(id), 0) FROM users));`
-      );
-      db.exec('COMMIT;');
-      db.pragma('foreign_keys = ON');
-      console.log('[DB] users: rol manager habilitado (migración CHECK)');
-    }
-  } catch (err) {
-    try {
-      db.exec('ROLLBACK;');
-    } catch (_) {}
-    try {
-      db.pragma('foreign_keys = ON');
-    } catch (_) {}
-    console.warn('[DB] migración role manager:', err.message);
-  }
+  migrateUsersManagerRoleOnce(db);
 
   try {
     db.prepare(`ALTER TABLE tickets ADD COLUMN due_date TEXT`).run();
@@ -324,27 +274,127 @@ function initDatabase() {
   seedDefaultUsers(db);
 }
 
-/** Repara migración a medias (users_old huérfana / triggers rotos). */
+/** Una sola vez: rol manager en users (evita re-ejecutar al reiniciar). */
+function migrateUsersManagerRoleOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'users_manager_role_v1'").get();
+    if (done) return;
+
+    const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
+    if (!meta?.sql) return;
+
+    const sql = meta.sql;
+    if (sql.includes('manager')) {
+      db.prepare("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('users_manager_role_v1')").run();
+      return;
+    }
+    if (!sql.includes("CHECK(role IN ('superadmin', 'administrator'))")) return;
+
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users_old'").get()) {
+      db.exec('DROP TABLE IF EXISTS users_old');
+    }
+
+    db.pragma('foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE;');
+    db.exec('ALTER TABLE users RENAME TO users_old;');
+    db.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('superadmin', 'administrator', 'manager')),
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        apellido TEXT DEFAULT '',
+        telefono TEXT DEFAULT '',
+        departamento TEXT DEFAULT '',
+        puesto TEXT DEFAULT ''
+      );
+    `);
+    db.exec(`
+      INSERT INTO users (id, name, email, password, role, is_active, created_at, updated_at, apellido, telefono, departamento, puesto)
+      SELECT id, name, email, password, role, is_active, created_at, updated_at,
+        COALESCE(apellido, ''), COALESCE(telefono, ''), COALESCE(departamento, ''), COALESCE(puesto, '')
+      FROM users_old;
+    `);
+    db.exec('DROP TABLE users_old;');
+    db.exec(
+      `INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('users', (SELECT IFNULL(MAX(id), 0) FROM users));`
+    );
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('users_manager_role_v1')").run();
+    db.exec('COMMIT;');
+    db.pragma('foreign_keys = ON');
+    recreateUsersTimestampTrigger(db);
+    console.log('[DB] users: rol manager habilitado (migración única)');
+  } catch (err) {
+    try { db.exec('ROLLBACK;'); } catch (_) {}
+    try { db.pragma('foreign_keys = ON'); } catch (_) {}
+    console.warn('[DB] migración role manager:', err.message);
+    repairDatabaseState(db);
+  }
+}
+
+function recreateUsersTimestampTrigger(db) {
+  db.exec('DROP TRIGGER IF EXISTS update_users_timestamp');
+  const hasUsers = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").get();
+  if (!hasUsers) return;
+  db.exec(`
+    CREATE TRIGGER update_users_timestamp
+    AFTER UPDATE ON users
+    BEGIN
+      UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
+  `);
+}
+
+/** Repara migración a medias (users_old huérfana / triggers que apuntan a users_old). */
 function repairDatabaseState(db) {
   try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
     const usersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
     const usersOldTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_old'").get();
 
     if (usersOldTable && usersTable) {
-      db.exec('DROP TABLE IF EXISTS users_old');
-      console.log('[DB] Reparación: tabla huérfana users_old eliminada');
+      const userCount = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+      const oldCount = db.prepare('SELECT COUNT(*) AS c FROM users_old').get().c;
+      if (userCount === 0 && oldCount > 0) {
+        db.exec('DROP TABLE users');
+        db.exec('ALTER TABLE users_old RENAME TO users');
+        console.log('[DB] Reparación: datos recuperados desde users_old');
+      } else {
+        db.exec('DROP TABLE IF EXISTS users_old');
+        console.log('[DB] Reparación: users_old eliminada');
+      }
     } else if (usersOldTable && !usersTable) {
       db.exec('ALTER TABLE users_old RENAME TO users');
-      console.log('[DB] Reparación: users_old restaurada como users');
+      console.log('[DB] Reparación: users_old renombrada a users');
     }
 
-    const badTriggers = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND sql LIKE '%users_old%'")
-      .all();
+    const badTriggers = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'trigger'
+        AND (sql LIKE '%users_old%' OR tbl_name = 'users_old')
+    `).all();
     for (const row of badTriggers) {
       db.exec(`DROP TRIGGER IF EXISTS "${row.name}"`);
       console.log('[DB] Reparación: trigger eliminado', row.name);
     }
+
+    recreateUsersTimestampTrigger(db);
   } catch (err) {
     console.warn('[DB] repairDatabaseState:', err.message);
   }
