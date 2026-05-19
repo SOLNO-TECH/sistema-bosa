@@ -134,6 +134,7 @@ export default function CalendarModule() {
       resetForm();
     } catch (err) {
       console.error(err);
+      alert(err?.response?.data?.error || err?.response?.data?.message || 'No se pudo guardar la reunión');
     }
   };
 

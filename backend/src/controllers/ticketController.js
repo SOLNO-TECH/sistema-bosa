@@ -9,6 +9,17 @@ const { canManageDeptTicketAssignments } = require('../utils/ticketPermissions')
 const path = require('path');
 const fs = require('fs');
 
+function logTicketHistory(db, ticketId, userId, action, details) {
+  if (!ticketId || !userId) return;
+  try {
+    db.prepare(
+      `INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`
+    ).run(ticketId, userId, action, details);
+  } catch (err) {
+    console.warn('ticket_history:', err.message);
+  }
+}
+
 const getTickets = (req, res) => {
   try {
     const db = getDb();
@@ -71,6 +82,9 @@ const createTicket = (req, res) => {
     const { title, description, priority, category, due_date } = req.body;
     const created_by = req.user?.id;
     if (!created_by) return res.status(401).json({ error: 'No autenticado' });
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ error: 'El título es obligatorio' });
+    }
 
     const db = getDb();
 
@@ -79,11 +93,24 @@ const createTicket = (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = stmt.run(title, description, priority || 'medium', category, null, created_by, due_date || null);
+    const info = stmt.run(
+      String(title).trim(),
+      description,
+      priority || 'medium',
+      category,
+      null,
+      created_by,
+      due_date || null
+    );
     const ticketId = info.lastInsertRowid;
 
-    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-      .run(ticketId, created_by, 'created', 'Ticket creado (asignación a persona la realiza el gerente del departamento)');
+    logTicketHistory(
+      db,
+      ticketId,
+      created_by,
+      'created',
+      'Ticket creado (asignación a persona la realiza el gerente del departamento)'
+    );
 
     try {
       const mgrIds = getDeptManagerIds(db, category).filter((id) => id !== created_by);
@@ -178,12 +205,10 @@ const updateTicket = (req, res) => {
       const changed = prevN !== nextN;
       if (changed) {
         if (normalizedAssign == null) {
-          db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-            .run(id, user_id, 'assignment', 'Responsable retirado del ticket');
+          logTicketHistory(db, id, user_id, 'assignment', 'Responsable retirado del ticket');
         } else {
           const u = db.prepare('SELECT name FROM users WHERE id = ?').get(normalizedAssign);
-          db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-            .run(id, user_id, 'assigned', `Asignado a ${u?.name || 'Usuario'}`);
+          logTicketHistory(db, id, user_id, 'assigned', `Asignado a ${u?.name || 'Usuario'}`);
           if (normalizedAssign != null && normalizedAssign !== user_id) {
             notifyUser(normalizedAssign, {
               type: 'ticket',
@@ -224,8 +249,7 @@ const updateTicket = (req, res) => {
       }
     }
     if (otherUpdate) {
-      db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-        .run(id, user_id, 'updated', 'Datos del ticket actualizados');
+      logTicketHistory(db, id, user_id, 'updated', 'Datos del ticket actualizados');
       try {
         const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
         notifyTicketStakeholders(db, id, user_id, {
@@ -262,12 +286,13 @@ const updateTicketStatus = (req, res) => {
     db.prepare(`UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
 
     if (user_id) {
-      try {
-        db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-          .run(id, user_id, 'status_change', `Estado cambiado de ${oldStatus} a ${status}`);
-      } catch (histErr) {
-        console.warn('No se pudo registrar el historial:', histErr.message);
-      }
+      logTicketHistory(
+        db,
+        id,
+        user_id,
+        'status_change',
+        `Estado cambiado de ${oldStatus} a ${status}`
+      );
     }
 
     try {
@@ -302,8 +327,7 @@ const addComment = (req, res) => {
     db.prepare(`INSERT INTO ticket_comments (ticket_id, user_id, content) VALUES (?, ?, ?)` )
       .run(id, user_id, content);
 
-    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
-      .run(id, user_id, 'comment', 'Se añadió un comentario');
+    logTicketHistory(db, id, user_id, 'comment', 'Se añadió un comentario');
 
     try {
       const full = db.prepare('SELECT title FROM tickets WHERE id = ?').get(id);
@@ -339,8 +363,7 @@ const uploadAttachment = (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `).run(id, file.originalname, file.mimetype, file.path, user_id);
 
-    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)` )
-      .run(id, user_id, 'attachment', `Archivo subido: ${file.originalname}`);
+    logTicketHistory(db, id, user_id, 'attachment', `Archivo subido: ${file.originalname}`);
 
     try {
       const full = db.prepare('SELECT title FROM tickets WHERE id = ?').get(id);
@@ -377,8 +400,7 @@ const deleteAttachment = (req, res) => {
 
     db.prepare('DELETE FROM ticket_attachments WHERE id = ?').run(attachmentId);
 
-    db.prepare(`INSERT INTO ticket_history (ticket_id, user_id, action, details) VALUES (?, ?, ?, ?)`)
-      .run(id, user_id, 'attachment_delete', `Archivo eliminado: ${att.filename}`);
+    logTicketHistory(db, id, user_id, 'attachment_delete', `Archivo eliminado: ${att.filename}`);
 
     try {
       const full = db.prepare('SELECT title FROM tickets WHERE id = ?').get(id);

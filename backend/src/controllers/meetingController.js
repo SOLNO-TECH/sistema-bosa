@@ -27,7 +27,8 @@ const getMeetings = (req, res) => {
 const createMeeting = (req, res) => {
   try {
     const { title, description, start_time, end_time, attendees } = req.body;
-    const created_by = req.user.id; // From auth middleware
+    const created_by = req.user?.id;
+    if (!created_by) return res.status(401).json({ error: 'No autenticado' });
 
     if (!title || !start_time || !end_time) {
       return res.status(400).json({ error: 'Título, hora de inicio y fin son obligatorios' });
@@ -42,29 +43,36 @@ const createMeeting = (req, res) => {
     const info = stmt.run(title, description || '', start_time, end_time, created_by, JSON.stringify(attendees || []));
     const meetingId = info.lastInsertRowid;
 
-    // Notificar a los asistentes (correo + notificación interna)
-    if (attendees && Array.isArray(attendees)) {
-      const when = (() => {
-        try {
-          const d = new Date(start_time);
-          return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' · ' +
-                 d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch { return start_time; }
-      })();
-      attendees.forEach(userId => {
-        if (userId === created_by) return;
-        const attendee = db.prepare('SELECT name, email FROM users WHERE id = ?').get(userId);
-        if (attendee) {
-          sendMeetingNotification(attendee.name, attendee.email, { title, start_time, end_time });
-          notifyUser(userId, {
-            type: 'meeting',
-            title: 'Te invitaron a una reunión',
-            message: `"${title}" — ${when}`,
-            module: 'calendar',
-            related_id: meetingId,
-          });
+    try {
+      if (attendees && Array.isArray(attendees)) {
+        const when = (() => {
+          try {
+            const d = new Date(start_time);
+            return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' · ' +
+                   d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch { return start_time; }
+        })();
+        for (const userId of attendees) {
+          if (userId === created_by) continue;
+          try {
+            const attendee = db.prepare('SELECT name, email FROM users WHERE id = ?').get(userId);
+            if (attendee) {
+              sendMeetingNotification(attendee.name, attendee.email, { title, start_time, end_time }).catch(() => {});
+              notifyUser(userId, {
+                type: 'meeting',
+                title: 'Te invitaron a una reunión',
+                message: `"${title}" — ${when}`,
+                module: 'calendar',
+                related_id: meetingId,
+              });
+            }
+          } catch (notifyErr) {
+            console.warn('notify meeting attendee:', notifyErr.message);
+          }
         }
-      });
+      }
+    } catch (sideErr) {
+      console.warn('meeting side effects:', sideErr.message);
     }
 
     res.status(201).json({ id: meetingId, message: 'Reunión creada exitosamente' });

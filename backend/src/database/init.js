@@ -193,6 +193,12 @@ function initDatabase() {
     const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
     const sql = meta?.sql || '';
     if (sql.includes("CHECK(role IN ('superadmin', 'administrator'))") && !sql.includes('manager')) {
+      const usersOldExists = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_old'")
+        .get();
+      if (usersOldExists) {
+        db.exec('DROP TABLE IF EXISTS users_old');
+      }
       db.pragma('foreign_keys = OFF');
       db.exec('BEGIN IMMEDIATE;');
       db.exec('ALTER TABLE users RENAME TO users_old;');
@@ -314,7 +320,34 @@ function initDatabase() {
     console.warn('[DB] push_subscriptions migration:', err.message);
   }
 
+  repairDatabaseState(db);
   seedDefaultUsers(db);
+}
+
+/** Repara migración a medias (users_old huérfana / triggers rotos). */
+function repairDatabaseState(db) {
+  try {
+    const usersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+    const usersOldTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_old'").get();
+
+    if (usersOldTable && usersTable) {
+      db.exec('DROP TABLE IF EXISTS users_old');
+      console.log('[DB] Reparación: tabla huérfana users_old eliminada');
+    } else if (usersOldTable && !usersTable) {
+      db.exec('ALTER TABLE users_old RENAME TO users');
+      console.log('[DB] Reparación: users_old restaurada como users');
+    }
+
+    const badTriggers = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND sql LIKE '%users_old%'")
+      .all();
+    for (const row of badTriggers) {
+      db.exec(`DROP TRIGGER IF EXISTS "${row.name}"`);
+      console.log('[DB] Reparación: trigger eliminado', row.name);
+    }
+  } catch (err) {
+    console.warn('[DB] repairDatabaseState:', err.message);
+  }
 }
 
 function seedDefaultUsers(db) {
