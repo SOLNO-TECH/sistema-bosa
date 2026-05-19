@@ -286,6 +286,15 @@ function migrateUsersManagerRoleOnce(db) {
     const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'users_manager_role_v1'").get();
     if (done) return;
 
+    if (getTablesReferencing(db, 'users_old').length > 0) {
+      repairBrokenUserForeignKeys(db);
+      const usersSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get()?.sql || '';
+      if (usersSql.includes('manager')) {
+        db.prepare("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('users_manager_role_v1')").run();
+        return;
+      }
+    }
+
     const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
     if (!meta?.sql) return;
 
@@ -325,6 +334,7 @@ function migrateUsersManagerRoleOnce(db) {
         COALESCE(apellido, ''), COALESCE(telefono, ''), COALESCE(departamento, ''), COALESCE(puesto, '')
       FROM users_old;
     `);
+    repairBrokenUserForeignKeys(db);
     db.exec('DROP TABLE users_old;');
     db.exec(
       `INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('users', (SELECT IFNULL(MAX(id), 0) FROM users));`
@@ -355,6 +365,80 @@ function recreateUsersTimestampTrigger(db) {
   `);
 }
 
+/** Tablas cuya FK interna sigue apuntando a users_old tras ALTER RENAME (aunque el SQL diga users). */
+function getTablesReferencing(db, refTable) {
+  const tables = db.prepare(`
+    SELECT name FROM sqlite_master
+    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+  `).all();
+  const out = [];
+  for (const { name } of tables) {
+    if (name === refTable || name.endsWith('_bosa_fkfix')) continue;
+    try {
+      const fks = db.prepare(`PRAGMA foreign_key_list("${name}")`).all();
+      if (fks.some((fk) => fk.table === refTable)) out.push(name);
+    } catch (_) {}
+  }
+  return out;
+}
+
+function recreateTablePreservingRows(db, tableName) {
+  const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
+  if (!meta?.sql) return false;
+
+  const indexes = db.prepare(`
+    SELECT sql FROM sqlite_master
+    WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL
+  `).all(tableName);
+
+  let createSql = meta.sql.replace(/REFERENCES\s+["']?users_old["']?\s*\(/gi, 'REFERENCES users(');
+  const tmp = `${tableName}_bosa_fkfix`;
+  const createTmp = createSql.replace(
+    new RegExp(`CREATE TABLE\\s+["']?${tableName}["']?`, 'i'),
+    `CREATE TABLE "${tmp}"`
+  );
+
+  const cols = db.prepare(`PRAGMA table_info("${tableName}")`).all().map((c) => `"${c.name}"`);
+  if (!cols.length) return false;
+
+  db.exec(`DROP TABLE IF EXISTS "${tmp}"`);
+  db.exec(createTmp);
+  db.exec(`INSERT INTO "${tmp}" (${cols.join(', ')}) SELECT ${cols.join(', ')} FROM "${tableName}"`);
+  db.exec(`DROP TABLE "${tableName}"`);
+  db.exec(`ALTER TABLE "${tmp}" RENAME TO "${tableName}"`);
+
+  for (const idx of indexes) {
+    try {
+      if (idx.sql) db.exec(idx.sql);
+    } catch (err) {
+      console.warn(`[DB] índice en ${tableName}:`, err.message);
+    }
+  }
+  return true;
+}
+
+/** Reapunta FK de meetings, tickets, etc. a la tabla users actual (no users_old). */
+function repairBrokenUserForeignKeys(db) {
+  const wasOn = db.pragma('foreign_keys', { simple: true });
+  db.pragma('foreign_keys = OFF');
+
+  const broken = getTablesReferencing(db, 'users_old');
+  let fixed = 0;
+  for (const tableName of broken) {
+    try {
+      if (recreateTablePreservingRows(db, tableName)) {
+        fixed += 1;
+        console.log('[DB] FK reparada:', tableName, '→ users');
+      }
+    } catch (err) {
+      console.warn('[DB] repairBrokenUserForeignKeys', tableName, ':', err.message);
+    }
+  }
+
+  db.pragma(`foreign_keys = ${wasOn ? 'ON' : 'OFF'}`);
+  return fixed > 0;
+}
+
 /** Repara migración a medias (users_old huérfana / triggers que apuntan a users_old). */
 function repairDatabaseState(db) {
   try {
@@ -368,6 +452,8 @@ function repairDatabaseState(db) {
     const usersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
     const usersOldTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_old'").get();
 
+    repairBrokenUserForeignKeys(db);
+
     if (usersOldTable && usersTable) {
       const userCount = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
       const oldCount = db.prepare('SELECT COUNT(*) AS c FROM users_old').get().c;
@@ -376,6 +462,7 @@ function repairDatabaseState(db) {
         db.exec('ALTER TABLE users_old RENAME TO users');
         console.log('[DB] Reparación: datos recuperados desde users_old');
       } else {
+        repairBrokenUserForeignKeys(db);
         db.exec('DROP TABLE IF EXISTS users_old');
         console.log('[DB] Reparación: users_old eliminada');
       }
