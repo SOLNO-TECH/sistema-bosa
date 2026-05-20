@@ -46,13 +46,14 @@ function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS meetings (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      title       TEXT    NOT NULL,
-      description TEXT,
-      start_time  TEXT    NOT NULL, -- ISO 8601
-      end_time    TEXT    NOT NULL, -- ISO 8601
-      created_by  INTEGER NOT NULL,
-      attendees   TEXT,              -- JSON array of user IDs
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      title          TEXT    NOT NULL,
+      description    TEXT,
+      start_time     TEXT    NOT NULL, -- ISO 8601
+      end_time       TEXT    NOT NULL, -- ISO 8601
+      created_by     INTEGER NOT NULL,
+      attendees      TEXT,              -- JSON array of user IDs
+      location_type  TEXT    NOT NULL DEFAULT 'sala_juntas',
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
@@ -201,6 +202,10 @@ function initDatabase() {
 
   try {
     db.prepare(`ALTER TABLE tickets ADD COLUMN due_date TEXT`).run();
+  } catch (err) {}
+
+  try {
+    db.prepare(`ALTER TABLE meetings ADD COLUMN location_type TEXT NOT NULL DEFAULT 'sala_juntas'`).run();
   } catch (err) {}
 
   try {

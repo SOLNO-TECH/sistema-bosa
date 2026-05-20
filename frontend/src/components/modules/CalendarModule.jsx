@@ -1,7 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
+import {
+  MEETING_LOCATION_OPTIONS,
+  getLocationLabel,
+  buildTimeSlots,
+  getSalaBusyRanges,
+  isStartSlotDisabled,
+  isEndSlotDisabled,
+  formatBusyRangeLabel,
+  compareTimes,
+} from '../../utils/meetingSchedule';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -30,10 +40,17 @@ export default function CalendarModule() {
     date: '',
     start_time: '',
     end_time: '',
+    location_type: 'sala_juntas',
     attendees: [],
     recurrence: 'none',
     recurrence_until: '',
   });
+
+  const timeSlots = useMemo(() => buildTimeSlots(), []);
+  const salaBusyRanges = useMemo(() => {
+    if (!formData.date || formData.location_type !== 'sala_juntas') return [];
+    return getSalaBusyRanges(meetings, formData.date, editingMeetingId);
+  }, [meetings, formData.date, formData.location_type, editingMeetingId]);
   const [modalDeptFilter, setModalDeptFilter] = useState('');
 
   useEffect(() => {
@@ -105,6 +122,7 @@ export default function CalendarModule() {
           start_time: `${formData.date}T${formData.start_time}`,
           end_time: `${formData.date}T${formData.end_time}`,
           attendees: formData.attendees,
+          location_type: formData.location_type,
         });
       } else {
         const occurrences = generateOccurrences(formData);
@@ -117,6 +135,7 @@ export default function CalendarModule() {
               start_time: occ.start,
               end_time: occ.end,
               attendees: formData.attendees,
+              location_type: formData.location_type,
             })
           )
         );
@@ -139,7 +158,17 @@ export default function CalendarModule() {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', date: '', start_time: '', end_time: '', attendees: [], recurrence: 'none', recurrence_until: '' });
+    setFormData({
+      title: '',
+      description: '',
+      date: '',
+      start_time: '',
+      end_time: '',
+      location_type: 'sala_juntas',
+      attendees: [],
+      recurrence: 'none',
+      recurrence_until: '',
+    });
     setModalDeptFilter('');
     setEditingMeetingId(null);
   };
@@ -163,9 +192,26 @@ export default function CalendarModule() {
       start_time: timeOnly(st),
       end_time: timeOnly(et),
       attendees: Array.isArray(m.attendees) ? [...m.attendees] : [],
+      location_type: m.location_type === 'virtual' ? 'virtual' : 'sala_juntas',
       recurrence: 'none',
       recurrence_until: '',
     };
+  };
+
+  const pickFirstAvailableStart = (date, locationType, excludeId) => {
+    if (!date || locationType !== 'sala_juntas') return '';
+    const busy = getSalaBusyRanges(meetings, date, excludeId);
+    return timeSlots.find((slot) => !isStartSlotDisabled(busy, date, slot)) || '';
+  };
+
+  const pickEndAfterStart = (date, start, locationType, excludeId) => {
+    if (!date || !start) return '';
+    const busy = locationType === 'sala_juntas' ? getSalaBusyRanges(meetings, date, excludeId) : [];
+    const candidates = timeSlots.filter((slot) => compareTimes(slot, start) > 0);
+    if (locationType === 'sala_juntas') {
+      return candidates.find((slot) => !isEndSlotDisabled(busy, date, start, slot)) || '';
+    }
+    return candidates[0] || '';
   };
 
   const openEditMeeting = () => {
@@ -218,12 +264,14 @@ export default function CalendarModule() {
           onDoubleClick={() => {
             setEditingMeetingId(null);
             setModalDeptFilter('');
+            const firstStart = pickFirstAvailableStart(dateStr, 'sala_juntas', null);
             setFormData({
               title: '',
               description: '',
               date: dateStr,
-              start_time: '',
-              end_time: '',
+              start_time: firstStart,
+              end_time: firstStart ? pickEndAfterStart(dateStr, firstStart, 'sala_juntas', null) : '',
+              location_type: 'sala_juntas',
               attendees: [],
               recurrence: 'none',
               recurrence_until: '',
@@ -397,7 +445,7 @@ export default function CalendarModule() {
                       <div className="min-w-0 flex-1">
                         <h4 className="text-white group-hover:text-navy-950 text-[11px] font-bold uppercase leading-snug line-clamp-2">{m.title}</h4>
                         <p className="text-white/35 group-hover:text-navy-950/55 text-[8px] font-bold uppercase mt-0.5">
-                          {m.attendees?.length || 0} pers.
+                          {getLocationLabel(m.location_type)} · {m.attendees?.length || 0} pers.
                         </p>
                       </div>
                     </button>
@@ -487,6 +535,60 @@ export default function CalendarModule() {
                 </section>
 
                 <section>
+                  <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Modalidad</h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {MEETING_LOCATION_OPTIONS.map((opt) => {
+                      const selected = formData.location_type === opt.value;
+                      return (
+                        <label
+                          key={opt.value}
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                            selected
+                              ? 'border-gold bg-gold/10 ring-2 ring-gold/25'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="meeting-location"
+                            value={opt.value}
+                            checked={selected}
+                            onChange={() => {
+                              const nextType = opt.value;
+                              let start = formData.start_time;
+                              let end = formData.end_time;
+                              if (formData.date && nextType === 'sala_juntas') {
+                                const busy = getSalaBusyRanges(meetings, formData.date, editingMeetingId);
+                                if (!start || isStartSlotDisabled(busy, formData.date, start)) {
+                                  start = pickFirstAvailableStart(formData.date, nextType, editingMeetingId);
+                                }
+                                if (start && (!end || isEndSlotDisabled(busy, formData.date, start, end))) {
+                                  end = pickEndAfterStart(formData.date, start, nextType, editingMeetingId);
+                                }
+                              }
+                              setFormData({ ...formData, location_type: nextType, start_time: start, end_time: end });
+                            }}
+                            className="h-4 w-4 accent-gold"
+                          />
+                          <span className="text-sm font-semibold text-slate-900">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {formData.location_type === 'sala_juntas' && formData.date && salaBusyRanges.length > 0 && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-950 ring-1 ring-amber-100">
+                      <span className="font-semibold">Sala ocupada: </span>
+                      {salaBusyRanges.map((b, i) => (
+                        <span key={b.id ?? i}>
+                          {i > 0 ? ', ' : ''}
+                          {formatBusyRangeLabel(b.start, b.end)}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </section>
+
+                <section>
                   <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Horario</h3>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="sm:col-span-1">
@@ -495,31 +597,102 @@ export default function CalendarModule() {
                         required
                         type="date"
                         value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        onChange={(e) => {
+                          const newDate = e.target.value;
+                          let start = formData.start_time;
+                          let end = formData.end_time;
+                          if (formData.location_type === 'sala_juntas') {
+                            start = pickFirstAvailableStart(newDate, 'sala_juntas', editingMeetingId);
+                            end = start ? pickEndAfterStart(newDate, start, 'sala_juntas', editingMeetingId) : '';
+                          }
+                          setFormData({ ...formData, date: newDate, start_time: start, end_time: end });
+                        }}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
                       />
                     </div>
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-slate-600">Inicio</label>
-                      <input
+                      <select
                         required
-                        type="time"
                         value={formData.start_time}
-                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                        onChange={(e) => {
+                          const start = e.target.value;
+                          let end = formData.end_time;
+                          if (
+                            !end ||
+                            compareTimes(end, start) <= 0 ||
+                            (formData.location_type === 'sala_juntas' &&
+                              isEndSlotDisabled(
+                                getSalaBusyRanges(meetings, formData.date, editingMeetingId),
+                                formData.date,
+                                start,
+                                end
+                              ))
+                          ) {
+                            end = pickEndAfterStart(
+                              formData.date,
+                              start,
+                              formData.location_type,
+                              editingMeetingId
+                            );
+                          }
+                          setFormData({ ...formData, start_time: start, end_time: end });
+                        }}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium tabular-nums text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
-                      />
+                      >
+                        <option value="" disabled>
+                          {formData.location_type === 'sala_juntas' ? 'Selecciona hora disponible' : 'Selecciona hora'}
+                        </option>
+                        {timeSlots.map((slot) => {
+                          const disabled =
+                            formData.location_type === 'sala_juntas' &&
+                            formData.date &&
+                            isStartSlotDisabled(salaBusyRanges, formData.date, slot);
+                          return (
+                            <option key={slot} value={slot} disabled={disabled}>
+                              {slot}
+                              {disabled ? ' (ocupado)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-slate-600">Fin</label>
-                      <input
+                      <select
                         required
-                        type="time"
                         value={formData.end_time}
+                        disabled={!formData.start_time}
                         onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium tabular-nums text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
-                      />
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium tabular-nums text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        <option value="" disabled>
+                          {formData.start_time ? 'Selecciona hora de fin' : 'Primero elige inicio'}
+                        </option>
+                        {timeSlots
+                          .filter((slot) => formData.start_time && compareTimes(slot, formData.start_time) > 0)
+                          .map((slot) => {
+                            const disabled =
+                              formData.location_type === 'sala_juntas' &&
+                              formData.date &&
+                              isEndSlotDisabled(salaBusyRanges, formData.date, formData.start_time, slot);
+                            return (
+                              <option key={slot} value={slot} disabled={disabled}>
+                                {slot}
+                                {disabled ? ' (ocupado)' : ''}
+                              </option>
+                            );
+                          })}
+                      </select>
                     </div>
                   </div>
+                  {formData.location_type === 'sala_juntas' &&
+                    formData.date &&
+                    !pickFirstAvailableStart(formData.date, 'sala_juntas', editingMeetingId) && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        No hay horarios libres en sala de juntas para esta fecha.
+                      </p>
+                    )}
                 </section>
 
                 {!editingMeetingId && (
@@ -727,6 +900,9 @@ export default function CalendarModule() {
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold/90">Resumen</span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold text-white/90">
+                        {getLocationLabel(selectedMeeting.location_type)}
+                      </span>
                       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-100">
                         <svg className="h-3 w-3 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -778,6 +954,20 @@ export default function CalendarModule() {
             </div>
 
             <div className="max-h-[min(52vh,28rem)] space-y-6 overflow-y-auto px-6 py-6 sm:px-8 sm:py-7">
+              <section>
+                <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Modalidad</h4>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3.5">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {getLocationLabel(selectedMeeting.location_type)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedMeeting.location_type === 'virtual'
+                      ? 'Enlace o detalles en la descripción o invitación.'
+                      : 'Reserva física de la sala de juntas corporativa.'}
+                  </p>
+                </div>
+              </section>
+
               <section>
                 <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Descripción</h4>
                 <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3.5">

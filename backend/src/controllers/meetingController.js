@@ -5,6 +5,40 @@ const {
   parseMeetingAttendees,
   notifyMeetingParticipants,
 } = require('../utils/participantNotify');
+const {
+  normalizeLocationType,
+  findSalaConflict,
+} = require('../utils/meetingSchedule');
+
+const LOCATION_LABELS = {
+  virtual: 'Reunión virtual',
+  sala_juntas: 'Sala de juntas',
+};
+
+function locationLabel(type) {
+  return LOCATION_LABELS[type] || LOCATION_LABELS.sala_juntas;
+}
+
+function rejectSalaConflict(res, check) {
+  if (check?.invalidRange) {
+    res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
+    return true;
+  }
+  if (check?.conflict) {
+    const c = check.conflict;
+    res.status(409).json({
+      error: 'La sala de juntas ya está reservada en ese horario.',
+      conflict: {
+        id: c.id,
+        title: c.title,
+        start_time: c.start_time,
+        end_time: c.end_time,
+      },
+    });
+    return true;
+  }
+  return false;
+}
 
 const getMeetings = (req, res) => {
   try {
@@ -26,7 +60,7 @@ const getMeetings = (req, res) => {
 
 const createMeeting = (req, res) => {
   try {
-    const { title, description, start_time, end_time, attendees } = req.body;
+    const { title, description, start_time, end_time, attendees, location_type: locRaw } = req.body;
     const created_by = req.user?.id;
     if (!created_by) return res.status(401).json({ error: 'No autenticado' });
 
@@ -34,13 +68,28 @@ const createMeeting = (req, res) => {
       return res.status(400).json({ error: 'Título, hora de inicio y fin son obligatorios' });
     }
 
+    const location_type = normalizeLocationType(locRaw);
     const db = getDb();
+
+    if (location_type === 'sala_juntas') {
+      const check = findSalaConflict(db, start_time, end_time);
+      if (rejectSalaConflict(res, check)) return;
+    }
+
     const stmt = db.prepare(`
-      INSERT INTO meetings (title, description, start_time, end_time, created_by, attendees)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO meetings (title, description, start_time, end_time, created_by, attendees, location_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = stmt.run(title, description || '', start_time, end_time, created_by, JSON.stringify(attendees || []));
+    const info = stmt.run(
+      title,
+      description || '',
+      start_time,
+      end_time,
+      created_by,
+      JSON.stringify(attendees || []),
+      location_type
+    );
     const meetingId = info.lastInsertRowid;
     const createdByName = [req.user.name, req.user.apellido].filter(Boolean).join(' ').trim() || req.user.name;
 
@@ -63,6 +112,7 @@ const createMeeting = (req, res) => {
                 start_time,
                 end_time,
                 created_by_name: createdByName,
+                location_label: locationLabel(location_type),
               }).catch(() => {});
               notifyUser(userId, {
                 type: 'meeting',
@@ -91,7 +141,7 @@ const createMeeting = (req, res) => {
 const updateMeeting = (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, start_time, end_time, attendees } = req.body;
+    const { title, description, start_time, end_time, attendees, location_type: locRaw } = req.body;
     const db = getDb();
     const existing = db.prepare('SELECT * FROM meetings WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Reunión no encontrada' });
@@ -106,15 +156,22 @@ const updateMeeting = (req, res) => {
       return res.status(400).json({ error: 'Título, hora de inicio y fin son obligatorios' });
     }
 
+    const location_type = normalizeLocationType(locRaw ?? existing.location_type);
+
+    if (location_type === 'sala_juntas') {
+      const check = findSalaConflict(db, start_time, end_time, Number(id));
+      if (rejectSalaConflict(res, check)) return;
+    }
+
     const newAttendeeIds = Array.isArray(attendees) ? attendees.map(Number).filter((n) => !Number.isNaN(n)) : [];
     const oldAttendeeIds = parseMeetingAttendees(existing.attendees).map(Number);
     const attendeesJson = JSON.stringify(newAttendeeIds);
 
     db.prepare(`
       UPDATE meetings
-      SET title = ?, description = ?, start_time = ?, end_time = ?, attendees = ?
+      SET title = ?, description = ?, start_time = ?, end_time = ?, attendees = ?, location_type = ?
       WHERE id = ?
-    `).run(title, description || '', start_time, end_time, attendeesJson, id);
+    `).run(title, description || '', start_time, end_time, attendeesJson, location_type, id);
 
     const when = (() => {
       try {
