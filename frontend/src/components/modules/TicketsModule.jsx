@@ -719,33 +719,42 @@ export default function TicketsModule({
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-gray-200 bg-white px-2 flex-shrink-0 overflow-x-auto">
+              <div className="flex flex-shrink-0 overflow-x-auto border-b border-gray-200 bg-slate-100/90 px-2 pt-1.5 gap-1">
                 {[
                   { id: 'info',  label: 'Información', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', count: null },
                   { id: 'tasks', label: 'Tareas operativas', icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664v.75h-4.5M15 10.5a3 3 0 11-6 0m6 0a3 3 0 10-6 0m6 0h.008v.008H15V10.5z', count: ticketTasks.length },
                   { id: 'chat',  label: 'Comentarios', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', count: selectedTicket.comments?.length || 0 },
                   { id: 'files', label: 'Archivos',    icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13', count: selectedTicket.attachments?.length || 0 },
                   { id: 'log',   label: 'Historial',   icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', count: selectedTicket.history?.length || 0 },
-                ].map(tab => (
+                ].map(tab => {
+                  const isActive = activeTab === tab.id;
+                  return (
                   <button
                     key={tab.id}
+                    type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`relative flex items-center gap-2 py-3.5 px-4 text-[10px] font-bold tracking-widest uppercase transition-colors whitespace-nowrap ${
-                      activeTab === tab.id ? 'text-navy-950' : 'text-navy-700 hover:text-navy-950'
+                    className={`relative flex items-center gap-2 py-3 px-3.5 sm:px-4 text-[10px] font-bold tracking-widest uppercase whitespace-nowrap rounded-t-lg transition-all ${
+                      isActive
+                        ? 'bg-white text-navy-950 shadow-sm border border-gray-200 border-b-white -mb-px z-10'
+                        : 'text-navy-500 border border-transparent hover:text-navy-800 hover:bg-white/60'
                     }`}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    {isActive && (
+                      <span className="absolute inset-x-2 top-0 h-[3px] rounded-b-sm bg-gold" aria-hidden />
+                    )}
+                    <svg className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-gold' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
                     </svg>
                     {tab.label}
                     {tab.count !== null && tab.count > 0 && (
-                      <span className={`text-[9px] font-bold px-1.5 rounded-full tabular-nums ${activeTab === tab.id ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-800'}`}>
+                      <span className={`text-[9px] font-bold px-1.5 rounded-full tabular-nums ${isActive ? 'bg-gold text-navy-950' : 'bg-navy-200/80 text-navy-800'}`}>
                         {tab.count}
                       </span>
                     )}
-                    {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
                   </button>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Contenido */}
