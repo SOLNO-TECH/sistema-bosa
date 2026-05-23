@@ -449,7 +449,7 @@ export default function Dashboard() {
 
       {/* SIDEBAR — altura fija al viewport; solo el menú hace scroll */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-60 flex h-screen max-h-[100dvh] flex-col overflow-hidden border-r border-surface transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        className={`fixed inset-y-0 left-0 z-50 lg:z-40 w-60 flex h-screen max-h-[100dvh] flex-col overflow-hidden border-r border-surface transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         style={{ background: 'linear-gradient(180deg, #0A1930 0%, #071221 100%)' }}
       >
         <div className="flex-shrink-0 px-5 py-6 border-b border-surface flex items-center justify-center h-[96px] relative">
@@ -469,7 +469,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-5">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-5 lg:pb-4 pb-2">
           {allSections.map((section) => (
             <div key={section.title}>
               <p className="font-label text-slate-muted text-[9px] tracking-[0.35em] uppercase px-3 mb-1.5">{section.title}</p>
@@ -491,15 +491,20 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        <div className="flex-shrink-0 border-t border-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[#071221]">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10 transition-colors">
+        {/* En móvil: padding extra para quedar sobre la barra inferior de módulos */}
+        <div className="flex-shrink-0 border-t border-surface px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:px-4 lg:pb-4 bg-[#071221] shadow-[0_-10px_28px_rgba(0,0,0,0.4)]">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10 transition-colors"
+          >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
             Cerrar Sesión
           </button>
         </div>
       </aside>
 
-      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebar(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebar(false)} />}
 
       <div className={`flex flex-col min-h-screen min-w-0 transition-opacity duration-1000 lg:ml-60 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/90 backdrop-blur-md">
@@ -781,7 +786,10 @@ export default function Dashboard() {
         </main>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-surface flex items-center justify-around px-2 py-2 bg-navy-950">
+      <nav
+        className={`lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-surface flex items-center justify-around px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-navy-950 transition-transform duration-300 ${sidebarOpen ? 'translate-y-full pointer-events-none' : 'translate-y-0'}`}
+        aria-hidden={sidebarOpen}
+      >
         {allSections.flatMap(s => s.items).filter(item => ['overview', 'calendar', 'users', 'tickets', 'tasks', 'avisos'].includes(item.id)).map(item => {
           const mobileLabel = item.id === 'tasks' ? 'Tareas' : item.id === 'tickets' ? 'Tickets' : item.label;
           const badge = getNavBadgeCount(item.id);
