@@ -1,8 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
+import StatSummaryPanel from '../StatSummaryPanel';
+
+const AVISO_STAT_CONFIG = {
+  total: {
+    key: 'total',
+    label: 'Total Avisos',
+    subtitle: 'Publicados en plataforma',
+    accent: '#CBAC80',
+    bar: '#CBAC80',
+    icon: 'avisos',
+  },
+  sent: {
+    key: 'sent',
+    label: 'Notif. Enviadas',
+    subtitle: 'Notificaciones despachadas',
+    accent: '#2563eb',
+    bar: '#3b82f6',
+    icon: 'sent',
+  },
+  read: {
+    key: 'read',
+    label: 'Total Leídos',
+    subtitle: 'Confirmaciones de lectura',
+    accent: '#059669',
+    bar: '#10b981',
+    icon: 'read',
+  },
+  rate: {
+    key: 'rate',
+    label: 'Tasa de Lectura',
+    subtitle: 'Índice de compromiso',
+    accent: '#7c3aed',
+    bar: '#8b5cf6',
+    icon: 'rate',
+  },
+};
 
 const DEPARTAMENTOS = [
   'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
@@ -188,6 +224,33 @@ export default function AvisosModule() {
   const totalLeidos = avisos.reduce((s,a) => s + (a.leidos || 0), 0);
   const tasaLectura = totalEnviados > 0 ? Math.round((totalLeidos / totalEnviados) * 100) : 0;
 
+  const avisoStatItems = useMemo(
+    () => [
+      { config: AVISO_STAT_CONFIG.total, value: avisos.length },
+      {
+        config: AVISO_STAT_CONFIG.sent,
+        value: totalEnviados,
+        footerLabel: 'Alcance',
+        progressPct: totalEnviados > 0 ? 100 : 0,
+        showProportionBadge: false,
+      },
+      {
+        config: AVISO_STAT_CONFIG.read,
+        value: totalLeidos,
+        proportionBase: totalEnviados,
+      },
+      {
+        config: AVISO_STAT_CONFIG.rate,
+        value: tasaLectura,
+        displayValue: `${tasaLectura}%`,
+        progressPct: tasaLectura,
+        footerLabel: 'Índice',
+        showProportionBadge: false,
+      },
+    ],
+    [avisos.length, totalEnviados, totalLeidos, tasaLectura]
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
 
@@ -211,45 +274,16 @@ export default function AvisosModule() {
         </button>
       </div>
 
-      {/* Stats rápidas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-navy-950">{avisos.length}</p>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Total Avisos</p>
-          </div>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-navy-950">{totalEnviados}</p>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Notif. Enviadas</p>
-          </div>
-        </div>
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white border border-emerald-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-emerald-600">{totalLeidos}</p>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Total Leídos</p>
-          </div>
-        </div>
-        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white border border-purple-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" /></svg>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-purple-600">{tasaLectura}%</p>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Tasa de Lectura</p>
-          </div>
-        </div>
-      </div>
+      <StatSummaryPanel
+        title="Resumen de comunicados"
+        subtitle="Métricas de envío y lectura"
+        badge={`${avisos.length} aviso${avisos.length === 1 ? '' : 's'}`}
+        items={avisoStatItems}
+        proportionBase={totalEnviados}
+        referenceKey="total"
+        columnsClass="md:grid-cols-2 lg:grid-cols-4"
+        headerIcon="megaphone"
+      />
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">

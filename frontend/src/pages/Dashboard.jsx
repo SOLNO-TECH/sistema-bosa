@@ -442,24 +442,24 @@ export default function Dashboard() {
   const allSections = getSections();
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
+    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
 
       {/* Toast notifications in-app (siempre visibles) */}
       <ToastContainer />
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR — altura fija al viewport; solo el menú hace scroll */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-60 flex flex-col border-r border-surface lg:relative lg:translate-x-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-40 w-60 flex h-screen max-h-[100dvh] flex-col overflow-hidden border-r border-surface transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         style={{ background: 'linear-gradient(180deg, #0A1930 0%, #071221 100%)' }}
       >
-        <div className="px-5 py-6 border-b border-surface flex items-center justify-center h-[96px] relative">
+        <div className="flex-shrink-0 px-5 py-6 border-b border-surface flex items-center justify-center h-[96px] relative">
           <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-40 h-auto" />
           <button onClick={() => setSidebar(false)} className="lg:hidden absolute right-5 top-1/2 -translate-y-1/2 text-slate-muted hover:text-gold">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3">
+        <div className="flex-shrink-0 border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-navy-900">
             <span className="font-display text-gold text-base font-bold">{user?.name?.charAt(0)}</span>
           </div>
@@ -469,7 +469,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-5">
           {allSections.map((section) => (
             <div key={section.title}>
               <p className="font-label text-slate-muted text-[9px] tracking-[0.35em] uppercase px-3 mb-1.5">{section.title}</p>
@@ -491,8 +491,8 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        <div className="border-t border-surface p-4 pb-20 lg:pb-4">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10">
+        <div className="flex-shrink-0 border-t border-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[#071221]">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-900/30 text-red-400 text-[10px] tracking-widest uppercase font-bold hover:bg-red-900/10 transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
             Cerrar Sesión
           </button>
@@ -501,7 +501,7 @@ export default function Dashboard() {
 
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebar(false)} />}
 
-      <div className={`flex-1 flex flex-col min-w-0 bg-gray-50 transition-opacity duration-1000 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`flex flex-col min-h-screen min-w-0 transition-opacity duration-1000 lg:ml-60 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/90 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold">
@@ -593,7 +593,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="surface-light flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8 text-navy-950">
+        <main className="surface-light flex-1 bg-gray-50 p-4 lg:p-8 overflow-y-auto pb-24 lg:pb-8 text-navy-950">
           {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? (user?.role === 'superadmin' ? <UsersModule /> : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 text-center max-w-md mx-auto">
               <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">

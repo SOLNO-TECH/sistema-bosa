@@ -290,7 +290,7 @@ const getTaskEmailTemplate = (name, task) => {
     <p>Se te asignó un tramo de trabajo en el sistema:</p>
     <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; border-left: 4px solid #A47D3B;">
       <p><strong>Tarea:</strong> ${task.title || '—'}</p>
-      <p><strong>Ticket:</strong> #${task.ticket_id} — ${task.ticket_title || '—'}</p>
+      ${task.ticket_id ? `<p><strong>Ticket:</strong> #${task.ticket_id} — ${task.ticket_title || '—'}</p>` : '<p><strong>Origen:</strong> Tarea independiente (sin ticket)</p>'}
       <p><strong>Departamento:</strong> ${task.department || '—'}</p>
       <p><strong>Asignó:</strong> ${task.assigned_by_name || '—'}</p>
       <p><strong>Inicio:</strong> ${fmt(task.start_date)}</p>

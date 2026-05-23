@@ -240,7 +240,8 @@ function initDatabase() {
     db.exec(`
       CREATE TABLE IF NOT EXISTS ticket_tasks (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id     INTEGER NOT NULL,
+        ticket_id     INTEGER,
+        department    TEXT    DEFAULT '',
         title         TEXT    NOT NULL,
         description   TEXT,
         assigned_to   INTEGER NOT NULL,
@@ -260,6 +261,8 @@ function initDatabase() {
   } catch (err) {
     console.warn('[DB] ticket_tasks migration:', err.message);
   }
+
+  migrateTicketTasksStandaloneOnce(db);
 
   try {
     db.exec(`
@@ -281,6 +284,75 @@ function initDatabase() {
 
   repairDatabaseState(db);
   seedDefaultUsers(db);
+}
+
+/** Permite tareas operativas sin ticket (ticket_id nullable + columna department). */
+function migrateTicketTasksStandaloneOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'ticket_tasks_standalone_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(ticket_tasks)').all();
+    if (!cols.length) {
+      db.prepare("INSERT INTO schema_migrations (name) VALUES ('ticket_tasks_standalone_v1')").run();
+      return;
+    }
+
+    const hasDept = cols.some((c) => c.name === 'department');
+    if (!hasDept) {
+      db.prepare(`ALTER TABLE ticket_tasks ADD COLUMN department TEXT DEFAULT ''`).run();
+    }
+
+    const ticketIdCol = cols.find((c) => c.name === 'ticket_id');
+    if (ticketIdCol?.notnull === 1) {
+      db.exec(`
+        CREATE TABLE ticket_tasks_standalone_new (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          ticket_id     INTEGER,
+          department    TEXT    DEFAULT '',
+          title         TEXT    NOT NULL,
+          description   TEXT,
+          assigned_to   INTEGER NOT NULL,
+          created_by    INTEGER NOT NULL,
+          start_date    TEXT    NOT NULL,
+          end_date      TEXT    NOT NULL,
+          status        TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'done', 'cancelled')),
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (ticket_id)   REFERENCES tickets(id) ON DELETE CASCADE,
+          FOREIGN KEY (assigned_to) REFERENCES users(id),
+          FOREIGN KEY (created_by)   REFERENCES users(id)
+        );
+      `);
+      db.exec(`
+        INSERT INTO ticket_tasks_standalone_new (
+          id, ticket_id, department, title, description, assigned_to, created_by,
+          start_date, end_date, status, created_at, updated_at
+        )
+        SELECT
+          tt.id, tt.ticket_id,
+          COALESCE(NULLIF(tt.department, ''), t.category, ''),
+          tt.title, tt.description, tt.assigned_to, tt.created_by,
+          tt.start_date, tt.end_date, tt.status, tt.created_at, tt.updated_at
+        FROM ticket_tasks tt
+        LEFT JOIN tickets t ON t.id = tt.ticket_id
+      `);
+      db.exec('DROP TABLE ticket_tasks');
+      db.exec('ALTER TABLE ticket_tasks_standalone_new RENAME TO ticket_tasks');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_ticket ON ticket_tasks(ticket_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_ticket_tasks_assignee ON ticket_tasks(assigned_to)');
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('ticket_tasks_standalone_v1')").run();
+  } catch (err) {
+    console.warn('[DB] ticket_tasks standalone migration:', err.message);
+  }
 }
 
 /** Una sola vez: rol manager en users (evita re-ejecutar al reiniciar). */

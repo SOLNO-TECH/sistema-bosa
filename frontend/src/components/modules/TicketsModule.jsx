@@ -39,6 +39,14 @@ function canDelegarTarea(authUser, ticket) {
   return Boolean(cat && dept === cat);
 }
 
+/** Pestañas antiguas (tasks, chat, files) → nuevas unificadas */
+function normalizeTicketTab(tab) {
+  if (tab === 'tasks') return 'info';
+  if (tab === 'chat' || tab === 'files') return 'collaboration';
+  if (tab === 'info' || tab === 'collaboration' || tab === 'log') return tab;
+  return 'info';
+}
+
 export default function TicketsModule({
   openTicketId = null,
   openTicketTab = 'info',
@@ -104,7 +112,7 @@ export default function TicketsModule({
 
   useEffect(() => {
     if (openTicketId == null) return;
-    setActiveTab(openTicketTab || 'info');
+    setActiveTab(normalizeTicketTab(openTicketTab));
     fetchTicketDetails(openTicketId);
     onConsumeOpenTicket?.();
   }, [openTicketId, openTicketTab]);
@@ -681,7 +689,7 @@ export default function TicketsModule({
             className="fixed inset-0 z-[110] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
             onClick={() => setSelectedTicket(null)}
           >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
 
               {/* Header */}
               <div className="bg-navy-950 px-6 py-5 relative flex-shrink-0">
@@ -727,13 +735,26 @@ export default function TicketsModule({
               </div>
 
               {/* Tabs */}
-              <div className="flex flex-shrink-0 overflow-x-auto border-b border-gray-200 bg-slate-100/90 px-2 pt-1.5 gap-1">
+              <div className="flex flex-shrink-0 overflow-x-auto border-b border-gray-200 bg-slate-100/90 px-2 sm:px-3 pt-1.5 gap-1">
                 {[
-                  { id: 'info',  label: 'Información', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', count: null },
-                  { id: 'tasks', label: 'Tareas operativas', icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664v.75h-4.5M15 10.5a3 3 0 11-6 0m6 0a3 3 0 10-6 0m6 0h.008v.008H15V10.5z', count: ticketTasks.length },
-                  { id: 'chat',  label: 'Comentarios', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', count: selectedTicket.comments?.length || 0 },
-                  { id: 'files', label: 'Archivos',    icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13', count: selectedTicket.attachments?.length || 0 },
-                  { id: 'log',   label: 'Historial',   icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', count: selectedTicket.history?.length || 0 },
+                  {
+                    id: 'info',
+                    label: 'Detalle y tareas',
+                    icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664v.75h-4.5M15 10.5a3 3 0 11-6 0m6 0a3 3 0 10-6 0m6 0h.008v.008H15V10.5z',
+                    count: ticketTasks.length,
+                  },
+                  {
+                    id: 'collaboration',
+                    label: 'Comentarios y archivos',
+                    icon: 'M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 003.536 3.536l7.81-7.81',
+                    count: (selectedTicket.comments?.length || 0) + (selectedTicket.attachments?.length || 0),
+                  },
+                  {
+                    id: 'log',
+                    label: 'Historial',
+                    icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                    count: selectedTicket.history?.length || 0,
+                  },
                 ].map(tab => {
                   const isActive = activeTab === tab.id;
                   return (
@@ -860,172 +881,266 @@ export default function TicketsModule({
                         </select>
                       </div>
                     )}
+
+                    <div className="pt-5 border-t border-gray-200">
+                    <TicketPanelSection
+                      title="Tareas operativas"
+                      subtitle="Tramos de ejecución vinculados a este requerimiento"
+                      count={ticketTasks.length}
+                    >
+                      {canDelegarTarea(user, selectedTicket) && (
+                        <div className="rounded-xl border border-gold/35 bg-gradient-to-br from-white to-gold/5 p-4 shadow-sm mb-4">
+                          <p className="font-label text-[10px] tracking-[0.2em] text-navy-950 uppercase font-bold mb-3">Asignar tramo</p>
+                          <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3">
+                            <div className="flex-1 min-w-[140px] space-y-1.5">
+                              <label className="text-[10px] font-bold uppercase text-navy-950">Responsable</label>
+                              <select
+                                value={newTaskForm.assigned_to}
+                                onChange={(e) => setNewTaskForm((f) => ({ ...f, assigned_to: e.target.value }))}
+                                className="bosa-field"
+                              >
+                                <option value="">Selecciona quién ejecuta…</option>
+                                {deptMembersForTicket(selectedTicket).map((u) => (
+                                  <option key={u.id} value={String(u.id)}>
+                                    {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
+                              <label className="text-[10px] font-bold uppercase text-navy-950">Inicio</label>
+                              <input
+                                type="date"
+                                value={newTaskForm.start_date}
+                                onChange={(e) => setNewTaskForm((f) => ({ ...f, start_date: e.target.value }))}
+                                className="bosa-field"
+                              />
+                            </div>
+                            <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
+                              <label className="text-[10px] font-bold uppercase text-navy-950">Fin</label>
+                              <input
+                                type="date"
+                                value={newTaskForm.end_date}
+                                onChange={(e) => setNewTaskForm((f) => ({ ...f, end_date: e.target.value }))}
+                                className="bosa-field"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCreateTicketTask}
+                              className="btn-gold text-[10px] py-2.5 px-5 uppercase tracking-widest font-bold whitespace-nowrap lg:mb-0.5"
+                            >
+                              Asignar tarea
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {ticketTasks.length === 0 ? (
+                          <p className="text-center text-xs text-navy-500 py-6 rounded-lg border border-dashed border-gray-200 bg-white/80">
+                            Aún no hay tareas para este requerimiento.
+                          </p>
+                        ) : (
+                          ticketTasks.map((task) => {
+                            const assignee = [task.assignee_name, task.assignee_apellido].filter(Boolean).join(' ') || '—';
+                            const canManage = canDelegarTarea(user, selectedTicket);
+                            const isAssignee = Number(task.assigned_to) === Number(user?.id);
+                            const canStatus = canManage || isAssignee;
+                            return (
+                              <div key={task.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="flex gap-3 min-w-0">
+                                    <UserAvatar
+                                      name={task.assignee_name}
+                                      apellido={task.assignee_apellido}
+                                      avatarUrl={task.assignee_avatar_url}
+                                      size="sm"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-navy-950 text-sm">{assignee}</p>
+                                      {(task.assignee_departamento || selectedTicket?.category) && (
+                                        <p className="text-[10px] text-navy-500 mt-0.5">
+                                          {task.assignee_departamento || selectedTicket.category}
+                                        </p>
+                                      )}
+                                      <p className="text-sm font-semibold text-navy-950 mt-1.5 tabular-nums">
+                                        {formatTaskDate(task.start_date)} → {formatTaskDate(task.end_date)}
+                                      </p>
+                                      {task.description ? (
+                                        <p className="text-xs text-navy-600 mt-2 whitespace-pre-wrap">{task.description}</p>
+                                      ) : (
+                                        <p className="text-[10px] text-navy-400 mt-1">Etiqueta en cronograma: {task.title}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {canStatus ? (
+                                      <select
+                                        value={task.status}
+                                        onChange={(e) => handleTicketTaskStatus(task.id, e.target.value)}
+                                        className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-navy-950 font-bold uppercase tracking-wide"
+                                      >
+                                        <option value="pending">Pendiente</option>
+                                        <option value="in_progress">En progreso</option>
+                                        <option value="done">Hecha</option>
+                                        <option value="cancelled">Cancelada</option>
+                                      </select>
+                                    ) : (
+                                      <span className="text-[10px] font-bold uppercase text-navy-500">{task.status}</span>
+                                    )}
+                                    {canManage && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteTicketTask(task.id)}
+                                        className="text-[10px] font-bold text-red-600 hover:underline"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </TicketPanelSection>
+                    </div>
                   </div>
                   )
                 )}
 
-                {/* TAREAS OPERATIVAS (subtareas con fechas) */}
-                {activeTab === 'tasks' && (
-                  <div className="p-6 space-y-5 text-navy-950">
-
-                    {canDelegarTarea(user, selectedTicket) && (
-                      <div className="rounded-lg border border-gold/40 bg-white p-4 shadow-sm">
-                        <p className="font-label text-[10px] tracking-[0.2em] text-navy-950 uppercase font-bold mb-3">Asignar tramo</p>
-                        <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3">
-                          <div className="flex-1 min-w-[140px] space-y-1.5">
-                            <label className="text-[10px] font-bold uppercase text-navy-950">Responsable</label>
-                            <select
-                              value={newTaskForm.assigned_to}
-                              onChange={(e) => setNewTaskForm((f) => ({ ...f, assigned_to: e.target.value }))}
-                              className="bosa-field"
-                            >
-                              <option value="">Selecciona quién ejecuta…</option>
-                              {deptMembersForTicket(selectedTicket).map((u) => (
-                                <option key={u.id} value={String(u.id)}>
-                                  {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
-                            <label className="text-[10px] font-bold uppercase text-navy-950">Inicio</label>
-                            <input
-                              type="date"
-                              value={newTaskForm.start_date}
-                              onChange={(e) => setNewTaskForm((f) => ({ ...f, start_date: e.target.value }))}
-                              className="bosa-field"
-                            />
-                          </div>
-                          <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
-                            <label className="text-[10px] font-bold uppercase text-navy-950">Fin</label>
-                            <input
-                              type="date"
-                              value={newTaskForm.end_date}
-                              onChange={(e) => setNewTaskForm((f) => ({ ...f, end_date: e.target.value }))}
-                              className="bosa-field"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleCreateTicketTask}
-                            className="btn-gold text-[10px] py-2.5 px-5 uppercase tracking-widest font-bold whitespace-nowrap lg:mb-0.5"
-                          >
-                            Asignar tarea
-                          </button>
+                {/* COMENTARIOS + ARCHIVOS */}
+                {activeTab === 'collaboration' && (
+                  <div className="flex flex-col min-h-[min(420px,55vh)]">
+                    <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-8">
+                      <TicketPanelSection
+                        title="Archivos y evidencia"
+                        subtitle="Fotos, documentos y material de soporte"
+                        count={selectedTicket.attachments?.length || 0}
+                      >
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {selectedTicket.attachments?.map(f => {
+                            const url = fileUrl(f);
+                            const isImg = f.mimetype?.startsWith('image/');
+                            return (
+                              <div key={f.id} className="group relative border border-gray-200 rounded-xl overflow-hidden aspect-square bg-white shadow-sm">
+                                {isImg ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightboxUrl(url)}
+                                    className="w-full h-full block cursor-zoom-in"
+                                  >
+                                    <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                                  </button>
+                                ) : (
+                                  <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                    <svg className="w-10 h-10 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                    </svg>
+                                    <span className="text-[10px] font-bold text-navy-700 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                                  </a>
+                                )}
+                                <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {isImg && (
+                                    <a
+                                      href={url}
+                                      download={f.filename}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className="w-7 h-7 rounded-md bg-navy-950/80 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm transition"
+                                      title="Descargar"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                      </svg>
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(f.id, f.filename); }}
+                                    className="w-7 h-7 rounded-md bg-red-500/90 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition"
+                                    title="Eliminar"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                {isImg && (
+                                  <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-navy-950/70 text-gold text-[8px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm pointer-events-none">
+                                    Ampliar
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <label className={`border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-gold/5 transition-all bg-white/60 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                            <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                            {isUploading ? (
+                              <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <svg className="w-7 h-7 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest text-center px-2">Subir evidencia</span>
+                              </>
+                            )}
+                          </label>
                         </div>
-                      </div>
-                    )}
+                        {(!selectedTicket.attachments || selectedTicket.attachments.length === 0) && (
+                          <p className="text-center text-[10px] text-navy-500 mt-3">Sin archivos aún — usa el recuadro punteado para subir.</p>
+                        )}
+                      </TicketPanelSection>
 
-                    <div className="space-y-3">
-                      <p className="font-label text-[10px] tracking-widest text-navy-950 uppercase font-bold">Asignaciones</p>
-                      {ticketTasks.length === 0 ? (
-                        <p className="text-center text-xs text-navy-500 py-8">Aún no hay tareas para este requerimiento.</p>
-                      ) : (
-                        ticketTasks.map((task) => {
-                          const assignee = [task.assignee_name, task.assignee_apellido].filter(Boolean).join(' ') || '—';
-                          const canManage = canDelegarTarea(user, selectedTicket);
-                          const isAssignee = Number(task.assigned_to) === Number(user?.id);
-                          const canStatus = canManage || isAssignee;
-                          return (
-                            <div key={task.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="flex gap-3 min-w-0">
-                                  <UserAvatar
-                                    name={task.assignee_name}
-                                    apellido={task.assignee_apellido}
-                                    avatarUrl={task.assignee_avatar_url}
-                                    size="sm"
-                                  />
-                                  <div className="min-w-0">
-                                  <p className="font-bold text-navy-950 text-sm">{assignee}</p>
-                                  {(task.assignee_departamento || selectedTicket?.category) && (
-                                    <p className="text-[10px] text-navy-500 mt-0.5">
-                                      {task.assignee_departamento || selectedTicket.category}
-                                    </p>
-                                  )}
-                                  <p className="text-sm font-semibold text-navy-950 mt-1.5 tabular-nums">
-                                    {formatTaskDate(task.start_date)} → {formatTaskDate(task.end_date)}
-                                  </p>
-                                  {task.description ? (
-                                    <p className="text-xs text-navy-600 mt-2 whitespace-pre-wrap">{task.description}</p>
-                                  ) : (
-                                    <p className="text-[10px] text-navy-400 mt-1">Mismo requerimiento que en Información · etiqueta en Gantt: {task.title}</p>
-                                  )}
+                      <TicketPanelSection
+                        title="Comentarios"
+                        subtitle="Conversación del equipo sobre este ticket"
+                        count={selectedTicket.comments?.length || 0}
+                      >
+                        {(!selectedTicket.comments || selectedTicket.comments.length === 0) ? (
+                          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center rounded-xl border border-dashed border-gray-200 bg-white/80">
+                            <div className="w-11 h-11 rounded-full bg-gold/10 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                              </svg>
+                            </div>
+                            <p className="text-xs text-navy-700 font-bold uppercase tracking-widest">Sin comentarios todavía</p>
+                            <p className="text-[10px] text-navy-500">Escribe el primero en el cuadro inferior</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4 rounded-xl bg-white/80 border border-gray-200 p-4">
+                            {selectedTicket.comments.map(c => {
+                              const mine = c.user_id === user?.id;
+                              return (
+                                <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                                  <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-700'}`}>
+                                    {(c.user_name || '?').charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className={`flex flex-col max-w-[85%] ${mine ? 'items-end' : 'items-start'}`}>
+                                    <span className="text-[10px] font-bold text-navy-700 mb-0.5 px-1">{c.user_name}</span>
+                                    <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
+                                      mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'
+                                    }`}>
+                                      <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
+                                    </div>
+                                    <span className="text-[10px] text-navy-500 mt-1 px-1">
+                                      {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} · {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {canStatus ? (
-                                    <select
-                                      value={task.status}
-                                      onChange={(e) => handleTicketTaskStatus(task.id, e.target.value)}
-                                      className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-navy-950 font-bold uppercase tracking-wide"
-                                    >
-                                      <option value="pending">Pendiente</option>
-                                      <option value="in_progress">En progreso</option>
-                                      <option value="done">Hecha</option>
-                                      <option value="cancelled">Cancelada</option>
-                                    </select>
-                                  ) : (
-                                    <span className="text-[10px] font-bold uppercase text-navy-500">{task.status}</span>
-                                  )}
-                                  {canManage && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteTicketTask(task.id)}
-                                      className="text-[10px] font-bold text-red-600 hover:underline"
-                                    >
-                                      Eliminar
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* COMENTARIOS */}
-                {activeTab === 'chat' && (
-                  <div className="flex flex-col h-full">
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                      {(!selectedTicket.comments || selectedTicket.comments.length === 0) ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
-                          <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
+                              );
+                            })}
                           </div>
-                          <p className="text-xs text-navy-700 font-bold uppercase tracking-widest">Sin comentarios todavía</p>
-                          <p className="text-[10px] text-navy-500">Escribe el primero abajo</p>
-                        </div>
-                      ) : (
-                        selectedTicket.comments.map(c => {
-                          const mine = c.user_id === user?.id;
-                          return (
-                            <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
-                              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-700'}`}>
-                                {(c.user_name || '?').charAt(0).toUpperCase()}
-                              </div>
-                              <div className={`flex flex-col max-w-[80%] ${mine ? 'items-end' : 'items-start'}`}>
-                                <span className="text-[10px] font-bold text-navy-700 mb-0.5 px-1">{c.user_name}</span>
-                                <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
-                                  mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'
-                                }`}>
-                                  <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
-                                </div>
-                                <span className="text-[10px] text-navy-500 mt-1 px-1">
-                                  {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} · {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
+                        )}
+                      </TicketPanelSection>
                     </div>
-                    <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0">
+
+                    <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0 shadow-[0_-4px_20px_rgba(10,25,48,0.06)]">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2 px-1">Nuevo comentario</p>
                       <div className="flex gap-2 items-center">
                         <input
                           type="text"
@@ -1035,97 +1150,13 @@ export default function TicketsModule({
                           placeholder="Escribe un comentario..."
                           className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2.5 text-sm text-navy-900 focus:outline-none focus:border-gold focus:bg-white transition"
                         />
-                        <button onClick={handleAddComment} disabled={!newComment.trim()} className="w-10 h-10 bg-gold text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-yellow-500 transition shadow-md flex-shrink-0">
+                        <button type="button" onClick={handleAddComment} disabled={!newComment.trim()} className="w-10 h-10 bg-gold text-navy-950 rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-gold/90 transition shadow-md flex-shrink-0">
                           <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                           </svg>
                         </button>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* ARCHIVOS */}
-                {activeTab === 'files' && (
-                  <div className="p-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {selectedTicket.attachments?.map(f => {
-                        const url = fileUrl(f);
-                        const isImg = f.mimetype?.startsWith('image/');
-                        return (
-                          <div key={f.id} className="group relative border border-gray-200 rounded-lg overflow-hidden aspect-square bg-white">
-                            {isImg ? (
-                              <button
-                                type="button"
-                                onClick={() => setLightboxUrl(url)}
-                                className="w-full h-full block cursor-zoom-in"
-                              >
-                                <img src={url} alt={f.filename} className="w-full h-full object-cover" />
-                              </button>
-                            ) : (
-                              <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <svg className="w-10 h-10 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                <span className="text-[10px] font-bold text-navy-700 text-center break-all line-clamp-2 px-1">{f.filename}</span>
-                              </a>
-                            )}
-
-                            {/* Botones flotantes — eliminar y descargar */}
-                            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {isImg && (
-                                <a
-                                  href={url}
-                                  download={f.filename}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  className="w-7 h-7 rounded-md bg-navy-950/80 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm transition"
-                                  title="Descargar"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                                  </svg>
-                                </a>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(f.id, f.filename); }}
-                                className="w-7 h-7 rounded-md bg-red-500/90 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition"
-                                title="Eliminar"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                </svg>
-                              </button>
-                            </div>
-
-                            {/* Indicador de zoom para imágenes */}
-                            {isImg && (
-                              <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-navy-950/70 text-gold text-[8px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm pointer-events-none">
-                                Click para ampliar
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      <label className={`border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-gold/5 transition-all ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
-                        <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-                        {isUploading ? (
-                          <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <svg className="w-7 h-7 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                            </svg>
-                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest text-center px-2">Subir evidencia</span>
-                          </>
-                        )}
-                      </label>
-                    </div>
-                    {(!selectedTicket.attachments || selectedTicket.attachments.length === 0) && (
-                      <p className="text-center text-[10px] text-navy-600 font-bold uppercase tracking-widest mt-6">Sin archivos adjuntos aún</p>
-                    )}
                   </div>
                 )}
 
@@ -1206,6 +1237,25 @@ export default function TicketsModule({
           document.body
         )}
     </div>
+  );
+}
+
+function TicketPanelSection({ title, subtitle, count, children }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-start justify-between gap-3 pb-2 border-b border-gray-200/90">
+        <div className="min-w-0">
+          <h4 className="font-label text-[10px] tracking-[0.22em] text-navy-900 uppercase font-bold">{title}</h4>
+          {subtitle ? <p className="text-[11px] text-navy-500 mt-1 leading-snug">{subtitle}</p> : null}
+        </div>
+        {count > 0 && (
+          <span className="flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full bg-navy-100 text-navy-800 tabular-nums">
+            {count}
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
   );
 }
 
