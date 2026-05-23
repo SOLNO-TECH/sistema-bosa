@@ -257,9 +257,59 @@ const getMeetingEmailTemplate = (name, meeting) => {
   `;
 };
 
+const getTaskEmailTemplate = (name, task) => {
+  const fmt = (ymd) => {
+    if (!ymd) return '—';
+    try {
+      return new Date(String(ymd).includes('T') ? ymd : `${ymd}T12:00:00`).toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return ymd;
+    }
+  };
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; color: #333; line-height: 1.6; }
+    .header { background: #0A1930; padding: 20px; text-align: center; }
+    .content { padding: 30px; border: 1px solid #eee; border-radius: 8px; margin-top: 20px; }
+    .title { color: #A47D3B; font-size: 20px; font-weight: bold; }
+    .footer { font-size: 12px; color: #999; margin-top: 30px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header"><img src="cid:bosa_logo" width="180" alt="BOSA" /></div>
+  <div class="content">
+    <h2 class="title">Nueva tarea operativa asignada</h2>
+    <p>Hola <strong>${name}</strong>,</p>
+    <p>Se te asignó un tramo de trabajo en el sistema:</p>
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; border-left: 4px solid #A47D3B;">
+      <p><strong>Tarea:</strong> ${task.title || '—'}</p>
+      <p><strong>Ticket:</strong> #${task.ticket_id} — ${task.ticket_title || '—'}</p>
+      <p><strong>Departamento:</strong> ${task.department || '—'}</p>
+      <p><strong>Asignó:</strong> ${task.assigned_by_name || '—'}</p>
+      <p><strong>Inicio:</strong> ${fmt(task.start_date)}</p>
+      <p><strong>Fin:</strong> ${fmt(task.end_date)}</p>
+    </div>
+    <p style="margin-top: 20px;">Revisa el cronograma de <strong>Tareas operativas</strong> o el ticket en BOSA HUB para actualizar el estado.</p>
+  </div>
+  <div class="footer">
+    &copy; ${new Date().getFullYear()} BOSA. Sistema Operativo Central.
+  </div>
+</body>
+</html>
+  `;
+};
+
 module.exports = {
   getWelcomeEmailTemplate,
   getTicketEmailTemplate,
   getAvisoEmailTemplate,
-  getMeetingEmailTemplate
+  getMeetingEmailTemplate,
+  getTaskEmailTemplate,
 };

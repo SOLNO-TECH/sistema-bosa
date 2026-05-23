@@ -5,7 +5,8 @@ const {
   getWelcomeEmailTemplate, 
   getTicketEmailTemplate, 
   getAvisoEmailTemplate, 
-  getMeetingEmailTemplate 
+  getMeetingEmailTemplate,
+  getTaskEmailTemplate,
 } = require('../utils/emailTemplates');
 
 const createTransporter = () => {
@@ -86,9 +87,16 @@ const sendMeetingNotification = async (userName, userEmail, meeting) => {
   return sendMail(userEmail, `Invitación a Reunión: ${meeting.title}`, html);
 };
 
+const sendTaskNotification = async (userName, userEmail, task) => {
+  const html = getTaskEmailTemplate(userName, task);
+  const subject = `Tarea asignada: ${task.title || task.ticket_title || 'BOSA HUB'}`;
+  return sendMail(userEmail, subject, html);
+};
+
 module.exports = {
   sendWelcomeEmail,
   sendTicketNotification,
   sendAvisoNotification,
-  sendMeetingNotification
+  sendMeetingNotification,
+  sendTaskNotification,
 };

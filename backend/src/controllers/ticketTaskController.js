@@ -1,7 +1,45 @@
 const { getDb } = require('../database/init');
 const { notifyUser } = require('../services/notificationService');
+const { sendTaskNotification } = require('../services/emailService');
 const { notifyTicketStakeholders } = require('../utils/participantNotify');
 const { canManageDeptTicketAssignments } = require('../utils/ticketPermissions');
+
+function actorDisplayName(db, userId) {
+  const u = db.prepare('SELECT name, apellido FROM users WHERE id = ?').get(userId);
+  if (!u) return 'Un responsable';
+  return [u.name, u.apellido].filter(Boolean).join(' ').trim() || u.name;
+}
+
+function notifyAndEmailTaskAssignee(db, assigneeId, actorId, { taskTitle, ticket, startDate, endDate, taskId }) {
+  if (!assigneeId || Number(assigneeId) === Number(actorId)) return;
+
+  const assignee = db.prepare('SELECT id, name, email FROM users WHERE id = ? AND is_active = 1').get(Number(assigneeId));
+  if (!assignee) return;
+
+  const title = String(taskTitle || '').trim() || 'Tarea operativa';
+  const ticketTitle = ticket?.title || '';
+
+  notifyUser(assignee.id, {
+    type: 'task',
+    title: 'Tarea operativa asignada',
+    message: `"${title}" · Ticket: ${ticketTitle}`,
+    module: 'tasks',
+    related_id: Number(taskId),
+    link_id: Number(ticket?.id),
+  });
+
+  if (assignee.email) {
+    sendTaskNotification(assignee.name, assignee.email, {
+      title,
+      ticket_id: ticket?.id,
+      ticket_title: ticketTitle,
+      department: ticket?.category || '',
+      assigned_by_name: actorDisplayName(db, actorId),
+      start_date: startDate,
+      end_date: endDate,
+    }).catch((err) => console.warn('sendTaskNotification:', err.message));
+  }
+}
 
 function canViewTicket(user, ticket) {
   if (!user || !ticket) return false;
@@ -124,17 +162,15 @@ const createTask = (req, res) => {
     );
 
     const taskId = info.lastInsertRowid;
+    const taskTitle = String(title).trim();
     try {
-      if (assignee.id !== user_id) {
-        notifyUser(assignee.id, {
-          type: 'task',
-          title: 'Tarea operativa asignada',
-          message: `"${String(title).trim()}" · Ticket: ${ticket.title}`,
-          module: 'tasks',
-          related_id: Number(taskId),
-          link_id: Number(ticketId),
-        });
-      }
+      notifyAndEmailTaskAssignee(db, assignee.id, user_id, {
+        taskTitle,
+        ticket,
+        startDate: s,
+        endDate: e,
+        taskId,
+      });
       const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
       notifyTicketStakeholders(
         db,
@@ -143,7 +179,7 @@ const createTask = (req, res) => {
         {
           type: 'task',
           title: 'Nueva tarea operativa',
-          message: `${actor?.name || 'Alguien'} creó la tarea "${String(title).trim()}" en "${ticket.title}".`,
+          message: `${actor?.name || 'Alguien'} creó la tarea "${taskTitle}" en "${ticket.title}".`,
           module: 'tasks',
           related_id: Number(ticketId),
           link_id: Number(ticketId),
@@ -181,6 +217,7 @@ const updateTask = (req, res) => {
     const isManager = canManageDeptTicketAssignments(req.user, ticket);
     const isAssignee = Number(task.assigned_to) === Number(user_id);
     const patch = req.body || {};
+    const prevAssigneeId = Number(task.assigned_to);
 
     if (isManager) {
       const allowed = ['title', 'description', 'assigned_to', 'start_date', 'end_date', 'status'];
@@ -236,6 +273,19 @@ const updateTask = (req, res) => {
     `).get(id);
 
     try {
+      if (
+        isManager &&
+        Object.prototype.hasOwnProperty.call(patch, 'assigned_to') &&
+        Number(patch.assigned_to) !== prevAssigneeId
+      ) {
+        notifyAndEmailTaskAssignee(db, Number(patch.assigned_to), user_id, {
+          taskTitle: row?.title || task.title,
+          ticket,
+          startDate: row?.start_date || task.start_date,
+          endDate: row?.end_date || task.end_date,
+          taskId: id,
+        });
+      }
       const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
       notifyTicketStakeholders(db, task.ticket_id, user_id, {
         type: 'task',
@@ -244,7 +294,9 @@ const updateTask = (req, res) => {
         module: 'tasks',
         related_id: Number(task.ticket_id),
         link_id: Number(task.ticket_id),
-      });
+      }, Object.prototype.hasOwnProperty.call(patch, 'assigned_to') && Number(patch.assigned_to) !== prevAssigneeId
+        ? [Number(patch.assigned_to)]
+        : []);
     } catch (_) { /* noop */ }
 
     res.json(row);
