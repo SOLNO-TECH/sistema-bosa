@@ -593,7 +593,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8">
+        <main className="surface-light flex-1 p-4 lg:p-8 overflow-y-auto pb-48 lg:pb-8 text-navy-950">
           {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? (user?.role === 'superadmin' ? <UsersModule /> : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 text-center max-w-md mx-auto">
               <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">

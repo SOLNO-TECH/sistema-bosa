@@ -166,6 +166,33 @@
     box-shadow: 0 0 0 1px rgba(203, 172, 128, 0.25);
   }
 
+  /* Módulos con fondo claro: el body usa texto claro; inputs no deben heredarlo */
+  .surface-light {
+    color: #0a1930;
+  }
+
+  .surface-light input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .surface-light select,
+  .surface-light textarea {
+    color: #0a1930 !important;
+    background-color: #ffffff;
+    color-scheme: light;
+  }
+
+  .surface-light option {
+    color: #0a1930;
+    background-color: #ffffff;
+  }
+
+  .bosa-field {
+    @apply w-full rounded-lg border-2 border-gray-200 px-3 py-2.5 text-sm font-medium text-navy-950 bg-white;
+    color-scheme: light;
+  }
+
+  .bosa-field:focus {
+    @apply border-gold outline-none ring-2 ring-gold/25;
+  }
+
   /* ── Cards ── */
   .card {
     @apply rounded-sm;

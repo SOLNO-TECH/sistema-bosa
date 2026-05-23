@@ -23,6 +23,13 @@ const COLUMNS = [
 const EMPTY_TICKET_FORM = { title: '', description: '', category: DEPARTAMENTOS[0] };
 
 /** Igual que el backend: administradores o rol Gerente del mismo departamento que el ticket. */
+function formatTaskDate(ymd) {
+  if (!ymd) return '';
+  const d = new Date(String(ymd).includes('T') ? ymd : `${ymd}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function canDelegarTarea(authUser, ticket) {
   if (!authUser || !ticket) return false;
   if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
@@ -759,7 +766,7 @@ export default function TicketsModule({
               </div>
 
               {/* Contenido */}
-              <div className="flex-1 overflow-y-auto bg-gray-50/50">
+              <div className="surface-light flex-1 overflow-y-auto bg-gray-50 text-navy-950">
 
                 {/* INFO */}
                 {activeTab === 'info' && (
@@ -859,43 +866,43 @@ export default function TicketsModule({
 
                 {/* TAREAS OPERATIVAS (subtareas con fechas) */}
                 {activeTab === 'tasks' && (
-                  <div className="p-6 space-y-5">
+                  <div className="p-6 space-y-5 text-navy-950">
 
                     {canDelegarTarea(user, selectedTicket) && (
-                      <div className="rounded-lg border border-gold/30 bg-gold/5 p-4">
-                        <p className="font-label text-[10px] tracking-[0.2em] text-navy-900 uppercase font-bold mb-3">Asignar tramo</p>
+                      <div className="rounded-lg border border-gold/40 bg-white p-4 shadow-sm">
+                        <p className="font-label text-[10px] tracking-[0.2em] text-navy-950 uppercase font-bold mb-3">Asignar tramo</p>
                         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3">
-                          <div className="flex-1 min-w-[140px] space-y-1">
-                            <label className="text-[10px] font-bold uppercase text-navy-800">Responsable</label>
+                          <div className="flex-1 min-w-[140px] space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase text-navy-950">Responsable</label>
                             <select
                               value={newTaskForm.assigned_to}
                               onChange={(e) => setNewTaskForm((f) => ({ ...f, assigned_to: e.target.value }))}
-                              className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gold outline-none bg-white"
+                              className="bosa-field"
                             >
-                              <option value="">Quién ejecuta…</option>
+                              <option value="">Selecciona quién ejecuta…</option>
                               {deptMembersForTicket(selectedTicket).map((u) => (
                                 <option key={u.id} value={String(u.id)}>
-                                  {u.name} {u.apellido || ''}
+                                  {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
                                 </option>
                               ))}
                             </select>
                           </div>
-                          <div className="w-full sm:w-auto sm:min-w-[140px] space-y-1">
-                            <label className="text-[10px] font-bold uppercase text-navy-800">Inicio</label>
+                          <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase text-navy-950">Inicio</label>
                             <input
                               type="date"
                               value={newTaskForm.start_date}
                               onChange={(e) => setNewTaskForm((f) => ({ ...f, start_date: e.target.value }))}
-                              className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gold outline-none"
+                              className="bosa-field"
                             />
                           </div>
-                          <div className="w-full sm:w-auto sm:min-w-[140px] space-y-1">
-                            <label className="text-[10px] font-bold uppercase text-navy-800">Fin</label>
+                          <div className="w-full sm:w-auto sm:min-w-[150px] space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase text-navy-950">Fin</label>
                             <input
                               type="date"
                               value={newTaskForm.end_date}
                               onChange={(e) => setNewTaskForm((f) => ({ ...f, end_date: e.target.value }))}
-                              className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gold outline-none"
+                              className="bosa-field"
                             />
                           </div>
                           <button
@@ -910,7 +917,7 @@ export default function TicketsModule({
                     )}
 
                     <div className="space-y-3">
-                      <p className="font-label text-[10px] tracking-widest text-navy-600 uppercase font-bold">Asignaciones</p>
+                      <p className="font-label text-[10px] tracking-widest text-navy-950 uppercase font-bold">Asignaciones</p>
                       {ticketTasks.length === 0 ? (
                         <p className="text-center text-xs text-navy-500 py-8">Aún no hay tareas para este requerimiento.</p>
                       ) : (
@@ -936,8 +943,8 @@ export default function TicketsModule({
                                       {task.assignee_departamento || selectedTicket.category}
                                     </p>
                                   )}
-                                  <p className="text-xs text-navy-700 mt-1 tabular-nums">
-                                    {task.start_date} → {task.end_date}
+                                  <p className="text-sm font-semibold text-navy-950 mt-1.5 tabular-nums">
+                                    {formatTaskDate(task.start_date)} → {formatTaskDate(task.end_date)}
                                   </p>
                                   {task.description ? (
                                     <p className="text-xs text-navy-600 mt-2 whitespace-pre-wrap">{task.description}</p>
@@ -951,7 +958,7 @@ export default function TicketsModule({
                                     <select
                                       value={task.status}
                                       onChange={(e) => handleTicketTaskStatus(task.id, e.target.value)}
-                                      className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold uppercase tracking-wide"
+                                      className="text-[10px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-navy-950 font-bold uppercase tracking-wide"
                                     >
                                       <option value="pending">Pendiente</option>
                                       <option value="in_progress">En progreso</option>

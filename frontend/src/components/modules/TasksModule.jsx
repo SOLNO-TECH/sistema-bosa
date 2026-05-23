@@ -402,7 +402,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
   };
 
   return (
-    <div className="h-full flex flex-col animate-fade-in space-y-5">
+    <div className="surface-light h-full flex flex-col animate-fade-in space-y-5 text-navy-950">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-medium text-navy-950 tracking-tight">Tareas operativas</h2>
@@ -667,8 +667,8 @@ export default function TasksModule({ onOpenTicket } = {}) {
                         </span>
                       </div>
                     </div>
-                    <p className="text-[9px] text-navy-400 mt-1.5 text-center sm:text-left tabular-nums">
-                      {t.start_date} → {t.end_date}
+                    <p className="text-xs font-semibold text-navy-950 mt-1.5 text-center sm:text-left tabular-nums">
+                      {formatDateShort(t.start_date)} → {formatDateShort(t.end_date)}
                     </p>
                   </div>
                 </div>
@@ -731,10 +731,10 @@ export default function TasksModule({ onOpenTicket } = {}) {
                     <td className="px-4 py-3">
                       <AssigneeBlock task={t} size="xs" />
                     </td>
-                    <td className="px-4 py-3 text-xs tabular-nums text-navy-700 whitespace-nowrap">
-                      <span className="block">{t.start_date}</span>
-                      <span className="text-navy-400">→</span>
-                      <span className="block">{t.end_date}</span>
+                    <td className="px-4 py-3 text-xs tabular-nums text-navy-950 font-semibold whitespace-nowrap">
+                      <span className="block">{formatDateShort(t.start_date)}</span>
+                      <span className="text-navy-600">→</span>
+                      <span className="block">{formatDateShort(t.end_date)}</span>
                     </td>
                     <td className="px-4 py-3">
                       {canStatus ? (
@@ -770,9 +770,9 @@ export default function TasksModule({ onOpenTicket } = {}) {
         </div>
       )}
 
-      <p className="text-[10px] text-navy-400 text-center pb-2">
-        Las tareas se crean en <strong className="text-navy-600">Tickets → detalle → Tareas operativas</strong>. Sube tu foto en{' '}
-        <strong className="text-navy-600">Configuración → Perfil</strong> para verla aquí.
+      <p className="text-xs text-navy-800 text-center pb-2 px-4 py-3 rounded-xl border border-gray-200 bg-white shadow-sm max-w-xl mx-auto leading-relaxed">
+        Las tareas se crean en <strong className="text-navy-950">Tickets → detalle → Tareas operativas</strong>. Sube tu foto en{' '}
+        <strong className="text-navy-950">Configuración → Perfil</strong> para verla en el cronograma.
       </p>
     </div>
   );
