@@ -39,15 +39,7 @@ function login(req, res) {
 
   const { accessToken, refreshToken, payload } = signTokens(user);
 
-  const userProfile = {
-    id: user.id,
-    name: user.name,
-    apellido: user.apellido || '',
-    email: user.email,
-    role: user.role,
-    departamento: user.departamento || '',
-    puesto: user.puesto || '',
-  };
+  const userProfile = buildUserProfile(user);
 
   return res.json({
     token: accessToken,        // backwards compat
@@ -82,15 +74,7 @@ function refresh(req, res) {
 
   const { accessToken, refreshToken: newRefresh } = signTokens(user);
 
-  const userProfile = {
-    id: user.id,
-    name: user.name,
-    apellido: user.apellido || '',
-    email: user.email,
-    role: user.role,
-    departamento: user.departamento || '',
-    puesto: user.puesto || '',
-  };
+  const userProfile = buildUserProfile(user);
 
   return res.json({
     token: accessToken,
@@ -100,13 +84,43 @@ function refresh(req, res) {
   });
 }
 
+function buildUserProfile(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    apellido: user.apellido || '',
+    email: user.email,
+    role: user.role,
+    departamento: user.departamento || '',
+    puesto: user.puesto || '',
+    avatar_url: user.avatar_url || '',
+  };
+}
+
 function me(req, res) {
   const db = getDb();
   const user = db.prepare(
-    `SELECT id, name, apellido, email, role, departamento, puesto, telefono, is_active, created_at FROM users WHERE id = ?`
+    `SELECT id, name, apellido, email, role, departamento, puesto, telefono, avatar_url, is_active, created_at FROM users WHERE id = ?`
   ).get(req.user.id);
   if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
-  return res.json({ user });
+  return res.json({ user: buildUserProfile(user) });
+}
+
+function uploadAvatar(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Selecciona una imagen (JPG, PNG o WebP).' });
+    const db = getDb();
+    const avatar_url = `/api/uploads/${req.file.filename}`;
+    db.prepare('UPDATE users SET avatar_url = ?, updated_at = datetime(\'now\') WHERE id = ?').run(
+      avatar_url,
+      req.user.id
+    );
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    return res.json({ message: 'Foto actualizada', user: buildUserProfile(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'No se pudo guardar la foto de perfil' });
+  }
 }
 
 function getUsers(req, res) {
@@ -151,4 +165,4 @@ function toggleUser(req, res) {
   return res.json({ message: `Usuario ${user.is_active ? 'desactivado' : 'activado'}.` });
 }
 
-module.exports = { login, refresh, me, getUsers, createUser, toggleUser };
+module.exports = { login, refresh, me, uploadAvatar, getUsers, createUser, toggleUser };

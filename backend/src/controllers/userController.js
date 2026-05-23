@@ -7,7 +7,7 @@ const ALLOWED_ROLES = ['superadmin', 'administrator', 'manager'];
 const getUsers = (req, res) => {
   try {
     const db = getDb();
-    const users = db.prepare('SELECT id, name, apellido, email, telefono, departamento, puesto, role, is_active, created_at, updated_at FROM users ORDER BY id DESC').all();
+    const users = db.prepare('SELECT id, name, apellido, email, telefono, departamento, puesto, role, avatar_url, is_active, created_at, updated_at FROM users ORDER BY id DESC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener usuarios' });

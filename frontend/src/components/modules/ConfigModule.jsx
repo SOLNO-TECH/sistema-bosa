@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import UserAvatar from '../UserAvatar';
 import { isSupported, getPermission, isEnabled, setEnabled, requestPermission, pushNotify } from '../../utils/pushNotify';
 import { registerPushSubscription, unregisterPushSubscription, canUseWebPush } from '../../utils/pushSubscribe';
 
 export default function ConfigModule() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const avatarInputRef = useRef(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [notis, setNotis] = useState({ emailAlerts: true, systemAlerts: true, newLogins: false, weeklyReports: true });
   const [prefs, setPrefs] = useState({ language: 'es', timezone: 'America/Mexico_City', dateFormat: 'DD/MM/YYYY' });
@@ -14,6 +17,31 @@ export default function ConfigModule() {
   const [pushOn, setPushOn] = useState(() => isEnabled());
 
   const handleToggle = (key) => setNotis({ ...notis, [key]: !notis[key] });
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Selecciona una imagen (JPG, PNG o WebP).');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      alert('La imagen debe pesar menos de 3 MB.');
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('avatar', file);
+      await axios.post('/api/auth/me/avatar', fd);
+      await refreshUser?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || err?.response?.data?.message || 'No se pudo subir la foto');
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
 
   const togglePush = async () => {
     if (!isSupported()) {
@@ -129,15 +157,29 @@ export default function ConfigModule() {
               <div className="max-w-2xl space-y-6 animate-fade-in">
                 {/* Avatar */}
                 <div className="flex items-center gap-5 p-5 bg-gray-50 rounded-xl border border-gray-100">
-                  <div className="w-16 h-16 rounded-full bg-navy-900 text-white flex items-center justify-center text-2xl font-display shadow-md border-2 border-gold/30 flex-shrink-0">
-                    {user?.name?.charAt(0)}
-                  </div>
+                  <UserAvatar name={user?.name} apellido={user?.apellido} avatarUrl={user?.avatar_url} size="lg" />
                   <div>
-                    <p className="font-bold text-navy-950 text-sm">{user?.name}</p>
-                    <p className="text-navy-500 text-xs mb-2">{user?.email}</p>
-                    <button className="px-4 py-1.5 rounded-lg border border-gray-300 text-navy-600 hover:border-gold hover:text-gold transition-all text-xs font-bold uppercase tracking-wide">
-                      Cambiar Fotografía
+                    <p className="font-bold text-navy-950 text-sm">{user?.name} {user?.apellido}</p>
+                    <p className="text-navy-500 text-xs">{user?.email}</p>
+                    {user?.departamento ? (
+                      <p className="text-navy-400 text-[10px] mt-0.5">{user.departamento}{user.puesto ? ` · ${user.puesto}` : ''}</p>
+                    ) : null}
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                    />
+                    <button
+                      type="button"
+                      disabled={avatarUploading}
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="mt-2 px-4 py-1.5 rounded-lg border border-gray-300 text-navy-600 hover:border-gold hover:text-gold transition-all text-xs font-bold uppercase tracking-wide disabled:opacity-50"
+                    >
+                      {avatarUploading ? 'Subiendo…' : 'Cambiar fotografía'}
                     </button>
+                    <p className="text-[10px] text-navy-400 mt-1">JPG o PNG, máx. 3 MB. Se verá en el cronograma y reuniones.</p>
                   </div>
                 </div>
 

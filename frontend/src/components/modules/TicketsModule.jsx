@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import autoAnimate from '@formkit/auto-animate';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
+import UserAvatar from '../UserAvatar';
 
 const DEPARTAMENTOS = [
   'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
@@ -921,8 +922,20 @@ export default function TicketsModule({
                           return (
                             <div key={task.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                               <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div>
+                                <div className="flex gap-3 min-w-0">
+                                  <UserAvatar
+                                    name={task.assignee_name}
+                                    apellido={task.assignee_apellido}
+                                    avatarUrl={task.assignee_avatar_url}
+                                    size="sm"
+                                  />
+                                  <div className="min-w-0">
                                   <p className="font-bold text-navy-950 text-sm">{assignee}</p>
+                                  {(task.assignee_departamento || selectedTicket?.category) && (
+                                    <p className="text-[10px] text-navy-500 mt-0.5">
+                                      {task.assignee_departamento || selectedTicket.category}
+                                    </p>
+                                  )}
                                   <p className="text-xs text-navy-700 mt-1 tabular-nums">
                                     {task.start_date} → {task.end_date}
                                   </p>
@@ -931,6 +944,7 @@ export default function TicketsModule({
                                   ) : (
                                     <p className="text-[10px] text-navy-400 mt-1">Mismo requerimiento que en Información · etiqueta en Gantt: {task.title}</p>
                                   )}
+                                  </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   {canStatus ? (

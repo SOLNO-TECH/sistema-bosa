@@ -209,6 +209,10 @@ function initDatabase() {
   } catch (err) {}
 
   try {
+    db.prepare(`ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT ''`).run();
+  } catch (err) {}
+
+  try {
     db.prepare(`ALTER TABLE workgroups ADD COLUMN access_type TEXT DEFAULT 'all'`).run();
     db.prepare(`ALTER TABLE workgroups ADD COLUMN access_list TEXT DEFAULT '[]'`).run();
   } catch (err) {}

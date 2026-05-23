@@ -23,7 +23,7 @@ function authenticate(req, res, next) {
   // Verificar que el usuario sigue existiendo y activo
   try {
     const db = getDb();
-    const dbUser = db.prepare('SELECT id, name, apellido, email, role, departamento, puesto, is_active FROM users WHERE id = ?').get(payload.id);
+    const dbUser = db.prepare('SELECT id, name, apellido, email, role, departamento, puesto, avatar_url, is_active FROM users WHERE id = ?').get(payload.id);
     if (!dbUser || !dbUser.is_active) {
       return res.status(401).json({ message: 'Cuenta inactiva o eliminada.' });
     }
@@ -36,6 +36,7 @@ function authenticate(req, res, next) {
       role: dbUser.role,
       departamento: dbUser.departamento || '',
       puesto: dbUser.puesto || '',
+      avatar_url: dbUser.avatar_url || '',
     };
   } catch (err) {
     console.error('authenticate DB error:', err);

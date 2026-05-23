@@ -149,8 +149,18 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const { data } = await axios.get('/api/auth/me');
+      if (data?.user) setUser(data.user);
+      return data.user;
+    } catch {
+      return null;
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

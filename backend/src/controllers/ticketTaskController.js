@@ -36,6 +36,8 @@ const listTasks = (req, res) => {
       SELECT tt.*,
         t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
+        u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
+        u1.avatar_url as assignee_avatar_url,
         u2.name as creator_name
       FROM ticket_tasks tt
       JOIN tickets t ON tt.ticket_id = t.id
@@ -62,6 +64,8 @@ const listTasksByTicket = (req, res) => {
     const rows = db.prepare(`
       SELECT tt.*,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
+        u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
+        u1.avatar_url as assignee_avatar_url,
         u2.name as creator_name
       FROM ticket_tasks tt
       LEFT JOIN users u1 ON tt.assigned_to = u1.id
