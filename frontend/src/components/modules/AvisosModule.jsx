@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import StatSummaryPanel from '../StatSummaryPanel';
+import { useCatalog } from '../../hooks/useCatalog';
 
 const AVISO_STAT_CONFIG = {
   total: {
@@ -40,13 +41,6 @@ const AVISO_STAT_CONFIG = {
   },
 };
 
-const DEPARTAMENTOS = [
-  'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
-  'HVAC','Hidrosanitarios','Sistemas','Contabilidad','Finanzas',
-  'Recursos Humanos','Jurídico','Compras','Costos','Operaciones',
-  'Mantenimiento','Almacén','Marketing','Restaurantes','Berry Yum'
-];
-
 const PRIORIDAD_STYLES = {
   normal: 'bg-blue-50 text-blue-700 border-blue-200',
   importante: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -71,6 +65,7 @@ const emptyAvisoForm = () => ({
 
 export default function AvisosModule() {
   const { user } = useAuth();
+  const { departments } = useCatalog();
   const [avisos, setAvisos] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAviso, setSelectedAviso] = useState(null);
@@ -480,7 +475,7 @@ export default function AvisosModule() {
                         <span className="text-xs font-medium tabular-nums text-slate-600">{form.departamentos.length} seleccionados</span>
                       </div>
                       <div className="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                        {DEPARTAMENTOS.map((d) => (
+                        {departments.map((d) => (
                           <button
                             key={d}
                             type="button"

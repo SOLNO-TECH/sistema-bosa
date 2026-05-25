@@ -264,6 +264,7 @@ function initDatabase() {
 
   migrateTicketTasksStandaloneOnce(db);
   migrateTaskCollaborationOnce(db);
+  migrateCatalogOnce(db);
 
   try {
     db.exec(`
@@ -397,6 +398,124 @@ function migrateTaskCollaborationOnce(db) {
     db.prepare("INSERT INTO schema_migrations (name) VALUES ('task_collaboration_v1')").run();
   } catch (err) {
     console.warn('[DB] task_collaboration migration:', err.message);
+  }
+}
+
+/** Catálogo de roles/departamentos + users.role sin CHECK (no altera filas existentes). */
+function migrateCatalogOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'catalog_roles_departments_v1'").get();
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS catalog_roles (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug             TEXT    NOT NULL UNIQUE,
+        label            TEXT    NOT NULL,
+        permission_level TEXT    NOT NULL DEFAULT 'user'
+          CHECK(permission_level IN ('superadmin', 'administrator', 'manager', 'user')),
+        is_system        INTEGER NOT NULL DEFAULT 0,
+        is_active        INTEGER NOT NULL DEFAULT 1,
+        sort_order       INTEGER NOT NULL DEFAULT 0,
+        created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS catalog_departments (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL UNIQUE,
+        is_active  INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
+    const { seedCatalogIfEmpty } = require('../controllers/catalogController');
+    seedCatalogIfEmpty(db);
+
+    migrateUsersRoleWithoutCheckOnce(db);
+
+    if (!done) {
+      db.prepare("INSERT INTO schema_migrations (name) VALUES ('catalog_roles_departments_v1')").run();
+      console.log('[DB] Catálogo roles/departamentos listo');
+    }
+  } catch (err) {
+    console.warn('[DB] catalog migration:', err.message);
+  }
+}
+
+/** Quita CHECK en users.role para permitir slugs del catálogo (copia datos tal cual). */
+function migrateUsersRoleWithoutCheckOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'users_role_text_v1'").get();
+    if (done) return;
+
+    const meta = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
+    if (!meta?.sql) {
+      db.prepare("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('users_role_text_v1')").run();
+      return;
+    }
+    const sql = meta.sql;
+    if (!sql.includes('CHECK') || !sql.includes('role')) {
+      db.prepare("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('users_role_text_v1')").run();
+      return;
+    }
+
+    const cols = db.prepare('PRAGMA table_info(users)').all();
+    const colNames = cols.map((c) => c.name);
+    const has = (n) => colNames.includes(n);
+
+    db.exec(`
+      CREATE TABLE users_role_text_new (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT    NOT NULL,
+        email       TEXT    NOT NULL UNIQUE,
+        password    TEXT    NOT NULL,
+        role        TEXT    NOT NULL,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        apellido    TEXT    DEFAULT '',
+        telefono    TEXT    DEFAULT '',
+        departamento TEXT   DEFAULT '',
+        puesto      TEXT    DEFAULT '',
+        avatar_url  TEXT    DEFAULT ''
+      );
+    `);
+
+    const selectCols = [
+      'id', 'name', 'email', 'password', 'role', 'is_active', 'created_at', 'updated_at',
+      has('apellido') ? 'apellido' : "'' AS apellido",
+      has('telefono') ? 'telefono' : "'' AS telefono",
+      has('departamento') ? 'departamento' : "'' AS departamento",
+      has('puesto') ? 'puesto' : "'' AS puesto",
+      has('avatar_url') ? 'avatar_url' : "'' AS avatar_url",
+    ];
+
+    db.exec(`
+      INSERT INTO users_role_text_new (
+        id, name, email, password, role, is_active, created_at, updated_at,
+        apellido, telefono, departamento, puesto, avatar_url
+      )
+      SELECT ${selectCols.join(', ')} FROM users;
+    `);
+
+    db.exec('DROP TABLE users');
+    db.exec('ALTER TABLE users_role_text_new RENAME TO users');
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('users_role_text_v1')").run();
+    console.log('[DB] users.role sin CHECK (catálogo dinámico)');
+  } catch (err) {
+    console.warn('[DB] users_role_text migration:', err.message);
   }
 }
 

@@ -58,6 +58,7 @@ initPushService();
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/ticket-tasks', require('./routes/ticketTasks'));

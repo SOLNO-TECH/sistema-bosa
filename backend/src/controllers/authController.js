@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../database/init');
+const { getPermissionLevel } = require('../utils/roleUtils');
 
 // Secreto para refresh tokens (separado del access para defensa en profundidad)
 const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || (process.env.JWT_SECRET + '-refresh');
@@ -85,12 +86,14 @@ function refresh(req, res) {
 }
 
 function buildUserProfile(user) {
+  const db = getDb();
   return {
     id: user.id,
     name: user.name,
     apellido: user.apellido || '',
     email: user.email,
     role: user.role,
+    permission_level: getPermissionLevel(db, user.role),
     departamento: user.departamento || '',
     puesto: user.puesto || '',
     avatar_url: user.avatar_url || '',

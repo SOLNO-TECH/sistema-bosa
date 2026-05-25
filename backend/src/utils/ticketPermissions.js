@@ -4,8 +4,12 @@
  */
 function canManageDeptTicketAssignments(reqUser, ticket) {
   if (!reqUser || !ticket) return false;
-  if (reqUser.role === 'superadmin' || reqUser.role === 'administrator') return true;
-  if (reqUser.role !== 'manager') return false;
+  const level = reqUser.permission_level
+    || (reqUser.role === 'superadmin' ? 'superadmin'
+      : reqUser.role === 'administrator' ? 'administrator'
+        : reqUser.role === 'manager' ? 'manager' : 'user');
+  if (level === 'superadmin' || level === 'administrator') return true;
+  if (level !== 'manager') return false;
   const cat = (ticket.category || '').trim();
   const dept = (reqUser.departamento || '').trim();
   return Boolean(cat && dept === cat);

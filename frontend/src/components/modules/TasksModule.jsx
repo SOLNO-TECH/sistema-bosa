@@ -4,13 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import UserAvatar from '../UserAvatar';
 import StatSummaryPanel from '../StatSummaryPanel';
-
-const DEPARTAMENTOS = [
-  'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
-  'HVAC', 'Hidrosanitarios', 'Sistemas', 'Contabilidad', 'Finanzas',
-  'Recursos Humanos', 'Jurídico', 'Compras', 'Costos', 'Operaciones',
-  'Mantenimiento', 'Almacén', 'Marketing', 'Restaurantes', 'Berry Yum',
-];
+import { useCatalog } from '../../hooks/useCatalog';
+import { isAdminUser, canManageDeptAsManager, canCreateStandaloneTask as canCreateStandalone } from '../../utils/permissions';
 
 const TASK_STATUS = {
   pending: { label: 'Pendiente', color: '#94a3b8', accent: '#64748b' },
@@ -83,22 +78,16 @@ function hasTicket(row) {
 }
 
 function canManageTaskRow(authUser, row) {
-  if (!authUser || !row) return false;
-  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
-  if (authUser.role !== 'manager') return false;
-  const cat = taskDept(row);
-  const dept = (authUser.departamento || '').trim();
-  return Boolean(cat && dept === cat);
+  return canManageDeptAsManager(authUser, taskDept(row));
 }
 
 function canCreateStandaloneTask(authUser) {
-  if (!authUser) return false;
-  return authUser.role === 'superadmin' || authUser.role === 'administrator' || authUser.role === 'manager';
+  return canCreateStandalone(authUser);
 }
 
 function canParticipateOnTask(authUser, row) {
   if (!authUser || !row) return false;
-  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
+  if (isAdminUser(authUser)) return true;
   const cat = taskDept(row);
   const dept = (authUser.departamento || '').trim();
   if (cat && dept === cat) return true;
@@ -110,7 +99,7 @@ function canParticipateOnTask(authUser, row) {
 function canDeleteTaskAttachment(authUser, task, file) {
   if (!authUser || !task) return false;
   if (file?.can_delete === true) return true;
-  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
+  if (isAdminUser(authUser)) return true;
   if (Number(task.assigned_to) === Number(authUser.id)) return true;
   if (Number(task.created_by) === Number(authUser.id)) return true;
   if (file && Number(file.uploaded_by) === Number(authUser.id)) return true;
@@ -129,7 +118,7 @@ function freshStandaloneTaskForm(user) {
   const e = new Date(t);
   e.setDate(e.getDate() + 3);
   const fmt = (d) => d.toISOString().slice(0, 10);
-  const isAdmin = user?.role === 'superadmin' || user?.role === 'administrator';
+  const isAdmin = isAdminUser(user);
   return {
     title: '',
     description: '',
@@ -749,6 +738,7 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
 
 export default function TasksModule({ onOpenTicket } = {}) {
   const { user } = useAuth();
+  const { departments: catalogDepartments } = useCatalog();
   const isMobile = useMediaQuery(MOBILE_MQ);
   const [tasks, setTasks] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
@@ -769,7 +759,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
   };
 
   const canCreate = canCreateStandaloneTask(user);
-  const isAdmin = user?.role === 'superadmin' || user?.role === 'administrator';
+  const isAdmin = isAdminUser(user);
 
   const effectiveView = isMobile ? 'cards' : view;
 
@@ -799,14 +789,14 @@ export default function TasksModule({ onOpenTicket } = {}) {
     return dbUsers.filter((u) => u.is_active !== 0 && u.is_active !== false && (u.departamento || '').trim() === dept);
   }, [dbUsers, createForm.department, isAdmin, user?.departamento]);
 
-  const departments = useMemo(() => {
-    const set = new Set();
+  const filterDepartments = useMemo(() => {
+    const set = new Set(catalogDepartments);
     tasks.forEach((t) => {
       const d = taskDept(t);
       if (d) set.add(d);
     });
-    return [...set].sort();
-  }, [tasks]);
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [catalogDepartments, tasks]);
 
   const filteredTasks = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1102,7 +1092,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-navy-900 bg-white"
             >
               <option value="">Todos</option>
-              {departments.map((d) => (
+              {filterDepartments.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
@@ -1419,7 +1409,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                     className="bosa-field w-full"
                   >
                     <option value="">Selecciona departamento…</option>
-                    {DEPARTAMENTOS.map((d) => (
+                    {catalogDepartments.map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>

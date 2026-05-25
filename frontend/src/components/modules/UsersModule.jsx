@@ -2,37 +2,27 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
-
-const DEPARTAMENTOS = [
-  'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
-  'HVAC', 'Hidrosanitarios', 'Sistemas', 'Contabilidad', 'Finanzas',
-  'Recursos Humanos', 'Jurídico', 'Compras', 'Costos', 'Operaciones',
-  'Mantenimiento', 'Almacén', 'Marketing', 'Restaurantes', 'Berry Yum'
-];
+import { useCatalog } from '../../hooks/useCatalog';
+import { roleLabelFromCatalog, roleBadgeClass } from '../../utils/catalog';
+import { DepartmentModal, RoleModal } from './CatalogModals';
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
 
 const sectionTitle = 'mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400';
 
-function userRoleLabel(role) {
-  if (role === 'superadmin') return 'Super Admin';
-  if (role === 'manager') return 'Gerente';
-  return 'Administrador';
-}
-
-function userRoleBadgeClass(role) {
-  if (role === 'superadmin') return 'border-gold text-gold font-bold';
-  if (role === 'manager') return 'border-navy-400 text-navy-800 font-bold';
-  return 'border-gray-200 text-navy-700 font-bold';
-}
-
 export default function UsersModule() {
+  const { departments, roles, refresh: refreshCatalog } = useCatalog();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
+  const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newRoleForm, setNewRoleForm] = useState({ label: '', permission_level: 'manager' });
+  const [catalogSaving, setCatalogSaving] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   
   const [formData, setFormData] = useState({});
@@ -119,6 +109,45 @@ export default function UsersModule() {
     setPasswordData('');
   };
 
+  const submitNewDepartment = async (e) => {
+    e.preventDefault();
+    const name = newDeptName.trim();
+    if (!name) return;
+    setCatalogSaving(true);
+    try {
+      await axios.post('/api/catalog/departments', { name });
+      setNewDeptName('');
+      setIsDeptModalOpen(false);
+      await refreshCatalog();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo crear el departamento');
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
+  const submitNewRole = async (e) => {
+    e.preventDefault();
+    const label = newRoleForm.label.trim();
+    if (!label) return;
+    setCatalogSaving(true);
+    try {
+      await axios.post('/api/catalog/roles', {
+        label,
+        permission_level: newRoleForm.permission_level,
+      });
+      setNewRoleForm({ label: '', permission_level: 'manager' });
+      setIsRoleModalOpen(false);
+      await refreshCatalog();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo crear el rol');
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
+  const roleMeta = (slug) => roles.find((r) => r.slug === slug);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -151,16 +180,30 @@ export default function UsersModule() {
             className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 placeholder-gray-400 transition-all bg-gray-50 hover:bg-white shadow-inner"
           />
         </div>
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex gap-3 w-full md:w-auto flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsDeptModalOpen(true)}
+            className="px-3 py-2.5 rounded-lg border border-gold/40 bg-gold/10 text-[10px] font-bold uppercase tracking-wide text-navy-950 hover:bg-gold/20 transition-all"
+          >
+            + Departamento
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsRoleModalOpen(true)}
+            className="px-3 py-2.5 rounded-lg border border-navy-200 bg-navy-50 text-[10px] font-bold uppercase tracking-wide text-navy-900 hover:bg-navy-100 transition-all"
+          >
+            + Rol
+          </button>
           <select 
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 bg-gray-50 hover:bg-white transition-all outline-none"
           >
             <option value="">Todos los roles</option>
-            <option value="superadmin">Super Admin</option>
-            <option value="administrator">Administrador</option>
-            <option value="manager">Gerente</option>
+            {roles.map((r) => (
+              <option key={r.slug} value={r.slug}>{r.label}</option>
+            ))}
           </select>
           <select 
             value={filterDept}
@@ -168,7 +211,7 @@ export default function UsersModule() {
             className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 bg-gray-50 hover:bg-white transition-all outline-none"
           >
             <option value="">Todos los departamentos</option>
-            {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
       </div>
@@ -209,8 +252,8 @@ export default function UsersModule() {
                       <p className="text-navy-500 text-xs mt-0.5 font-medium">{u.puesto || '—'}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`role-badge ${userRoleBadgeClass(u.role)}`}>
-                        {userRoleLabel(u.role)}
+                      <span className={`role-badge ${roleBadgeClass(u.role, roleMeta(u.role)?.permission_level)}`}>
+                        {roleLabelFromCatalog(u.role, roles)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -257,8 +300,8 @@ export default function UsersModule() {
                     <p className="text-navy-500 text-xs truncate">{u.email}</p>
                   </div>
                 </div>
-                <span className={`role-badge flex-shrink-0 ${userRoleBadgeClass(u.role)}`}>
-                  {userRoleLabel(u.role)}
+                <span className={`role-badge flex-shrink-0 ${roleBadgeClass(u.role, roleMeta(u.role)?.permission_level)}`}>
+                  {roleLabelFromCatalog(u.role, roles)}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -409,7 +452,7 @@ export default function UsersModule() {
                           <option value="" disabled>
                             Seleccione departamento…
                           </option>
-                          {DEPARTAMENTOS.map((d) => (
+                          {departments.map((d) => (
                             <option key={d} value={d}>
                               {d}
                             </option>
@@ -446,9 +489,12 @@ export default function UsersModule() {
                           <option value="" disabled>
                             Seleccione un rol…
                           </option>
-                          <option value="administrator">Administrador</option>
-                          <option value="manager">Gerente (coordina tickets de su departamento)</option>
-                          <option value="superadmin">Super Administrador</option>
+                          {roles.map((r) => (
+                            <option key={r.slug} value={r.slug}>
+                              {r.label}
+                              {r.permission_level === 'manager' ? ' (coordina departamento)' : ''}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>
@@ -589,6 +635,22 @@ export default function UsersModule() {
           </div>,
           document.body
         )}
+      <DepartmentModal
+        open={isDeptModalOpen}
+        name={newDeptName}
+        saving={catalogSaving}
+        onClose={() => setIsDeptModalOpen(false)}
+        onChange={setNewDeptName}
+        onSubmit={submitNewDepartment}
+      />
+      <RoleModal
+        open={isRoleModalOpen}
+        form={newRoleForm}
+        saving={catalogSaving}
+        onClose={() => setIsRoleModalOpen(false)}
+        onChange={setNewRoleForm}
+        onSubmit={submitNewRole}
+      />
     </div>
   );
 }

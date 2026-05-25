@@ -3,13 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
-
-const DEPARTAMENTOS = [
-  'Obra Civil','Proyectos','Diseño','Acabados','Eléctricos',
-  'HVAC','Hidrosanitarios','Sistemas','Contabilidad','Finanzas',
-  'Recursos Humanos','Jurídico','Compras','Costos','Operaciones',
-  'Mantenimiento','Almacén','Marketing','Restaurantes','Berry Yum'
-];
+import { useCatalog } from '../../hooks/useCatalog';
 
 const groupInputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
@@ -18,6 +12,7 @@ const groupSectionTitle = 'mb-3 text-[11px] font-semibold uppercase tracking-[0.
 
 export default function ForoModule() {
   const { user } = useAuth();
+  const { departments } = useCatalog();
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -1032,7 +1027,7 @@ export default function ForoModule() {
 
                     {newGroupForm.access_type === 'department' && (
                       <div className="mt-4 max-h-40 grid grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2">
-                        {DEPARTAMENTOS.map((d) => (
+                        {departments.map((d) => (
                           <button
                             type="button"
                             key={d}
@@ -1212,7 +1207,7 @@ export default function ForoModule() {
 
                     {editGroupForm.access_type === 'department' && (
                       <div className="mt-4 max-h-40 grid grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2">
-                        {DEPARTAMENTOS.map((d) => (
+                        {departments.map((d) => (
                           <button
                             type="button"
                             key={d}

@@ -52,8 +52,12 @@ function taskEffectiveDept(row) {
 
 function canManageTaskByDept(user, department) {
   if (!user) return false;
-  if (user.role === 'superadmin' || user.role === 'administrator') return true;
-  if (user.role !== 'manager') return false;
+  const level = user.permission_level
+    || (user.role === 'superadmin' ? 'superadmin'
+      : user.role === 'administrator' ? 'administrator'
+        : user.role === 'manager' ? 'manager' : 'user');
+  if (level === 'superadmin' || level === 'administrator') return true;
+  if (level !== 'manager') return false;
   const dept = String(department || '').trim();
   const userDept = (user.departamento || '').trim();
   return Boolean(dept && userDept === dept);
@@ -90,7 +94,11 @@ function validateAssigneeInDept(db, assigneeId, department) {
 
 function canViewTicket(user, ticket) {
   if (!user || !ticket) return false;
-  if (user.role === 'superadmin' || user.role === 'administrator') return true;
+  const level = user.permission_level
+    || (user.role === 'superadmin' ? 'superadmin'
+      : user.role === 'administrator' ? 'administrator'
+        : user.role === 'manager' ? 'manager' : 'user');
+  if (level === 'superadmin' || level === 'administrator') return true;
   const cat = (ticket.category || '').trim();
   const dept = (user.departamento || '').trim();
   if (cat && dept === cat) return true;
@@ -101,7 +109,11 @@ function canViewTicket(user, ticket) {
 
 function canSeeTaskRow(user, row) {
   if (!user) return false;
-  if (user.role === 'superadmin' || user.role === 'administrator') return true;
+  const level = user.permission_level
+    || (user.role === 'superadmin' ? 'superadmin'
+      : user.role === 'administrator' ? 'administrator'
+        : user.role === 'manager' ? 'manager' : 'user');
+  if (level === 'superadmin' || level === 'administrator') return true;
   const cat = taskEffectiveDept(row);
   const dept = (user.departamento || '').trim();
   if (cat && dept === cat) return true;
@@ -116,7 +128,11 @@ function canParticipateOnTask(user, row) {
 
 function canDeleteTaskAttachment(user, row, attachment) {
   if (!user || !row) return false;
-  if (user.role === 'superadmin' || user.role === 'administrator') return true;
+  const level = user.permission_level
+    || (user.role === 'superadmin' ? 'superadmin'
+      : user.role === 'administrator' ? 'administrator'
+        : user.role === 'manager' ? 'manager' : 'user');
+  if (level === 'superadmin' || level === 'administrator') return true;
   if (Number(row.assigned_to) === Number(user.id)) return true;
   if (Number(row.created_by) === Number(user.id)) return true;
   if (attachment && Number(attachment.uploaded_by) === Number(user.id)) return true;
@@ -230,10 +246,14 @@ const createStandaloneTask = (req, res) => {
     if (!start_date || !end_date) return res.status(400).json({ error: 'Fechas de inicio y fin requeridas' });
 
     let dept = '';
-    if (req.user.role === 'superadmin' || req.user.role === 'administrator') {
+    const level = req.user.permission_level
+      || (req.user.role === 'superadmin' ? 'superadmin'
+        : req.user.role === 'administrator' ? 'administrator'
+          : req.user.role === 'manager' ? 'manager' : 'user');
+    if (level === 'superadmin' || level === 'administrator') {
       dept = String(department || '').trim();
       if (!dept) return res.status(400).json({ error: 'Indica departamento' });
-    } else if (req.user.role === 'manager') {
+    } else if (level === 'manager') {
       dept = (req.user.departamento || '').trim();
       if (!dept) {
         return res.status(403).json({ error: 'Tu perfil no tiene departamento asignado para crear tareas.' });

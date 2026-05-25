@@ -1,8 +1,7 @@
 const { getDb } = require('../database/init');
 const bcrypt = require('bcryptjs');
 const { sendWelcomeEmail } = require('../services/emailService');
-
-const ALLOWED_ROLES = ['superadmin', 'administrator', 'manager'];
+const { roleSlugExists, roleRequiresDepartment } = require('../utils/roleUtils');
 
 const getUsers = (req, res) => {
   try {
@@ -21,13 +20,13 @@ const createUser = (req, res) => {
       return res.status(400).json({ error: 'Campos requeridos faltantes (nombre, correo, rol, contraseña)' });
     }
 
-    if (role === 'manager' && !(departamento && String(departamento).trim())) {
-      return res.status(400).json({ error: 'Un usuario Gerente debe tener un departamento asignado.' });
-    }
-
     const db = getDb();
 
-    if (!ALLOWED_ROLES.includes(role)) {
+    if (roleRequiresDepartment(db, role) && !(departamento && String(departamento).trim())) {
+      return res.status(400).json({ error: 'Este rol debe tener un departamento asignado.' });
+    }
+
+    if (!roleSlugExists(db, role)) {
       return res.status(400).json({ error: 'Rol no válido' });
     }
 
@@ -66,8 +65,8 @@ const updateUser = (req, res) => {
       departamento !== undefined && departamento !== null
         ? String(departamento)
         : current.departamento || '';
-    if (newRole === 'manager' && !newDept.trim()) {
-      return res.status(400).json({ error: 'Un usuario Gerente debe tener un departamento asignado.' });
+    if (roleRequiresDepartment(db, newRole) && !newDept.trim()) {
+      return res.status(400).json({ error: 'Este rol debe tener un departamento asignado.' });
     }
 
     if (email) {
@@ -75,7 +74,7 @@ const updateUser = (req, res) => {
       if (exists) return res.status(400).json({ error: 'El correo ya está en uso por otro usuario' });
     }
 
-    if (role != null && role !== '' && !ALLOWED_ROLES.includes(role)) {
+    if (role != null && role !== '' && !roleSlugExists(db, role)) {
       return res.status(400).json({ error: 'Rol no válido' });
     }
 

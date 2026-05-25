@@ -5,13 +5,9 @@ import autoAnimate from '@formkit/auto-animate';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import UserAvatar from '../UserAvatar';
-
-const DEPARTAMENTOS = [
-  'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
-  'HVAC', 'Hidrosanitarios', 'Sistemas', 'Contabilidad', 'Finanzas',
-  'Recursos Humanos', 'Jurídico', 'Compras', 'Costos', 'Operaciones',
-  'Mantenimiento', 'Almacén', 'Marketing', 'Restaurantes', 'Berry Yum'
-];
+import { useCatalog } from '../../hooks/useCatalog';
+import { FALLBACK_DEPARTMENTS } from '../../utils/catalog';
+import { canManageDeptAsManager } from '../../utils/permissions';
 
 const COLUMNS = [
   { id: 'open',        label: 'Pendientes',  accent: '#94a3b8' },
@@ -20,7 +16,7 @@ const COLUMNS = [
   { id: 'closed',      label: 'Completados', accent: '#10b981' },
 ];
 
-const EMPTY_TICKET_FORM = { title: '', description: '', category: DEPARTAMENTOS[0] };
+const EMPTY_TICKET_FORM = { title: '', description: '', category: FALLBACK_DEPARTMENTS[0] };
 
 /** Igual que el backend: administradores o rol Gerente del mismo departamento que el ticket. */
 function formatTaskDate(ymd) {
@@ -31,12 +27,7 @@ function formatTaskDate(ymd) {
 }
 
 function canDelegarTarea(authUser, ticket) {
-  if (!authUser || !ticket) return false;
-  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
-  if (authUser.role !== 'manager') return false;
-  const cat = (ticket.category || '').trim();
-  const dept = (authUser.departamento || '').trim();
-  return Boolean(cat && dept === cat);
+  return canManageDeptAsManager(authUser, ticket?.category);
 }
 
 /** Pestañas antiguas (tasks, chat, files) → nuevas unificadas */
@@ -53,6 +44,7 @@ export default function TicketsModule({
   onConsumeOpenTicket,
 } = {}) {
   const { user } = useAuth();
+  const { departments } = useCatalog();
   const [tickets, setTickets] = useState([]);
   const [draggedTicket, setDraggedTicket] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -273,7 +265,7 @@ export default function TicketsModule({
     setTicketEditForm({
       title: selectedTicket.title || '',
       description: selectedTicket.description || '',
-      category: selectedTicket.category || DEPARTAMENTOS[0],
+      category: selectedTicket.category || departments[0] || FALLBACK_DEPARTMENTS[0],
     });
     setIsEditingTicket(true);
     setActiveTab('info');
@@ -390,7 +382,7 @@ export default function TicketsModule({
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-navy-900 bg-gray-50 outline-none min-w-[200px]">
             <option value="">Todos los departamentos</option>
-            {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+            {departments.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           <select value={taskView} onChange={e => setTaskView(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-navy-900 bg-gray-50 outline-none min-w-[180px]">
@@ -544,7 +536,7 @@ export default function TicketsModule({
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
                   >
-                    {DEPARTAMENTOS.map((d) => (
+                    {departments.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -809,7 +801,7 @@ export default function TicketsModule({
                           onChange={e => setTicketEditForm(f => ({ ...f, category: e.target.value }))}
                           className="w-full border-2 border-gray-200 rounded-lg px-4 py-2.5 text-navy-950 focus:border-gold outline-none"
                         >
-                          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                          {departments.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1.5">

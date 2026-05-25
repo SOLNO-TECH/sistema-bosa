@@ -12,16 +12,11 @@ import {
   formatBusyRangeLabel,
   compareTimes,
 } from '../../utils/meetingSchedule';
-
-const DEPARTAMENTOS = [
-  'Obra Civil', 'Proyectos', 'Diseño', 'Acabados', 'Eléctricos',
-  'HVAC', 'Hidrosanitarios', 'Sistemas', 'Contabilidad', 'Finanzas',
-  'Recursos Humanos', 'Jurídico', 'Compras', 'Costos', 'Operaciones',
-  'Mantenimiento', 'Almacén', 'Marketing', 'Restaurantes', 'Berry Yum'
-];
+import { useCatalog } from '../../hooks/useCatalog';
 
 export default function CalendarModule() {
   const { user } = useAuth();
+  const { departments } = useCatalog();
   const [meetings, setMeetings] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -762,7 +757,7 @@ export default function CalendarModule() {
                       className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
                     >
                       <option value="">Todos los departamentos</option>
-                      {DEPARTAMENTOS.map((d) => (
+                      {departments.map((d) => (
                         <option key={d} value={d}>
                           {d}
                         </option>

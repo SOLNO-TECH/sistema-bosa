@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../database/init');
+const { getPermissionLevel } = require('../utils/roleUtils');
 
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -34,6 +35,7 @@ function authenticate(req, res, next) {
       apellido: dbUser.apellido || '',
       email: dbUser.email,
       role: dbUser.role,
+      permission_level: getPermissionLevel(db, dbUser.role),
       departamento: dbUser.departamento || '',
       puesto: dbUser.puesto || '',
       avatar_url: dbUser.avatar_url || '',
