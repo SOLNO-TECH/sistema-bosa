@@ -14,6 +14,42 @@ import {
 } from '../../utils/meetingSchedule';
 import { useCatalog } from '../../hooks/useCatalog';
 
+function userFullName(u) {
+  return `${u?.name || ''} ${u?.apellido || ''}`.trim();
+}
+
+function sortUsersByName(users) {
+  return [...users].sort((a, b) =>
+    userFullName(a).localeCompare(userFullName(b), 'es', { sensitivity: 'base' }),
+  );
+}
+
+function userMatchesSearch(u, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  const hay = [
+    userFullName(u),
+    u?.email,
+    u?.departamento,
+    u?.puesto,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+}
+
+function meetingInvolvesUser(meeting, userId) {
+  if (!meeting || userId == null || userId === '') return false;
+  const id = Number(userId);
+  if (Number(meeting.created_by) === id) return true;
+  return Array.isArray(meeting.attendees) && meeting.attendees.some((attendeeId) => Number(attendeeId) === id);
+}
+
+function activeUsersList(users) {
+  return users.filter((u) => u.is_active !== 0 && u.is_active !== false);
+}
+
 export default function CalendarModule() {
   const { user } = useAuth();
   const { departments } = useCatalog();
@@ -27,6 +63,7 @@ export default function CalendarModule() {
   
   // Filtros de vista principal
   const [filterUser, setFilterUser] = useState('all');
+  const [teamUserSearch, setTeamUserSearch] = useState('');
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -47,6 +84,7 @@ export default function CalendarModule() {
     return getSalaBusyRanges(meetings, formData.date, editingMeetingId);
   }, [meetings, formData.date, formData.location_type, editingMeetingId]);
   const [modalDeptFilter, setModalDeptFilter] = useState('');
+  const [modalAttendeeSearch, setModalAttendeeSearch] = useState('');
 
   useEffect(() => {
     fetchMeetings();
@@ -165,6 +203,7 @@ export default function CalendarModule() {
       recurrence_until: '',
     });
     setModalDeptFilter('');
+    setModalAttendeeSearch('');
     setEditingMeetingId(null);
   };
 
@@ -214,18 +253,37 @@ export default function CalendarModule() {
     setEditingMeetingId(selectedMeeting.id);
     setFormData(meetingToFormPayload(selectedMeeting));
     setModalDeptFilter('');
+    setModalAttendeeSearch('');
     setSelectedMeeting(null);
     setIsModalOpen(true);
   };
   const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
 
-  // Filtrar reuniones por usuario seleccionado (ver disponibilidad individual)
-  const filteredMeetings = meetings.filter(m => {
-    if (filterUser === 'all') return true;
-    const userId = parseInt(filterUser);
-    return m.created_by === userId || (m.attendees && m.attendees.includes(userId));
-  });
+  const sortedActiveUsers = useMemo(
+    () => sortUsersByName(activeUsersList(dbUsers)),
+    [dbUsers],
+  );
+
+  const teamUsersForFilter = useMemo(
+    () => sortedActiveUsers.filter((u) => userMatchesSearch(u, teamUserSearch)),
+    [sortedActiveUsers, teamUserSearch],
+  );
+
+  const filteredMeetings = useMemo(() => {
+    const searchQuery = teamUserSearch.trim();
+
+    return meetings.filter((m) => {
+      if (filterUser !== 'all') {
+        return meetingInvolvesUser(m, filterUser);
+      }
+      if (searchQuery) {
+        if (teamUsersForFilter.length === 0) return false;
+        return teamUsersForFilter.some((u) => meetingInvolvesUser(m, u.id));
+      }
+      return true;
+    });
+  }, [meetings, filterUser, teamUserSearch, teamUsersForFilter]);
 
   const renderCalendar = () => {
     const month = currentDate.getMonth();
@@ -259,6 +317,7 @@ export default function CalendarModule() {
           onDoubleClick={() => {
             setEditingMeetingId(null);
             setModalDeptFilter('');
+            setModalAttendeeSearch('');
             const firstStart = pickFirstAvailableStart(dateStr, 'sala_juntas', null);
             setFormData({
               title: '',
@@ -334,12 +393,26 @@ export default function CalendarModule() {
 
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-  const selectedDayMeetings = filteredMeetings
-    .filter(m => m.start_time.startsWith(selectedDay))
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  const selectedDayMeetings = useMemo(
+    () =>
+      filteredMeetings
+        .filter((m) => m.start_time.startsWith(selectedDay))
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time)),
+    [filteredMeetings, selectedDay],
+  );
 
-  // Lógica de selección de participantes
-  const filteredUsersForModal = dbUsers.filter(u => !modalDeptFilter || u.departamento === modalDeptFilter);
+  const filteredUsersForModal = useMemo(
+    () =>
+      sortUsersByName(
+        sortedActiveUsers.filter(
+          (u) =>
+            (!modalDeptFilter || u.departamento === modalDeptFilter) &&
+            userMatchesSearch(u, modalAttendeeSearch),
+        ),
+      ),
+    [sortedActiveUsers, modalDeptFilter, modalAttendeeSearch],
+  );
+
   const isAllSelected = filteredUsersForModal.length > 0 && filteredUsersForModal.every(u => formData.attendees.includes(u.id));
 
   const toggleSelectAll = () => {
@@ -359,18 +432,47 @@ export default function CalendarModule() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 lg:mb-8 gap-4">
         <div>
           <h2 className="text-xl lg:text-2xl font-display font-light text-navy-950 uppercase tracking-widest">Calendario Corporativo</h2>
-          <div className="flex items-center gap-3 mt-2 overflow-x-auto pb-1 no-scrollbar">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Disponibilidad:</span>
-            <select 
-              value={filterUser} 
-              onChange={e => setFilterUser(e.target.value)}
-              className="bg-white border border-gray-200 rounded px-2 py-1 text-[10px] font-black text-navy-900 outline-none focus:border-gold shadow-sm uppercase tracking-tighter"
-            >
-              <option value="all">TODO EL EQUIPO</option>
-              {dbUsers.map(u => (
-                <option key={u.id} value={u.id}>{u.name} {u.apellido}</option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-2 mt-2 sm:mt-3">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Disponibilidad por persona</span>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="relative min-w-0 flex-1 sm:max-w-xs md:max-w-sm">
+                <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={teamUserSearch}
+                  onChange={(e) => {
+                    setTeamUserSearch(e.target.value);
+                    if (e.target.value.trim()) setFilterUser('all');
+                  }}
+                  placeholder="Buscar por nombre, correo o departamento…"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 placeholder-gray-400 transition-all bg-gray-50 hover:bg-white shadow-inner"
+                  aria-label="Buscar persona en calendario"
+                />
+              </div>
+              <select
+                value={filterUser}
+                onChange={(e) => setFilterUser(e.target.value)}
+                className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 bg-gray-50 hover:bg-white transition-all outline-none min-w-0 flex-1 sm:max-w-[280px]"
+              >
+                <option value="all">Todo el equipo (A–Z)</option>
+                {teamUsersForFilter.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {userFullName(u)}
+                    {u.departamento ? ` · ${u.departamento}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {teamUserSearch.trim() && teamUsersForFilter.length === 0 ? (
+              <p className="text-[10px] text-gray-500">Ningún nombre coincide con la búsqueda.</p>
+            ) : teamUserSearch.trim() && filterUser === 'all' ? (
+              <p className="text-[10px] text-gray-500">
+                Mostrando reuniones de {teamUsersForFilter.length}{' '}
+                {teamUsersForFilter.length === 1 ? 'persona' : 'personas'} que coinciden.
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -750,13 +852,26 @@ export default function CalendarModule() {
                       {formData.attendees.length === 1 ? 'persona seleccionada' : 'personas'}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <div className="relative min-w-0 flex-1">
+                      <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="search"
+                        value={modalAttendeeSearch}
+                        onChange={(e) => setModalAttendeeSearch(e.target.value)}
+                        placeholder="Buscar por nombre…"
+                        className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
+                        aria-label="Buscar participantes por nombre"
+                      />
+                    </div>
                     <select
                       value={modalDeptFilter}
                       onChange={(e) => setModalDeptFilter(e.target.value)}
                       className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25"
                     >
-                      <option value="">Todos los departamentos</option>
+                      <option value="">Todos los departamentos (A–Z)</option>
                       {departments.map((d) => (
                         <option key={d} value={d}>
                           {d}
@@ -773,11 +888,14 @@ export default function CalendarModule() {
                       </button>
                     )}
                   </div>
+                  <p className="mt-2 text-[10px] text-slate-500">
+                    Orden alfabético · {filteredUsersForModal.length} visible{filteredUsersForModal.length === 1 ? '' : 's'}
+                  </p>
                   <div className="mt-3 max-h-44 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/60 p-1.5 ring-1 ring-slate-900/[0.02]">
                     {filteredUsersForModal.length === 0 ? (
                       <p className="py-8 text-center text-xs text-slate-400">
-                        {modalDeptFilter
-                          ? 'No hay usuarios en este departamento.'
+                        {modalDeptFilter || modalAttendeeSearch.trim()
+                          ? 'No hay usuarios que coincidan con los filtros.'
                           : 'No hay usuarios registrados.'}
                       </p>
                     ) : (
@@ -798,7 +916,7 @@ export default function CalendarModule() {
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold text-slate-900">
-                                  {u.name} {u.apellido || ''}
+                                  {userFullName(u)}
                                 </p>
                                 <p className="truncate text-xs text-slate-500">
                                   {[u.puesto, u.departamento].filter(Boolean).join(' · ') || '—'}
@@ -861,6 +979,11 @@ export default function CalendarModule() {
         const organizer = dbUsers.find((u) => Number(u.id) === Number(selectedMeeting.created_by));
         const organizerLabel = organizer ? `${organizer.name}${organizer.apellido ? ` ${organizer.apellido}` : ''}`.trim() : null;
         const attendeeCount = selectedMeeting.attendees?.length || 0;
+        const sortedMeetingAttendees = sortUsersByName(
+          (selectedMeeting.attendees || [])
+            .map((id) => dbUsers.find((u) => Number(u.id) === Number(id)))
+            .filter(Boolean),
+        );
 
         return (
         <div
@@ -983,12 +1106,9 @@ export default function CalendarModule() {
                   </p>
                 ) : (
                   <ul className="space-y-2">
-                    {(selectedMeeting.attendees || []).map((id) => {
-                      const u = dbUsers.find((user) => Number(user.id) === Number(id));
-                      if (!u) return null;
-                      return (
+                    {sortedMeetingAttendees.map((u) => (
                         <li
-                          key={id}
+                          key={u.id}
                           className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm shadow-slate-900/[0.03] transition-shadow hover:shadow-md hover:shadow-slate-900/[0.05]"
                         >
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-navy-900 to-navy-950 text-xs font-semibold text-gold ring-2 ring-gold/20">
@@ -996,15 +1116,14 @@ export default function CalendarModule() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-slate-900">
-                              {u.name} {u.apellido || ''}
+                              {userFullName(u)}
                             </p>
                             <p className="truncate text-xs text-slate-500">
                               {[u.puesto, u.departamento].filter(Boolean).join(' · ') || '—'}
                             </p>
                           </div>
                         </li>
-                      );
-                    })}
+                    ))}
                   </ul>
                 )}
               </section>
