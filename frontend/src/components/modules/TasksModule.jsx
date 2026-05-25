@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import UserAvatar from '../UserAvatar';
@@ -93,6 +94,34 @@ function canManageTaskRow(authUser, row) {
 function canCreateStandaloneTask(authUser) {
   if (!authUser) return false;
   return authUser.role === 'superadmin' || authUser.role === 'administrator' || authUser.role === 'manager';
+}
+
+function canParticipateOnTask(authUser, row) {
+  if (!authUser || !row) return false;
+  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
+  const cat = taskDept(row);
+  const dept = (authUser.departamento || '').trim();
+  if (cat && dept === cat) return true;
+  if (Number(row.assigned_to) === Number(authUser.id)) return true;
+  if (Number(row.created_by) === Number(authUser.id)) return true;
+  return false;
+}
+
+function canDeleteTaskAttachment(authUser, task, file) {
+  if (!authUser || !task) return false;
+  if (file?.can_delete === true) return true;
+  if (authUser.role === 'superadmin' || authUser.role === 'administrator') return true;
+  if (Number(task.assigned_to) === Number(authUser.id)) return true;
+  if (Number(task.created_by) === Number(authUser.id)) return true;
+  if (file && Number(file.uploaded_by) === Number(authUser.id)) return true;
+  return canManageTaskRow(authUser, task);
+}
+
+function taskFileUrl(f) {
+  if (!f?.path) return '';
+  if (f.path.startsWith('/api/') || f.path.startsWith('http')) return f.path;
+  const parts = f.path.replace(/\\/g, '/').split('/');
+  return `/api/uploads/${parts[parts.length - 1]}`;
 }
 
 function freshStandaloneTaskForm(user) {
@@ -208,6 +237,70 @@ function formatDateShort(ymd) {
   return d ? d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : ymd;
 }
 
+/** Icono SVG para tareas sin ticket (sustituye ✦). */
+function StandaloneTaskIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+      />
+    </svg>
+  );
+}
+
+function StandaloneTaskBadge({ size = 'md' }) {
+  const box = size === 'sm' ? 'h-8 w-8 rounded-lg' : size === 'xs' ? 'h-7 w-7 rounded-md' : 'h-9 w-9 rounded-lg';
+  const icon = size === 'xs' ? 'w-3.5 h-3.5' : size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]';
+  return (
+    <span
+      className={`shrink-0 flex items-center justify-center bg-navy-950 text-gold shadow-sm ring-1 ring-gold/35 ${box}`}
+      title="Tarea independiente"
+    >
+      <StandaloneTaskIcon className={icon} />
+    </span>
+  );
+}
+
+function StandaloneTaskOrigin({ task, compact = false, showDescription = true }) {
+  const dept = taskDept(task);
+  return (
+    <div
+      className={`flex items-start gap-2.5 rounded-xl border border-gold/35 bg-gradient-to-br from-gold/[0.12] via-white to-navy-950/[0.03] shadow-sm ${
+        compact ? 'p-2.5' : 'p-3'
+      }`}
+    >
+      <StandaloneTaskBadge size={compact ? 'sm' : 'md'} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className={`font-semibold text-navy-950 ${compact ? 'text-[10px]' : 'text-xs'}`}>Tarea independiente</p>
+          <span className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-navy-950 text-gold">
+            Sin ticket
+          </span>
+        </div>
+        {dept ? (
+          <p className={`text-navy-500 mt-0.5 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
+            Depto. <span className="font-bold text-navy-700">{dept}</span>
+          </p>
+        ) : null}
+        {showDescription && task.description ? (
+          <p className={`text-navy-600 mt-1 line-clamp-2 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>{task.description}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StandaloneTicketCell() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-navy-950 bg-gradient-to-r from-gold/20 to-gold/5 px-2 py-1.5 rounded-lg border border-gold/35">
+      <StandaloneTaskBadge size="xs" />
+      <span className="leading-none">Independiente</span>
+    </span>
+  );
+}
+
 function TaskOriginBlock({ task, onOpenTicket, compact = false }) {
   const dept = taskDept(task);
   const linked = hasTicket(task);
@@ -237,24 +330,7 @@ function TaskOriginBlock({ task, onOpenTicket, compact = false }) {
       </div>
     );
   }
-  return (
-    <div className={`flex items-start gap-2 rounded-lg border border-gold/25 bg-gold/5 ${compact ? 'p-2.5' : 'p-3'}`}>
-      <span className={`shrink-0 flex items-center justify-center rounded-md bg-gold/25 font-black text-navy-950 ${compact ? 'h-9 w-9 text-[10px]' : 'h-8 w-8 text-[10px] rounded-lg'}`}>
-        ✦
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className={`font-semibold text-navy-800 ${compact ? 'text-[10px]' : 'text-xs'}`}>Tarea independiente</p>
-        {dept ? (
-          <p className={`text-navy-500 mt-0.5 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
-            Depto. <span className="font-bold text-navy-700">{dept}</span>
-          </p>
-        ) : null}
-        {task.description ? (
-          <p className={`text-navy-600 mt-1 line-clamp-2 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>{task.description}</p>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <StandaloneTaskOrigin task={task} compact={compact} />;
 }
 
 function TaskMobileCard({
@@ -262,6 +338,7 @@ function TaskMobileCard({
   canManage,
   canStatus,
   onOpenTicket,
+  onOpenDetail,
   onStatusChange,
   onDelete,
 }) {
@@ -305,22 +382,7 @@ function TaskMobileCard({
             ) : null}
           </>
         ) : (
-          <div className="flex items-start gap-2">
-            <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-gold/20 text-[10px] font-black text-navy-950">
-              ✦
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-navy-800">Tarea independiente</p>
-              {dept ? (
-                <p className="text-[10px] text-navy-500 mt-1">
-                  Depto. <span className="font-bold text-navy-700">{dept}</span>
-                </p>
-              ) : null}
-              {task.description ? (
-                <p className="text-[10px] text-navy-600 mt-1 line-clamp-2">{task.description}</p>
-              ) : null}
-            </div>
-          </div>
+          <StandaloneTaskOrigin task={task} compact showDescription />
         )}
       </div>
 
@@ -340,6 +402,16 @@ function TaskMobileCard({
         <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2">Responsable</p>
         <AssigneeBlock task={task} size="md" />
       </div>
+
+      {onOpenDetail && (
+        <button
+          type="button"
+          onClick={() => onOpenDetail(task)}
+          className="w-full py-3 rounded-xl border border-gold/40 bg-gold/15 text-xs font-bold uppercase tracking-wide text-navy-950 shadow-sm active:scale-[0.99] transition-transform"
+        >
+          Evidencia y comentarios
+        </button>
+      )}
 
       {onOpenTicket && linked && (
         <button
@@ -385,6 +457,296 @@ function getInitialView() {
   return 'gantt';
 }
 
+function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
+  const { user } = useAuth();
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [newComment, setNewComment] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
+  const fetchDetail = async () => {
+    if (!taskId) return;
+    setLoading(true);
+    try {
+      const { data } = await axios.get(`/api/ticket-tasks/${taskId}`);
+      setTask(data);
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo cargar la tarea');
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetail();
+  }, [taskId]);
+
+  const canParticipate = task ? canParticipateOnTask(user, task) : false;
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !task) return;
+    try {
+      await axios.post(`/api/ticket-tasks/${task.id}/comments`, { content: newComment.trim() });
+      setNewComment('');
+      await fetchDetail();
+      onRefreshList?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo enviar el comentario');
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !task) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    setIsUploading(true);
+    try {
+      await axios.post(`/api/ticket-tasks/${task.id}/attachments`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await fetchDetail();
+      onRefreshList?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo subir el archivo');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId, filename) => {
+    if (!task || !window.confirm(`¿Eliminar "${filename}"?`)) return;
+    try {
+      await axios.delete(`/api/ticket-tasks/${task.id}/attachments/${attachmentId}`);
+      await fetchDetail();
+      onRefreshList?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo eliminar');
+    }
+  };
+
+  const st = task ? (TASK_STATUS[task.status] || TASK_STATUS.pending) : null;
+  const linked = task && hasTicket(task);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[125] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="surface-light w-full max-w-2xl max-h-[min(92vh,720px)] rounded-2xl border border-gray-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-navy-950 px-5 py-4 flex items-start justify-between gap-3 shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Tarea operativa</p>
+            <h3 className="text-lg font-display text-white truncate">{task?.title || '…'}</h3>
+            {st && (
+              <span className="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: st.color + '33', color: st.color }}>
+                {st.label}
+              </span>
+            )}
+          </div>
+          <button type="button" onClick={onClose} className="shrink-0 w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-white/20 text-xl leading-none" aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center p-12">
+            <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : task ? (
+          <>
+            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/80 space-y-2 shrink-0">
+              <TaskOriginBlock task={task} onOpenTicket={linked && onOpenTicket ? () => { onClose(); onOpenTicket(task.ticket_id); } : undefined} compact />
+              <div className="flex items-center gap-2 text-[10px] text-navy-600">
+                <AssigneeBlock task={task} size="xs" />
+                <span className="tabular-nums">
+                  {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-8">
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-navy-950">Archivos y evidencia</h4>
+                    <p className="text-[10px] text-navy-500 mt-0.5">Reportes, fotos y documentos de la tarea</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-navy-500 tabular-nums">{task.attachments?.length || 0}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {task.attachments?.map((f) => {
+                    const url = taskFileUrl(f);
+                    const isImg = f.mimetype?.startsWith('image/');
+                    const canDeleteFile = canDeleteTaskAttachment(user, task, f);
+                    return (
+                      <div key={f.id} className="group relative border border-gray-200 rounded-xl overflow-hidden aspect-square bg-white shadow-sm">
+                        {isImg ? (
+                          <button type="button" onClick={() => setLightboxUrl(url)} className="w-full h-full block cursor-zoom-in">
+                            <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                          </button>
+                        ) : (
+                          <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <svg className="w-10 h-10 text-navy-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            <span className="text-[10px] font-bold text-navy-700 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                          </a>
+                        )}
+                        {canDeleteFile && (
+                          <div className="absolute top-1.5 right-1.5 flex gap-1">
+                            {!isImg && (
+                              <a
+                                href={url}
+                                download={f.filename}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-7 h-7 rounded-md bg-navy-950/85 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm"
+                                title="Descargar"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAttachment(f.id, f.filename);
+                              }}
+                              className="w-7 h-7 rounded-md bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md"
+                              title="Eliminar documento"
+                              aria-label={`Eliminar ${f.filename}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                        {isImg && canDeleteFile && (
+                          <a
+                            href={url}
+                            download={f.filename}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute top-1.5 left-1.5 w-7 h-7 rounded-md bg-navy-950/85 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm"
+                            title="Descargar"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                            </svg>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {canParticipate && (
+                    <label className={`border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-gold/5 bg-white/60 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                      {isUploading ? (
+                        <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest text-center px-2">Subir evidencia</span>
+                      )}
+                    </label>
+                  )}
+                </div>
+                {(!task.attachments || task.attachments.length === 0) && !canParticipate && (
+                  <p className="text-center text-[10px] text-navy-500 mt-3">Sin archivos en esta tarea.</p>
+                )}
+                {(!task.attachments || task.attachments.length === 0) && canParticipate && (
+                  <p className="text-center text-[10px] text-navy-500 mt-3">Sin archivos aún — usa el recuadro punteado para subir.</p>
+                )}
+              </section>
+
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-navy-950">Comentarios</h4>
+                    <p className="text-[10px] text-navy-500 mt-0.5">Notas y avances del responsable</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-navy-500 tabular-nums">{task.comments?.length || 0}</span>
+                </div>
+                {(!task.comments || task.comments.length === 0) ? (
+                  <p className="text-center text-[10px] text-navy-500 py-6 rounded-xl border border-dashed border-gray-200">Sin comentarios todavía</p>
+                ) : (
+                  <div className="space-y-4 rounded-xl bg-white/80 border border-gray-200 p-4">
+                    {task.comments.map((c) => {
+                      const mine = c.user_id === user?.id;
+                      return (
+                        <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-700'}`}>
+                            {(c.user_name || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div className={`flex flex-col max-w-[85%] ${mine ? 'items-end' : 'items-start'}`}>
+                            <span className="text-[10px] font-bold text-navy-700 mb-0.5 px-1">{c.user_name}</span>
+                            <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'}`}>
+                              <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
+                            </div>
+                            <span className="text-[10px] text-navy-500 mt-1 px-1">
+                              {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} ·{' '}
+                              {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {canParticipate ? (
+              <div className="p-4 bg-white border-t border-gray-200 shrink-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2">Nuevo comentario</p>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                    placeholder="Escribe un comentario o nota de avance…"
+                    className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2.5 text-sm text-navy-900 focus:outline-none focus:border-gold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim()}
+                    className="w-10 h-10 bg-gold text-navy-950 rounded-full flex items-center justify-center disabled:opacity-50 font-bold"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="px-5 py-3 text-[10px] text-navy-500 border-t border-gray-100 bg-gray-50 shrink-0">
+                Solo lectura: no tienes permiso para comentar o subir en esta tarea.
+              </p>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-[130] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 export default function TasksModule({ onOpenTicket } = {}) {
   const { user } = useAuth();
   const isMobile = useMediaQuery(MOBILE_MQ);
@@ -400,6 +762,11 @@ export default function TasksModule({ onOpenTicket } = {}) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => freshStandaloneTaskForm(null));
   const [creating, setCreating] = useState(false);
+  const [detailTaskId, setDetailTaskId] = useState(null);
+
+  const openTaskDetail = (task) => {
+    if (task?.id) setDetailTaskId(task.id);
+  };
 
   const canCreate = canCreateStandaloneTask(user);
   const isAdmin = user?.role === 'superadmin' || user?.role === 'administrator';
@@ -588,8 +955,18 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
   const renderStatusControls = (t, canStatus, canManage) => {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
+    const canEvidence = canParticipateOnTask(user, t);
     return (
       <div className="flex flex-wrap items-center gap-2 mt-3">
+        {canEvidence && (
+          <button
+            type="button"
+            onClick={() => openTaskDetail(t)}
+            className="text-[10px] font-bold uppercase tracking-wide text-navy-950 bg-gold/20 hover:bg-gold/35 px-2 py-1 rounded border border-gold/40"
+          >
+            Evidencia
+          </button>
+        )}
         <span className="text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: st.color + '22', color: st.color }}>
           {st.label}
         </span>
@@ -803,6 +1180,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                 canManage={canManage}
                 canStatus={canStatus}
                 onOpenTicket={onOpenTicket}
+                onOpenDetail={canParticipateOnTask(user, t) ? openTaskDetail : undefined}
                 onStatusChange={updateStatus}
                 onDelete={deleteTask}
               />
@@ -922,9 +1300,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex text-[10px] font-bold uppercase tracking-wide text-navy-800 bg-gold/15 px-2 py-1 rounded border border-gold/30">
-                          Independiente
-                        </span>
+                        <StandaloneTicketCell />
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -965,9 +1341,18 @@ export default function TasksModule({ onOpenTicket } = {}) {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 space-y-1">
+                      {canParticipateOnTask(user, t) && (
+                        <button
+                          type="button"
+                          onClick={() => openTaskDetail(t)}
+                          className="block text-[10px] font-bold text-navy-950 hover:underline"
+                        >
+                          Evidencia
+                        </button>
+                      )}
                       {canManage && (
-                        <button type="button" onClick={() => deleteTask(t.id)} className="text-[10px] font-bold text-red-600 hover:underline">
+                        <button type="button" onClick={() => deleteTask(t.id)} className="block text-[10px] font-bold text-red-600 hover:underline">
                           Eliminar
                         </button>
                       )}
@@ -982,9 +1367,18 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
       <p className="text-xs text-navy-800 text-center pb-2 px-4 py-3 rounded-xl border border-gray-200 bg-white shadow-sm max-w-xl mx-auto leading-relaxed">
         Crea tareas con <strong className="text-navy-950">Nueva tarea</strong> o desde{' '}
-        <strong className="text-navy-950">Tickets → Detalle y tareas</strong>. Sube tu foto en{' '}
-        <strong className="text-navy-950">Configuración → Perfil</strong> para verla en el cronograma.
+        <strong className="text-navy-950">Tickets → Detalle y tareas</strong>. El responsable sube evidencia y comentarios con{' '}
+        <strong className="text-navy-950">Evidencia</strong> en cada tarea (sin depender del ticket).
       </p>
+
+      {detailTaskId && (
+        <TaskDetailModal
+          taskId={detailTaskId}
+          onClose={() => setDetailTaskId(null)}
+          onOpenTicket={onOpenTicket}
+          onRefreshList={fetchTasks}
+        />
+      )}
 
       {createOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-navy-950/80 backdrop-blur-sm p-4" onClick={() => !creating && setCreateOpen(false)}>

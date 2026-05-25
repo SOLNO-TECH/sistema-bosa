@@ -263,6 +263,7 @@ function initDatabase() {
   }
 
   migrateTicketTasksStandaloneOnce(db);
+  migrateTaskCollaborationOnce(db);
 
   try {
     db.exec(`
@@ -352,6 +353,50 @@ function migrateTicketTasksStandaloneOnce(db) {
     db.prepare("INSERT INTO schema_migrations (name) VALUES ('ticket_tasks_standalone_v1')").run();
   } catch (err) {
     console.warn('[DB] ticket_tasks standalone migration:', err.message);
+  }
+}
+
+/** Comentarios y archivos por tarea operativa (evidencia aparte del ticket). */
+function migrateTaskCollaborationOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'task_collaboration_v1'").get();
+    if (done) return;
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id    INTEGER NOT NULL,
+        user_id    INTEGER NOT NULL,
+        content    TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (task_id) REFERENCES ticket_tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
+
+      CREATE TABLE IF NOT EXISTS task_attachments (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id     INTEGER NOT NULL,
+        filename    TEXT    NOT NULL,
+        mimetype    TEXT,
+        path        TEXT    NOT NULL,
+        uploaded_by INTEGER NOT NULL,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (task_id)     REFERENCES ticket_tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (uploaded_by) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);
+    `);
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('task_collaboration_v1')").run();
+  } catch (err) {
+    console.warn('[DB] task_collaboration migration:', err.message);
   }
 }
 

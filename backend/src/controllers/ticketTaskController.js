@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { getDb } = require('../database/init');
 const { notifyUser } = require('../services/notificationService');
 const { sendTaskNotification } = require('../services/emailService');
@@ -107,6 +108,60 @@ function canSeeTaskRow(user, row) {
   if (Number(row.assigned_to) === Number(user.id)) return true;
   if (Number(row.created_by) === Number(user.id)) return true;
   return false;
+}
+
+function canParticipateOnTask(user, row) {
+  return canSeeTaskRow(user, row);
+}
+
+function canDeleteTaskAttachment(user, row, attachment) {
+  if (!user || !row) return false;
+  if (user.role === 'superadmin' || user.role === 'administrator') return true;
+  if (Number(row.assigned_to) === Number(user.id)) return true;
+  if (Number(row.created_by) === Number(user.id)) return true;
+  if (attachment && Number(attachment.uploaded_by) === Number(user.id)) return true;
+  return canManageTaskRow(user, row);
+}
+
+function loadTaskRow(db, id) {
+  return db.prepare(`
+    SELECT tt.*,
+      t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
+      u1.name as assignee_name, u1.apellido as assignee_apellido,
+      u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
+      u1.avatar_url as assignee_avatar_url,
+      u2.name as creator_name
+    FROM ticket_tasks tt
+    LEFT JOIN tickets t ON tt.ticket_id = t.id
+    LEFT JOIN users u1 ON tt.assigned_to = u1.id
+    LEFT JOIN users u2 ON tt.created_by = u2.id
+    WHERE tt.id = ?
+  `).get(id);
+}
+
+function notifyTaskParticipants(db, task, actorId, payload) {
+  if (!task) return;
+  const ids = new Set(
+    [task.assigned_to, task.created_by].filter((x) => x != null).map((x) => Number(x)),
+  );
+  ids.delete(Number(actorId));
+  for (const uid of ids) {
+    notifyUser(uid, {
+      ...payload,
+      module: 'tasks',
+      related_id: Number(task.id),
+      link_id: task.ticket_id != null ? Number(task.ticket_id) : null,
+    });
+  }
+}
+
+function deleteTaskAttachmentFiles(db, taskId) {
+  const rows = db.prepare('SELECT path FROM task_attachments WHERE task_id = ?').all(taskId);
+  for (const row of rows) {
+    try {
+      if (row.path && fs.existsSync(row.path)) fs.unlinkSync(row.path);
+    } catch (_) { /* noop */ }
+  }
 }
 
 function getTicket(db, id) {
@@ -461,11 +516,143 @@ const deleteTask = (req, res) => {
       }
     } catch (_) { /* noop */ }
 
+    deleteTaskAttachmentFiles(db, id);
     db.prepare('DELETE FROM ticket_tasks WHERE id = ?').run(id);
     res.json({ message: 'Tarea eliminada' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al eliminar tarea' });
+  }
+};
+
+const getTaskDetail = (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    const task = loadTaskRow(db, id);
+    if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!canSeeTaskRow(req.user, task)) {
+      return res.status(403).json({ error: 'Sin permiso para ver esta tarea' });
+    }
+    const comments = db.prepare(`
+      SELECT c.*, u.name as user_name
+      FROM task_comments c
+      LEFT JOIN users u ON c.user_id = u.id
+      WHERE c.task_id = ?
+      ORDER BY c.created_at ASC
+    `).all(id);
+    const attachments = db.prepare(`
+      SELECT a.*, u.name as uploader_name
+      FROM task_attachments a
+      LEFT JOIN users u ON a.uploaded_by = u.id
+      WHERE a.task_id = ?
+      ORDER BY a.created_at DESC
+    `).all(id).map((att) => ({
+      ...att,
+      can_delete: canDeleteTaskAttachment(req.user, task, att),
+    }));
+    res.json({ ...task, comments, attachments });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al cargar tarea' });
+  }
+};
+
+const addTaskComment = (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+    if (!content || !String(content).trim()) return res.status(400).json({ error: 'Contenido vacío' });
+
+    const db = getDb();
+    const task = loadTaskRow(db, id);
+    if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!canParticipateOnTask(req.user, task)) {
+      return res.status(403).json({ error: 'Sin permiso para comentar en esta tarea' });
+    }
+
+    db.prepare('INSERT INTO task_comments (task_id, user_id, content) VALUES (?, ?, ?)')
+      .run(id, user_id, String(content).trim());
+
+    try {
+      const author = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
+      notifyTaskParticipants(db, task, user_id, {
+        type: 'task',
+        title: 'Comentario en tarea',
+        message: `${author?.name || 'Alguien'} comentó en "${task.title}".`,
+      });
+    } catch (_) { /* noop */ }
+
+    res.status(201).json({ message: 'Comentario añadido' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al añadir comentario' });
+  }
+};
+
+const uploadTaskAttachment = (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+
+    const db = getDb();
+    const task = loadTaskRow(db, id);
+    if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!canParticipateOnTask(req.user, task)) {
+      return res.status(403).json({ error: 'Sin permiso para subir archivos en esta tarea' });
+    }
+
+    db.prepare(`
+      INSERT INTO task_attachments (task_id, filename, mimetype, path, uploaded_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, file.originalname, file.mimetype, file.path, user_id);
+
+    try {
+      const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
+      notifyTaskParticipants(db, task, user_id, {
+        type: 'task',
+        title: 'Archivo en tarea',
+        message: `${actor?.name || 'Alguien'} subió "${file.originalname}" en "${task.title}".`,
+      });
+    } catch (_) { /* noop */ }
+
+    res.status(201).json({ message: 'Archivo subido correctamente', file: file.originalname });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al subir archivo' });
+  }
+};
+
+const deleteTaskAttachment = (req, res) => {
+  try {
+    const { id, attachmentId } = req.params;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+
+    const db = getDb();
+    const task = loadTaskRow(db, id);
+    if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+
+    const att = db.prepare('SELECT * FROM task_attachments WHERE id = ? AND task_id = ?').get(attachmentId, id);
+    if (!att) return res.status(404).json({ error: 'Archivo no encontrado' });
+    if (!canDeleteTaskAttachment(req.user, task, att)) {
+      return res.status(403).json({ error: 'Sin permiso para eliminar este archivo' });
+    }
+
+    try {
+      if (att.path && fs.existsSync(att.path)) fs.unlinkSync(att.path);
+    } catch (_) { /* noop */ }
+
+    db.prepare('DELETE FROM task_attachments WHERE id = ?').run(attachmentId);
+    res.json({ message: 'Archivo eliminado' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar archivo' });
   }
 };
 
@@ -476,4 +663,8 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  getTaskDetail,
+  addTaskComment,
+  uploadTaskAttachment,
+  deleteTaskAttachment,
 };
