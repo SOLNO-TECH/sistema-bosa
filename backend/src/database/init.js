@@ -222,6 +222,25 @@ function initDatabase() {
   } catch (err) {}
 
   try {
+    db.prepare(`ALTER TABLE workgroup_messages ADD COLUMN edited_at TEXT`).run();
+  } catch (err) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS forum_message_reads (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL,
+        user_id    INTEGER NOT NULL,
+        read_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(message_id, user_id),
+        FOREIGN KEY (message_id) REFERENCES workgroup_messages(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_forum_message_reads_message ON forum_message_reads(message_id);
+    `);
+  } catch (err) {}
+
+  try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS forum_join_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -235,6 +254,25 @@ function initDatabase() {
       );
     `);
   } catch (err) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS meeting_rsvps (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        meeting_id  INTEGER NOT NULL,
+        user_id     INTEGER NOT NULL,
+        status      TEXT    NOT NULL DEFAULT 'going' CHECK(status IN ('going', 'declined', 'late')),
+        comment     TEXT,
+        updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(meeting_id, user_id),
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meeting_rsvps_meeting ON meeting_rsvps(meeting_id);
+    `);
+  } catch (err) {
+    console.warn('[DB] meeting_rsvps migration:', err.message);
+  }
 
   try {
     db.exec(`
@@ -265,6 +303,9 @@ function initDatabase() {
   migrateTicketTasksStandaloneOnce(db);
   migrateTaskCollaborationOnce(db);
   migrateCatalogOnce(db);
+  migrateMeetingMinutesVoiceOnce(db);
+  migrateMeetingMinutesAudioOnce(db);
+  migrateVoiceLearningOnce(db);
 
   try {
     db.exec(`
@@ -398,6 +439,110 @@ function migrateTaskCollaborationOnce(db) {
     db.prepare("INSERT INTO schema_migrations (name) VALUES ('task_collaboration_v1')").run();
   } catch (err) {
     console.warn('[DB] task_collaboration migration:', err.message);
+  }
+}
+
+/** Aprendizaje de comandos de voz por usuario (Saya AI). */
+function migrateVoiceLearningOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'voice_learning_v1'").get();
+    if (done) return;
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS voice_phrase_memory (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id        INTEGER NOT NULL,
+        phrase_norm    TEXT    NOT NULL,
+        intent         TEXT    NOT NULL,
+        params_json    TEXT    NOT NULL DEFAULT '{}',
+        summary        TEXT    NOT NULL DEFAULT '',
+        hit_count      INTEGER NOT NULL DEFAULT 1,
+        success_count  INTEGER NOT NULL DEFAULT 1,
+        last_used_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, phrase_norm, intent)
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_phrase_user ON voice_phrase_memory(user_id, hit_count DESC);
+
+      CREATE TABLE IF NOT EXISTS voice_command_log (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id        INTEGER NOT NULL,
+        transcript     TEXT    NOT NULL,
+        intent         TEXT,
+        allowed        INTEGER NOT NULL DEFAULT 0,
+        executed       INTEGER NOT NULL DEFAULT 0,
+        active_module  TEXT,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_log_user ON voice_command_log(user_id, created_at DESC);
+    `);
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('voice_learning_v1')").run();
+    console.log('[DB] Saya: tablas de aprendizaje de voz listas');
+  } catch (err) {
+    console.warn('[DB] voice_learning migration:', err.message);
+  }
+}
+
+/** Minutas ligadas a reunión + transcripción de voz (opcional). */
+function migrateMeetingMinutesVoiceOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meeting_minutes_voice_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meeting_minutes)').all();
+    const names = cols.map((c) => c.name);
+    if (!names.includes('meeting_id')) {
+      db.prepare(`ALTER TABLE meeting_minutes ADD COLUMN meeting_id INTEGER`).run();
+    }
+    if (!names.includes('transcript_text')) {
+      db.prepare(`ALTER TABLE meeting_minutes ADD COLUMN transcript_text TEXT NOT NULL DEFAULT ''`).run();
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting ON meeting_minutes(meeting_id)');
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meeting_minutes_voice_v1')").run();
+    console.log('[DB] meeting_minutes: meeting_id y transcript_text listos');
+  } catch (err) {
+    console.warn('[DB] meeting_minutes voice migration:', err.message);
+  }
+}
+
+/** Ruta relativa del audio de la reunión (data/uploads/…). */
+function migrateMeetingMinutesAudioOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meeting_minutes_audio_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meeting_minutes)').all();
+    const names = cols.map((c) => c.name);
+    if (!names.includes('audio_path')) {
+      db.prepare(`ALTER TABLE meeting_minutes ADD COLUMN audio_path TEXT`).run();
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meeting_minutes_audio_v1')").run();
+    console.log('[DB] meeting_minutes: audio_path listo');
+  } catch (err) {
+    console.warn('[DB] meeting_minutes audio migration:', err.message);
   }
 }
 

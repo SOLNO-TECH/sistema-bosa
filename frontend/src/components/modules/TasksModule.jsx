@@ -3,9 +3,16 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import UserAvatar from '../UserAvatar';
-import StatSummaryPanel from '../StatSummaryPanel';
+import BosaGoldButton from '../BosaGoldButton';
 import { useCatalog } from '../../hooks/useCatalog';
-import { isAdminUser, canManageDeptAsManager, canCreateStandaloneTask as canCreateStandalone } from '../../utils/permissions';
+import {
+  isAdminUser,
+  isManagerUser,
+  isSuperadminUser,
+  canManageDeptAsManager,
+  canCreateStandaloneTask as canCreateStandalone,
+} from '../../utils/permissions';
+import { localDateYMD, parseYMD, formatDateShort } from '../../utils/localDate';
 
 const TASK_STATUS = {
   pending: { label: 'Pendiente', color: '#94a3b8', accent: '#64748b' },
@@ -13,54 +20,6 @@ const TASK_STATUS = {
   done: { label: 'Hecha', color: '#10b981', accent: '#059669' },
   cancelled: { label: 'Cancelada', color: '#64748b', accent: '#475569' },
 };
-
-const STAT_SUMMARY = [
-  {
-    key: 'total',
-    label: 'Visibles',
-    subtitle: 'En el cronograma actual',
-    color: '#0A1930',
-    accent: '#CBAC80',
-    bar: '#CBAC80',
-    icon: 'visible',
-  },
-  {
-    key: 'pending',
-    label: TASK_STATUS.pending.label,
-    subtitle: 'Por iniciar',
-    color: '#475569',
-    accent: '#64748b',
-    bar: '#94a3b8',
-    icon: 'pending',
-  },
-  {
-    key: 'in_progress',
-    label: TASK_STATUS.in_progress.label,
-    subtitle: 'En ejecución',
-    color: '#7A5C2E',
-    accent: '#A47D3B',
-    bar: '#CBAC80',
-    icon: 'progress',
-  },
-  {
-    key: 'done',
-    label: TASK_STATUS.done.label,
-    subtitle: 'Completadas',
-    color: '#047857',
-    accent: '#059669',
-    bar: '#10b981',
-    icon: 'done',
-  },
-  {
-    key: 'cancelled',
-    label: TASK_STATUS.cancelled.label,
-    subtitle: 'No aplican',
-    color: '#475569',
-    accent: '#64748b',
-    bar: '#94a3b8',
-    icon: 'cancelled',
-  },
-];
 
 const TICKET_STATUS = {
   open: { label: 'Ticket pendiente', color: '#94a3b8' },
@@ -117,7 +76,7 @@ function freshStandaloneTaskForm(user) {
   const t = new Date();
   const e = new Date(t);
   e.setDate(e.getDate() + 3);
-  const fmt = (d) => d.toISOString().slice(0, 10);
+  const fmt = (d) => localDateYMD(d);
   const isAdmin = isAdminUser(user);
   return {
     title: '',
@@ -127,12 +86,6 @@ function freshStandaloneTaskForm(user) {
     end_date: fmt(e),
     department: isAdmin ? '' : (user?.departamento || ''),
   };
-}
-
-function parseYMD(s) {
-  if (!s) return null;
-  const d = new Date(String(s).includes('T') ? s : `${s}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function taskDurationLabel(start_date, end_date) {
@@ -221,11 +174,6 @@ function useMediaQuery(query) {
   return matches;
 }
 
-function formatDateShort(ymd) {
-  const d = parseYMD(ymd);
-  return d ? d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : ymd;
-}
-
 /** Icono SVG para tareas sin ticket (sustituye ✦). */
 function StandaloneTaskIcon({ className = 'w-4 h-4' }) {
   return (
@@ -281,15 +229,6 @@ function StandaloneTaskOrigin({ task, compact = false, showDescription = true })
   );
 }
 
-function StandaloneTicketCell() {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-navy-950 bg-gradient-to-r from-gold/20 to-gold/5 px-2 py-1.5 rounded-lg border border-gold/35">
-      <StandaloneTaskBadge size="xs" />
-      <span className="leading-none">Independiente</span>
-    </span>
-  );
-}
-
 function TaskOriginBlock({ task, onOpenTicket, compact = false }) {
   const dept = taskDept(task);
   const linked = hasTicket(task);
@@ -325,11 +264,13 @@ function TaskOriginBlock({ task, onOpenTicket, compact = false }) {
 function TaskMobileCard({
   task,
   canManage,
+  canDelete,
   canStatus,
   onOpenTicket,
   onOpenDetail,
   onStatusChange,
   onDelete,
+  onEdit,
 }) {
   const st = TASK_STATUS[task.status] || TASK_STATUS.pending;
   const dept = taskDept(task);
@@ -337,113 +278,238 @@ function TaskMobileCard({
   const linked = hasTicket(task);
 
   return (
-    <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-bold text-navy-950 leading-snug flex-1 min-w-0">{task.title}</h3>
-        <span
-          className="shrink-0 text-[9px] font-bold px-2 py-0.5 rounded uppercase"
-          style={{ background: st.color + '22', color: st.color }}
-        >
-          {st.label}
-        </span>
+    <article className="tasks-module__card">
+      <div className="tasks-module__card-main">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="tasks-module__card-title flex-1 min-w-0">{task.title}</h3>
+          <span
+            className="tasks-module__pill shrink-0"
+            style={{ background: `${st.color}22`, color: st.color }}
+          >
+            {st.label}
+          </span>
+        </div>
+        <div className="tasks-module__card-meta">
+          {dept ? (
+            <span className="tasks-module__pill bg-slate-100 text-slate-600">{dept}</span>
+          ) : null}
+          {linked ? (
+            <span className="tasks-module__pill bg-slate-100 text-slate-600">Ticket #{task.ticket_id}</span>
+          ) : (
+            <span className="tasks-module__pill" style={{ background: 'rgba(203,172,128,0.2)', color: '#78350f' }}>
+              Independiente
+            </span>
+          )}
+          {duration ? (
+            <span className="tasks-module__pill bg-slate-100 text-slate-600">{duration}</span>
+          ) : null}
+        </div>
+        {linked && task.ticket_title ? (
+          <p className="mt-2 line-clamp-2 text-[13px] text-slate-600">{task.ticket_title}</p>
+        ) : null}
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3 space-y-2">
-        {linked ? (
-          <>
-            <div className="flex items-start gap-2">
-              <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-navy-950 text-[10px] font-black text-gold">
-                #{task.ticket_id}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-navy-800 line-clamp-2">{task.ticket_title || 'Sin título'}</p>
-                {dept ? (
-                  <p className="text-[10px] text-navy-500 mt-1">
-                    Depto. <span className="font-bold text-navy-700">{dept}</span>
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            {TICKET_STATUS[task.ticket_status] ? (
-              <p className="text-[9px] font-bold uppercase" style={{ color: TICKET_STATUS[task.ticket_status].color }}>
-                {TICKET_STATUS[task.ticket_status].label}
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <StandaloneTaskOrigin task={task} compact showDescription />
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2.5">
-        <svg className="h-5 w-5 shrink-0 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-navy-950 tabular-nums">
-            {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
-          </p>
-          {duration ? <p className="text-[10px] text-navy-600 mt-0.5">{duration} de trabajo</p> : null}
+      <div className="tasks-module__card-section">
+        <div className="tasks-module__card-dates">
+          <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
+        </div>
+        <div className="mt-3">
+          <AssigneeBlock task={task} size="sm" />
         </div>
       </div>
 
-      <div className="pt-1 border-t border-gray-100">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2">Responsable</p>
-        <AssigneeBlock task={task} size="md" />
-      </div>
-
-      {onOpenDetail && (
-        <button
-          type="button"
-          onClick={() => onOpenDetail(task)}
-          className="w-full py-3 rounded-xl border border-gold/40 bg-gold/15 text-xs font-bold uppercase tracking-wide text-navy-950 shadow-sm active:scale-[0.99] transition-transform"
-        >
-          Evidencia y comentarios
-        </button>
-      )}
-
-      {onOpenTicket && linked && (
-        <button
-          type="button"
-          onClick={() => onOpenTicket(task.ticket_id)}
-          className="w-full py-3 rounded-xl border border-navy-900/10 bg-navy-950 text-xs font-bold uppercase tracking-wide text-gold shadow-sm active:scale-[0.99] transition-transform"
-        >
-          Abrir ticket #{task.ticket_id}
-        </button>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="tasks-module__card-actions">
         {canStatus && (
           <select
             value={task.status}
             onChange={(e) => onStatusChange(task.id, e.target.value)}
-            className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-navy-800 font-medium"
+            className="tasks-module__field w-full py-2 text-[13px] sm:max-w-[10rem]"
             aria-label="Cambiar estado"
           >
             {Object.entries(TASK_STATUS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
+              <option key={k} value={k}>{v.label}</option>
             ))}
           </select>
         )}
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => onDelete(task.id)}
-            className="text-xs font-bold text-red-600 py-2.5 px-3 rounded-xl border border-red-100 bg-red-50"
-          >
-            Eliminar
-          </button>
-        )}
+        <TaskRowActions
+          task={task}
+          linked={linked}
+          canEvidence={Boolean(onOpenDetail)}
+          canManage={canManage}
+          canDelete={canDelete}
+          onOpenDetail={onOpenDetail}
+          onOpenTicket={onOpenTicket}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       </div>
     </article>
   );
 }
 
 function getInitialView() {
-  if (typeof window !== 'undefined' && window.matchMedia(MOBILE_MQ).matches) return 'cards';
-  return 'gantt';
+  return 'list';
+}
+
+/** Gerentes y administradores ven todas las tareas visibles sin activar el toggle. */
+function userSeesAllTasksByDefault(authUser) {
+  return isAdminUser(authUser) || isManagerUser(authUser);
+}
+
+function TaskEvidenceIcon() {
+  return (
+    <span className="tasks-module__action-icon-wrap tasks-module__action-icon-wrap--evidence" aria-hidden>
+      <svg
+        className="tasks-module__action-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+        <path d="M15 4v3h3" />
+        <path d="M9 13l2 2 3.5-3.5" />
+      </svg>
+    </span>
+  );
+}
+
+/** Misma barra de acciones que en cronograma (Evidencia = action-primary dorado). */
+function TaskRowActions({ task, linked, canEvidence, canManage, canDelete, onOpenDetail, onOpenTicket, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {canEvidence && onOpenDetail && (
+        <button
+          type="button"
+          onClick={() => onOpenDetail(task)}
+          className="tasks-module__action-primary gap-1.5 px-3 py-2 text-[13px]"
+        >
+          <TaskEvidenceIcon />
+          Evidencia
+        </button>
+      )}
+      {linked && onOpenTicket && (
+        <button
+          type="button"
+          onClick={() => onOpenTicket(task.ticket_id)}
+          className="tasks-module__action-secondary px-3 py-2 text-[13px]"
+        >
+          Ticket
+        </button>
+      )}
+      {canManage && onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(task)}
+          className="tasks-module__action-secondary px-3 py-2 text-[13px]"
+        >
+          Editar
+        </button>
+      )}
+      {canDelete && onDelete && (
+        <button type="button" onClick={() => onDelete(task.id)} className="tasks-module__action-danger px-2 py-2">
+          Eliminar
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TasksListTable({
+  tasks,
+  user,
+  canDelete,
+  onOpenTicket,
+  onOpenDetail,
+  onStatusChange,
+  onDelete,
+  onEdit,
+}) {
+  return (
+    <div className="tasks-module__table-wrap hidden md:block">
+      <table className="tasks-module__table">
+        <thead>
+          <tr>
+            <th>Tarea</th>
+            <th>Origen</th>
+            <th>Responsable</th>
+            <th>Periodo</th>
+            <th>Estado</th>
+            <th className="tasks-module__table-actions-head">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((t) => {
+            const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
+            const canManage = canManageTaskRow(user, t);
+            const isAssignee = Number(t.assigned_to) === Number(user?.id);
+            const canStatus = canManage || isAssignee;
+            const canEvidence = canParticipateOnTask(user, t);
+            const linked = hasTicket(t);
+            return (
+              <tr key={t.id}>
+                <td>
+                  <p className="tasks-module__table-title">{t.title}</p>
+                  {t.description ? (
+                    <p className="tasks-module__table-desc">{t.description}</p>
+                  ) : null}
+                </td>
+                <td>
+                  <TaskOriginBlock task={t} onOpenTicket={onOpenTicket} compact />
+                </td>
+                <td>
+                  <AssigneeBlock task={t} size="xs" />
+                </td>
+                <td className="tasks-module__table-dates">
+                  {formatDateShort(t.start_date)}
+                  <span className="text-slate-400"> → </span>
+                  {formatDateShort(t.end_date)}
+                </td>
+                <td>
+                  {canStatus ? (
+                    <select
+                      value={t.status}
+                      onChange={(e) => onStatusChange(t.id, e.target.value)}
+                      className="tasks-module__field tasks-module__table-select py-1.5 text-[13px]"
+                      aria-label={`Estado de ${t.title}`}
+                    >
+                      {Object.entries(TASK_STATUS).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="tasks-module__pill" style={{ background: `${st.color}22`, color: st.color }}>
+                      {st.label}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <TaskRowActions
+                    task={t}
+                    linked={linked}
+                    canEvidence={canEvidence}
+                    canManage={canManage}
+                    canDelete={canDelete}
+                    onOpenDetail={onOpenDetail}
+                    onOpenTicket={onOpenTicket}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
@@ -522,74 +588,129 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[125] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-3 sm:p-6"
+      className="meeting-sheet-overlay z-[125] animate-fade-in"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="surface-light w-full max-w-2xl max-h-[min(92vh,720px)] rounded-2xl border border-gray-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="meeting-sheet meeting-sheet--wide meeting-sheet--form animate-slide-up"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-detail-title"
       >
-        <div className="bg-navy-950 px-5 py-4 flex items-start justify-between gap-3 shrink-0">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Tarea operativa</p>
-            <h3 className="text-lg font-display text-white truncate">{task?.title || '…'}</h3>
-            {st && (
-              <span className="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: st.color + '33', color: st.color }}>
-                {st.label}
-              </span>
-            )}
+        <div className="meeting-sheet__hero shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="meeting-sheet__pill meeting-sheet__pill--gold">Tarea operativa</span>
+                {st && (
+                  <span
+                    className="meeting-sheet__pill"
+                    style={{ background: `${st.color}22`, color: st.color }}
+                  >
+                    {st.label}
+                  </span>
+                )}
+              </div>
+              <h3 id="task-detail-title" className="meeting-sheet__hero-title truncate">
+                {task?.title || '…'}
+              </h3>
+            </div>
+            <button type="button" onClick={onClose} className="meeting-sheet__close" aria-label="Cerrar">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-white/20 text-xl leading-none" aria-label="Cerrar">
-            ×
-          </button>
         </div>
 
         {loading ? (
-          <div className="flex-1 flex items-center justify-center p-12">
-            <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+          <div className="flex flex-1 items-center justify-center p-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" />
           </div>
         ) : task ? (
-          <>
-            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/80 space-y-2 shrink-0">
-              <TaskOriginBlock task={task} onOpenTicket={linked && onOpenTicket ? () => { onClose(); onOpenTicket(task.ticket_id); } : undefined} compact />
-              <div className="flex items-center gap-2 text-[10px] text-navy-600">
-                <AssigneeBlock task={task} size="xs" />
-                <span className="tabular-nums">
-                  {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-8">
-              <section>
-                <div className="flex items-baseline justify-between gap-2 mb-3">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-navy-950">Archivos y evidencia</h4>
-                    <p className="text-[10px] text-navy-500 mt-0.5">Reportes, fotos y documentos de la tarea</p>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="meeting-sheet__scroll meeting-sheet__scroll--form flex-1 space-y-4">
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell space-y-2">
+                  <TaskOriginBlock
+                    task={task}
+                    onOpenTicket={linked && onOpenTicket ? () => { onClose(); onOpenTicket(task.ticket_id); } : undefined}
+                    compact
+                  />
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-600">
+                    <AssigneeBlock task={task} size="xs" />
+                    <span className="tabular-nums">
+                      {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-navy-500 tabular-nums">{task.attachments?.length || 0}</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              </div>
+
+              <section>
+                <p className="meeting-sheet__section-label">
+                  Comentarios{task.comments?.length ? ` · ${task.comments.length}` : ''}
+                </p>
+                <p className="mb-2 px-1 text-[12px] text-slate-500">Notas y avances del responsable</p>
+                {(!task.comments || task.comments.length === 0) ? (
+                  <p className="meeting-sheet__cell meeting-sheet__cell--empty rounded-[14px] bg-white">
+                    {canParticipate ? 'Sin comentarios todavía. Escribe el primero abajo.' : 'Sin comentarios todavía.'}
+                  </p>
+                ) : (
+                  <div className="meeting-sheet__comments-scroll">
+                    <div className="meeting-sheet__comments-list">
+                      {task.comments.map((c) => {
+                        const mine = c.user_id === user?.id;
+                        return (
+                          <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-slate-100 text-slate-700'}`}>
+                              {(c.user_name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className={`flex max-w-[85%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                              <span className="mb-0.5 px-1 text-[12px] font-semibold text-slate-600">{c.user_name}</span>
+                              <div className={`meeting-sheet__bubble ${mine ? 'meeting-sheet__bubble--mine' : 'meeting-sheet__bubble--other'}`}>
+                                <p className="whitespace-pre-wrap">{c.content}</p>
+                              </div>
+                              <span className="mt-1 px-1 text-[11px] text-slate-400">
+                                {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} ·{' '}
+                                {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <p className="meeting-sheet__section-label">
+                  Archivos y evidencia{task.attachments?.length ? ` · ${task.attachments.length}` : ''}
+                </p>
+                <p className="mb-2 px-1 text-[12px] text-slate-500">Reportes, fotos y documentos de la tarea</p>
+                <div className="meeting-sheet__attachment-grid">
                   {task.attachments?.map((f) => {
                     const url = taskFileUrl(f);
                     const isImg = f.mimetype?.startsWith('image/');
                     const canDeleteFile = canDeleteTaskAttachment(user, task, f);
                     return (
-                      <div key={f.id} className="group relative border border-gray-200 rounded-xl overflow-hidden aspect-square bg-white shadow-sm">
+                      <div key={f.id} className="group relative meeting-sheet__attachment-tile">
                         {isImg ? (
-                          <button type="button" onClick={() => setLightboxUrl(url)} className="w-full h-full block cursor-zoom-in">
-                            <img src={url} alt={f.filename} className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => setLightboxUrl(url)} className="block h-full w-full cursor-zoom-in">
+                            <img src={url} alt={f.filename} className="h-full w-full object-cover" />
                           </button>
                         ) : (
-                          <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
-                            <svg className="w-10 h-10 text-navy-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                          <a href={url} download={f.filename} target="_blank" rel="noreferrer" className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-50 p-3 transition-colors hover:bg-slate-100">
+                            <svg className="h-9 w-9 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                             </svg>
-                            <span className="text-[10px] font-bold text-navy-700 text-center break-all line-clamp-2 px-1">{f.filename}</span>
+                            <span className="line-clamp-2 break-all px-1 text-center text-[11px] font-semibold text-slate-700">{f.filename}</span>
                           </a>
                         )}
                         {canDeleteFile && (
-                          <div className="absolute top-1.5 right-1.5 flex gap-1">
+                          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             {!isImg && (
                               <a
                                 href={url}
@@ -597,10 +718,10 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="w-7 h-7 rounded-md bg-navy-950/85 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm"
+                                className="flex h-7 w-7 items-center justify-center rounded-md bg-navy-950/85 text-gold transition hover:bg-navy-950"
                                 title="Descargar"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                                 </svg>
                               </a>
@@ -611,11 +732,11 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                                 e.stopPropagation();
                                 handleDeleteAttachment(f.id, f.filename);
                               }}
-                              className="w-7 h-7 rounded-md bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md"
+                              className="flex h-7 w-7 items-center justify-center rounded-md bg-red-500/90 text-white transition hover:bg-red-600"
                               title="Eliminar documento"
                               aria-label={`Eliminar ${f.filename}`}
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                               </svg>
                             </button>
@@ -628,10 +749,10 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute top-1.5 left-1.5 w-7 h-7 rounded-md bg-navy-950/85 hover:bg-navy-950 text-gold flex items-center justify-center backdrop-blur-sm"
+                            className="absolute left-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-navy-950/85 text-gold transition hover:bg-navy-950"
                             title="Descargar"
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                             </svg>
                           </a>
@@ -640,95 +761,66 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                     );
                   })}
                   {canParticipate && (
-                    <label className={`border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-gold hover:bg-gold/5 bg-white/60 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                    <label className={`meeting-sheet__attachment-add ${isUploading ? 'cursor-wait opacity-50' : ''}`}>
                       <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
                       {isUploading ? (
-                        <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gold border-t-transparent" />
                       ) : (
-                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest text-center px-2">Subir evidencia</span>
+                        <>
+                          <svg className="mb-1 h-7 w-7 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          <span className="px-2 text-center text-[12px] font-semibold text-slate-500">Subir evidencia</span>
+                        </>
                       )}
                     </label>
                   )}
                 </div>
-                {(!task.attachments || task.attachments.length === 0) && !canParticipate && (
-                  <p className="text-center text-[10px] text-navy-500 mt-3">Sin archivos en esta tarea.</p>
-                )}
-                {(!task.attachments || task.attachments.length === 0) && canParticipate && (
-                  <p className="text-center text-[10px] text-navy-500 mt-3">Sin archivos aún — usa el recuadro punteado para subir.</p>
-                )}
-              </section>
-
-              <section>
-                <div className="flex items-baseline justify-between gap-2 mb-3">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-navy-950">Comentarios</h4>
-                    <p className="text-[10px] text-navy-500 mt-0.5">Notas y avances del responsable</p>
-                  </div>
-                  <span className="text-[10px] font-bold text-navy-500 tabular-nums">{task.comments?.length || 0}</span>
-                </div>
-                {(!task.comments || task.comments.length === 0) ? (
-                  <p className="text-center text-[10px] text-navy-500 py-6 rounded-xl border border-dashed border-gray-200">Sin comentarios todavía</p>
-                ) : (
-                  <div className="space-y-4 rounded-xl bg-white/80 border border-gray-200 p-4">
-                    {task.comments.map((c) => {
-                      const mine = c.user_id === user?.id;
-                      return (
-                        <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-navy-100 text-navy-700'}`}>
-                            {(c.user_name || '?').charAt(0).toUpperCase()}
-                          </div>
-                          <div className={`flex flex-col max-w-[85%] ${mine ? 'items-end' : 'items-start'}`}>
-                            <span className="text-[10px] font-bold text-navy-700 mb-0.5 px-1">{c.user_name}</span>
-                            <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${mine ? 'bg-navy-950 text-white rounded-tr-sm' : 'bg-white text-navy-900 border border-gray-200 rounded-tl-sm'}`}>
-                              <p className="whitespace-pre-wrap leading-snug">{c.content}</p>
-                            </div>
-                            <span className="text-[10px] text-navy-500 mt-1 px-1">
-                              {new Date(c.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} ·{' '}
-                              {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {(!task.attachments || task.attachments.length === 0) && (
+                  <p className="meeting-sheet__meta mt-2 text-center">
+                    {canParticipate ? 'Sin archivos aún — usa el recuadro para subir.' : 'Sin archivos en esta tarea.'}
+                  </p>
                 )}
               </section>
             </div>
 
             {canParticipate ? (
-              <div className="p-4 bg-white border-t border-gray-200 shrink-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2">Nuevo comentario</p>
-                <div className="flex gap-2 items-center">
+              <div className="meeting-sheet__footer shrink-0">
+                <p className="mb-2 px-1 text-[13px] font-semibold text-slate-500">Nuevo comentario</p>
+                <div className="meeting-sheet__comment-bar">
                   <input
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                     placeholder="Escribe un comentario o nota de avance…"
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2.5 text-sm text-navy-900 focus:outline-none focus:border-gold"
+                    className="meeting-sheet__comment-input"
                   />
                   <button
                     type="button"
                     onClick={handleAddComment}
                     disabled={!newComment.trim()}
-                    className="w-10 h-10 bg-gold text-navy-950 rounded-full flex items-center justify-center disabled:opacity-50 font-bold"
+                    className="meeting-sheet__comment-send"
+                    aria-label="Enviar comentario"
                   >
-                    →
+                    <svg className="ml-0.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="px-5 py-3 text-[10px] text-navy-500 border-t border-gray-100 bg-gray-50 shrink-0">
+              <p className="meeting-sheet__footer shrink-0 text-center text-[13px] text-slate-500">
                 Solo lectura: no tienes permiso para comentar o subir en esta tarea.
               </p>
             )}
-          </>
+          </div>
         ) : null}
       </div>
 
       {lightboxUrl && (
-        <div className="fixed inset-0 z-[130] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
-          <img src={lightboxUrl} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90 p-4" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="" className="max-h-full max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>,
@@ -747,12 +839,16 @@ export default function TasksModule({ onOpenTicket } = {}) {
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterMine, setFilterMine] = useState(false);
+  const seesAllByRole = userSeesAllTasksByDefault(user);
+  const [showAllTasks, setShowAllTasks] = useState(() => userSeesAllTasksByDefault(user));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => freshStandaloneTaskForm(null));
   const [creating, setCreating] = useState(false);
   const [detailTaskId, setDetailTaskId] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const openTaskDetail = (task) => {
     if (task?.id) setDetailTaskId(task.id);
@@ -760,8 +856,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
   const canCreate = canCreateStandaloneTask(user);
   const isAdmin = isAdminUser(user);
-
-  const effectiveView = isMobile ? 'cards' : view;
+  const canDeleteTask = isSuperadminUser(user);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -783,11 +878,21 @@ export default function TasksModule({ onOpenTicket } = {}) {
       .catch(() => setDbUsers([]));
   }, []);
 
+  useEffect(() => {
+    setShowAllTasks(userSeesAllTasksByDefault(user));
+  }, [user?.id]);
+
   const deptMembers = useMemo(() => {
     const dept = isAdmin ? (createForm.department || '').trim() : (user?.departamento || '').trim();
     if (!dept) return [];
     return dbUsers.filter((u) => u.is_active !== 0 && u.is_active !== false && (u.departamento || '').trim() === dept);
   }, [dbUsers, createForm.department, isAdmin, user?.departamento]);
+
+  const editDeptMembers = useMemo(() => {
+    const dept = (editForm?.department || '').trim();
+    if (!dept) return [];
+    return dbUsers.filter((u) => u.is_active !== 0 && u.is_active !== false && (u.departamento || '').trim() === dept);
+  }, [dbUsers, editForm?.department]);
 
   const filterDepartments = useMemo(() => {
     const set = new Set(catalogDepartments);
@@ -803,7 +908,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
     return tasks.filter((t) => {
       if (filterDept && taskDept(t) !== filterDept) return false;
       if (filterStatus && t.status !== filterStatus) return false;
-      if (filterMine && Number(t.assigned_to) !== Number(user?.id)) return false;
+      if (!showAllTasks && Number(t.assigned_to) !== Number(user?.id)) return false;
       if (!q) return true;
       const hay = [
         t.title,
@@ -819,7 +924,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [tasks, filterDept, filterStatus, filterMine, search, user?.id]);
+  }, [tasks, filterDept, filterStatus, showAllTasks, search, user?.id]);
 
   const stats = useMemo(() => {
     const byStatus = { pending: 0, in_progress: 0, done: 0, cancelled: 0 };
@@ -828,11 +933,6 @@ export default function TasksModule({ onOpenTicket } = {}) {
     });
     return { total: filteredTasks.length, ...byStatus };
   }, [filteredTasks]);
-
-  const taskStatItems = useMemo(
-    () => STAT_SUMMARY.map((cfg) => ({ config: cfg, value: stats[cfg.key] ?? 0 })),
-    [stats]
-  );
 
   const { minTime, maxTime } = useMemo(() => {
     if (!filteredTasks.length) {
@@ -909,7 +1009,51 @@ export default function TasksModule({ onOpenTicket } = {}) {
     setCreateOpen(true);
   };
 
+  const openEditTask = (t) => {
+    setEditForm({
+      id: t.id,
+      title: t.title || '',
+      description: t.description || '',
+      assigned_to: t.assigned_to != null ? String(t.assigned_to) : '',
+      start_date: t.start_date || '',
+      end_date: t.end_date || '',
+      status: t.status || 'pending',
+      department: taskDept(t),
+    });
+    setEditOpen(true);
+  };
+
+  const submitEditTask = async () => {
+    if (!editForm?.title?.trim()) {
+      alert('Indica el título de la tarea');
+      return;
+    }
+    if (!editForm.assigned_to) {
+      alert('Selecciona responsable');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await axios.patch(`/api/ticket-tasks/${editForm.id}`, {
+        title: editForm.title.trim(),
+        description: editForm.description?.trim() || '',
+        assigned_to: Number(editForm.assigned_to),
+        start_date: editForm.start_date,
+        end_date: editForm.end_date,
+        status: editForm.status,
+      });
+      setEditOpen(false);
+      setEditForm(null);
+      await fetchTasks();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo actualizar la tarea');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const submitCreateTask = async () => {
+    if (creating) return;
     if (!createForm.title?.trim()) {
       alert('Indica el título de la tarea');
       return;
@@ -924,7 +1068,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
     }
     setCreating(true);
     try {
-      await axios.post('/api/ticket-tasks', {
+      const { data } = await axios.post('/api/ticket-tasks', {
         title: createForm.title.trim(),
         description: createForm.description?.trim() || '',
         assigned_to: Number(createForm.assigned_to),
@@ -932,7 +1076,9 @@ export default function TasksModule({ onOpenTicket } = {}) {
         end_date: createForm.end_date,
         department: createForm.department?.trim() || undefined,
       });
-      setCreateOpen(false);
+      if (!data?.duplicate) {
+        setCreateOpen(false);
+      }
       await fetchTasks();
     } catch (err) {
       alert(err?.response?.data?.error || 'No se pudo crear la tarea');
@@ -943,28 +1089,29 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
   const rangeLabel = `${new Date(minTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(maxTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`;
 
-  const renderStatusControls = (t, canStatus, canManage) => {
+  const renderStatusControls = (t, canStatus, canManage, canDelete) => {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
     const canEvidence = canParticipateOnTask(user, t);
     return (
-      <div className="flex flex-wrap items-center gap-2 mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {canEvidence && (
           <button
             type="button"
             onClick={() => openTaskDetail(t)}
-            className="text-[10px] font-bold uppercase tracking-wide text-navy-950 bg-gold/20 hover:bg-gold/35 px-2 py-1 rounded border border-gold/40"
+            className="tasks-module__action-primary gap-1.5 px-3 py-2 text-[13px]"
           >
+            <TaskEvidenceIcon />
             Evidencia
           </button>
         )}
-        <span className="text-[9px] font-bold px-2 py-0.5 rounded" style={{ background: st.color + '22', color: st.color }}>
+        <span className="tasks-module__pill" style={{ background: `${st.color}22`, color: st.color }}>
           {st.label}
         </span>
         {canStatus && (
           <select
             value={t.status}
             onChange={(e) => updateStatus(t.id, e.target.value)}
-            className="text-[10px] border border-gray-200 rounded-lg px-2 py-1 bg-white text-navy-800"
+            className="tasks-module__field w-auto min-w-[8.5rem] py-2 text-[13px]"
             aria-label="Cambiar estado de la tarea"
           >
             {Object.entries(TASK_STATUS).map(([k, v]) => (
@@ -974,8 +1121,8 @@ export default function TasksModule({ onOpenTicket } = {}) {
             ))}
           </select>
         )}
-        {canManage && (
-          <button type="button" onClick={() => deleteTask(t.id)} className="text-[10px] font-bold text-red-600 hover:underline">
+        {canDelete && (
+          <button type="button" onClick={() => deleteTask(t.id)} className="tasks-module__action-danger px-2 py-2">
             Eliminar
           </button>
         )}
@@ -984,112 +1131,118 @@ export default function TasksModule({ onOpenTicket } = {}) {
   };
 
   return (
-    <div className="surface-light h-full flex flex-col animate-fade-in space-y-5 text-navy-950">
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+    <div className="tasks-module surface-light h-full flex flex-col animate-fade-in pb-4">
+      <header className="tasks-module__top">
         <div>
-          <h2 className="text-2xl font-display font-medium text-navy-950 tracking-tight">Tareas operativas</h2>
-          <p className="text-sm text-navy-600 mt-1 max-w-2xl">
-            {isMobile
-              ? 'Vista en tarjetas: más clara en el celular. En computadora puedes usar el cronograma Gantt.'
-              : 'Cronograma de trabajo por ticket o tareas independientes: departamento, responsable y fechas.'}
+          <h2 className="tasks-module__title">Tareas operativas</h2>
+          <p className="tasks-module__subtitle">
+            {view === 'list'
+              ? `${stats.total} tarea${stats.total === 1 ? '' : 's'} · lista${!showAllTasks && !seesAllByRole ? ' · asignadas a ti' : ''}`
+              : `${stats.total} tarea${stats.total === 1 ? '' : 's'} · cronograma${!showAllTasks && !seesAllByRole ? ' · asignadas a ti' : ''}`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canCreate && (
+        <div className="tasks-module__toolbar">
+          <div className="tasks-module__segmented" role="tablist" aria-label="Vista de tareas">
             <button
               type="button"
-              onClick={openCreateModal}
-              className="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-gold text-navy-950 hover:bg-gold/90 shadow-sm"
+              role="tab"
+              aria-selected={view === 'list'}
+              onClick={() => setView('list')}
+              className={`tasks-module__segment${view === 'list' ? ' tasks-module__segment--active' : ''}`}
             >
-              Nueva tarea
+              Lista
             </button>
-          )}
-          {isMobile ? (
-            <span className="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-navy-950 text-gold">
-              Tarjetas
-            </span>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setView('gantt')}
-                className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition ${view === 'gantt' ? 'bg-navy-950 text-gold' : 'bg-white border border-gray-200 text-navy-700 hover:border-gold/40'}`}
-              >
-                Cronograma
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('list')}
-                className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition ${view === 'list' ? 'bg-navy-950 text-gold' : 'bg-white border border-gray-200 text-navy-700 hover:border-gold/40'}`}
-              >
-                Lista
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => fetchTasks()}
-            className="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-white border border-gray-200 text-navy-700 hover:border-gold/40"
-          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'gantt'}
+              onClick={() => setView('gantt')}
+              className={`tasks-module__segment${view === 'gantt' ? ' tasks-module__segment--active' : ''}`}
+            >
+              Cronograma
+            </button>
+          </div>
+          <button type="button" onClick={() => fetchTasks()} className="tasks-module__btn-ghost">
             Actualizar
           </button>
+          {canCreate && (
+            <BosaGoldButton icon="task" onClick={openCreateModal} className="sm:!w-auto" aria-label="Nueva tarea">
+              Nueva tarea
+            </BosaGoldButton>
+          )}
+        </div>
+      </header>
+
+      <div className="tasks-module__stats">
+        <div className="tasks-module__stat">
+          <div className="tasks-module__stat-value">{stats.total}</div>
+          <div className="tasks-module__stat-label">Total</div>
+        </div>
+        <div className="tasks-module__stat">
+          <div className="tasks-module__stat-value">{stats.pending}</div>
+          <div className="tasks-module__stat-label">{TASK_STATUS.pending.label}</div>
+        </div>
+        <div className="tasks-module__stat">
+          <div className="tasks-module__stat-value">{stats.in_progress}</div>
+          <div className="tasks-module__stat-label">{TASK_STATUS.in_progress.label}</div>
+        </div>
+        <div className="tasks-module__stat">
+          <div className="tasks-module__stat-value">{stats.done}</div>
+          <div className="tasks-module__stat-label">{TASK_STATUS.done.label}</div>
+        </div>
+        <div className="tasks-module__stat">
+          <div className="tasks-module__stat-value">{stats.cancelled}</div>
+          <div className="tasks-module__stat-label">{TASK_STATUS.cancelled.label}</div>
         </div>
       </div>
 
-      <StatSummaryPanel
-        title="Resumen operativo"
-        subtitle="Indicadores según filtros activos"
-        badge={`${stats.total} tarea${stats.total === 1 ? '' : 's'}`}
-        items={taskStatItems}
-        proportionBase={stats.total}
-        referenceKey="total"
-        columnsClass="md:grid-cols-2 lg:grid-cols-5"
-      />
-
-      {/* Filtros — colapsables en móvil */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        {isMobile && (
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((o) => !o)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-gray-50/90 border-b border-gray-100"
-          >
-            <span className="text-xs font-bold text-navy-800">
-              Filtros
-              {(filterDept || filterStatus || filterMine || search) && (
-                <span className="ml-2 text-gold">· activos</span>
-              )}
-            </span>
-            <svg
-              className={`h-4 w-4 text-navy-500 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        )}
-        <div
-          className={`p-4 flex flex-col gap-3 ${isMobile && !filtersOpen ? 'hidden' : ''} md:flex-row md:flex-wrap`}
+      <div className="tasks-module__filters">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="tasks-module__filters-toggle"
+          aria-expanded={filtersOpen}
         >
-          <div className="flex-1 min-w-0 md:min-w-[200px]">
-            <label className="block text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-1">Buscar</label>
+          <span className="text-[15px] font-semibold text-slate-800">
+            Filtros
+            {(filterDept || filterStatus || search || (!seesAllByRole && showAllTasks)) && (
+              <span className="ml-1 text-gold">· activos</span>
+            )}
+          </span>
+          <svg
+            className={`h-5 w-5 text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div className={`tasks-module__filters-body${isMobile && !filtersOpen ? ' hidden sm:grid' : ''}`}>
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label className="tasks-module__field-label" htmlFor="tasks-search">
+              Buscar
+            </label>
             <input
+              id="tasks-search"
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tarea, ticket, persona, depto…"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-navy-900 focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20"
+              placeholder="Tarea, ticket, persona…"
+              className="tasks-module__field"
             />
           </div>
-          <div className="w-full md:min-w-[160px] md:w-auto">
-            <label className="block text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-1">Departamento</label>
+          <div>
+            <label className="tasks-module__field-label" htmlFor="tasks-dept">
+              Departamento
+            </label>
             <select
+              id="tasks-dept"
               value={filterDept}
               onChange={(e) => setFilterDept(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-navy-900 bg-white"
+              className="tasks-module__field"
             >
               <option value="">Todos</option>
               {filterDepartments.map((d) => (
@@ -1099,12 +1252,15 @@ export default function TasksModule({ onOpenTicket } = {}) {
               ))}
             </select>
           </div>
-          <div className="w-full md:min-w-[140px] md:w-auto">
-            <label className="block text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-1">Estado tarea</label>
+          <div>
+            <label className="tasks-module__field-label" htmlFor="tasks-status">
+              Estado
+            </label>
             <select
+              id="tasks-status"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-navy-900 bg-white"
+              className="tasks-module__field"
             >
               <option value="">Todos</option>
               {Object.entries(TASK_STATUS).map(([k, v]) => (
@@ -1114,129 +1270,158 @@ export default function TasksModule({ onOpenTicket } = {}) {
               ))}
             </select>
           </div>
-          <div className="flex items-center md:items-end">
-            <label className="flex w-full items-center gap-2 cursor-pointer rounded-lg border border-gray-200 px-3 py-2.5 bg-gray-50/80">
-              <input
-                type="checkbox"
-                checked={filterMine}
-                onChange={(e) => setFilterMine(e.target.checked)}
-                className="accent-gold h-4 w-4"
-              />
-              <span className="text-sm font-semibold text-navy-800">Solo mis tareas</span>
-            </label>
-          </div>
+          {!seesAllByRole ? (
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => setShowAllTasks((v) => !v)}
+                className="tasks-module__toggle-scope w-full"
+              >
+                {showAllTasks ? 'Solo mis tareas' : 'Ver todas las tareas'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-end">
+              <p className="w-full rounded-[10px] bg-slate-50 px-3 py-2.5 text-[13px] font-medium text-slate-500">
+                Vista de gerente: todas las tareas del departamento
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-24">
-          <div className="w-10 h-10 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-gold border-t-transparent" />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center">
-          <p className="font-label text-[10px] text-navy-500 uppercase tracking-widest">Sin tareas asignadas aún</p>
-          <p className="text-sm text-navy-600 mt-2 max-w-md mx-auto">
+        <div className="tasks-module__empty">
+          <p className="text-[15px] font-semibold text-slate-800">Sin tareas asignadas aún</p>
+          <p className="mx-auto mt-2 max-w-sm text-[14px] text-slate-500">
             {canCreate
-              ? 'Usa el botón Nueva tarea o créalas desde un ticket en Detalle y tareas.'
-              : 'El gerente del departamento las crea desde Tareas operativas o desde un ticket.'}
+              ? 'Pulsa Nueva tarea o créalas desde un ticket en Detalle y tareas.'
+              : 'El gerente del departamento las crea desde aquí o desde un ticket.'}
           </p>
+          {canCreate && (
+            <BosaGoldButton icon="task" onClick={openCreateModal} className="mt-4 sm:!w-auto" aria-label="Nueva tarea">
+              Nueva tarea
+            </BosaGoldButton>
+          )}
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 p-10 text-center">
-          <p className="text-sm font-semibold text-amber-950">Ninguna tarea coincide con los filtros.</p>
+        <div className="tasks-module__empty">
+          <p className="text-[15px] font-semibold text-slate-800">Ninguna tarea coincide con los filtros</p>
           <button
             type="button"
             onClick={() => {
               setSearch('');
               setFilterDept('');
               setFilterStatus('');
-              setFilterMine(false);
+              setShowAllTasks(userSeesAllTasksByDefault(user));
             }}
-            className="mt-3 text-xs font-bold text-gold hover:underline"
+            className="tasks-module__btn-ghost mt-4"
           >
             Limpiar filtros
           </button>
         </div>
-      ) : effectiveView === 'cards' ? (
-        <div className="space-y-3 pb-2">
-          {filteredTasks.map((t) => {
-            const canManage = canManageTaskRow(user, t);
-            const isAssignee = Number(t.assigned_to) === Number(user?.id);
-            const canStatus = canManage || isAssignee;
-            return (
-              <TaskMobileCard
-                key={t.id}
-                task={t}
-                canManage={canManage}
-                canStatus={canStatus}
-                onOpenTicket={onOpenTicket}
-                onOpenDetail={canParticipateOnTask(user, t) ? openTaskDetail : undefined}
-                onStatusChange={updateStatus}
-                onDelete={deleteTask}
-              />
-            );
-          })}
-        </div>
-      ) : view === 'gantt' ? (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-gray-50 to-white">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-navy-700">Cronograma (Gantt)</p>
-              <p className="text-[10px] text-navy-500 mt-0.5">Barra = rango de fechas de la tarea</p>
-            </div>
-            <p className="text-[10px] text-navy-500 font-medium tabular-nums">{rangeLabel}</p>
+      ) : view === 'list' ? (
+        <>
+          <TasksListTable
+            tasks={filteredTasks}
+            user={user}
+            canDelete={canDeleteTask}
+            onOpenTicket={onOpenTicket}
+            onOpenDetail={(t) => {
+              if (canParticipateOnTask(user, t)) openTaskDetail(t);
+            }}
+            onStatusChange={updateStatus}
+            onDelete={deleteTask}
+            onEdit={openEditTask}
+          />
+          <div className="tasks-module__list md:hidden">
+            {filteredTasks.map((t) => {
+              const canManage = canManageTaskRow(user, t);
+              const isAssignee = Number(t.assigned_to) === Number(user?.id);
+              const canStatus = canManage || isAssignee;
+              return (
+                <TaskMobileCard
+                  key={t.id}
+                  task={t}
+                  canManage={canManage}
+                  canDelete={canDeleteTask}
+                  canStatus={canStatus}
+                  onOpenTicket={onOpenTicket}
+                  onOpenDetail={canParticipateOnTask(user, t) ? openTaskDetail : undefined}
+                  onStatusChange={updateStatus}
+                  onDelete={deleteTask}
+                  onEdit={canManage ? openEditTask : undefined}
+                />
+              );
+            })}
           </div>
-          <div className="hidden sm:grid sm:grid-cols-[minmax(280px,320px)_1fr] border-b border-gray-100 bg-navy-950/5 text-[9px] font-bold uppercase tracking-widest text-navy-600">
-            <div className="px-4 py-2 border-r border-gray-100">Tarea / ticket / responsable</div>
+        </>
+      ) : (
+        <div className="tasks-module__gantt">
+          <div className="tasks-module__gantt-header">
+            <div>
+              <p className="text-[15px] font-semibold text-slate-900">Cronograma</p>
+              <p className="text-[13px] text-slate-500">Cada barra muestra el rango de fechas de la tarea</p>
+            </div>
+            <p className="text-[13px] font-semibold tabular-nums text-slate-600">{rangeLabel}</p>
+          </div>
+          <div className="hidden border-b border-slate-100 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(280px,320px)_1fr]">
+            <div className="border-r border-slate-100 px-4 py-2">Tarea</div>
             <div className="px-4 py-2">Línea de tiempo</div>
           </div>
-          <div className="relative h-8 border-b border-gray-100 bg-white px-4 md:ml-0 lg:ml-[320px]">
+          <div className="relative h-8 border-b border-slate-100 bg-white px-4 lg:ml-[320px]">
             {tickLabels.map((tk, i) => (
               <span
                 key={i}
-                className="absolute top-1 text-[9px] text-navy-400 font-bold -translate-x-1/2 whitespace-nowrap"
+                className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-slate-400"
                 style={{ left: `${tk.pos}%` }}
               >
                 {tk.text}
               </span>
             ))}
           </div>
-          <div className="divide-y divide-gray-100 max-h-[min(70vh,560px)] overflow-y-auto">
+          <div className="max-h-[min(70vh,560px)] divide-y divide-slate-100 overflow-y-auto">
             {filteredTasks.map((t, idx) => {
               const { left, width } = barLayout(t.start_date, t.end_date);
               const color = BAR_COLORS[idx % BAR_COLORS.length];
               const canManage = canManageTaskRow(user, t);
               const isAssignee = Number(t.assigned_to) === Number(user?.id);
               const canStatus = canManage || isAssignee;
-              const dept = taskDept(t);
               return (
-                <div key={t.id} className="flex flex-col sm:grid sm:grid-cols-[minmax(280px,320px)_1fr] sm:items-stretch hover:bg-gold/[0.03] transition-colors">
-                  <div className="p-4 border-b sm:border-b-0 sm:border-r border-gray-100 bg-white sm:bg-gray-50/30">
-                    <p className="text-xs font-bold text-navy-950 leading-snug">{t.title}</p>
+                <div
+                  key={t.id}
+                  className="flex flex-col transition-colors hover:bg-gold/[0.03] sm:grid sm:grid-cols-[minmax(280px,320px)_1fr] sm:items-stretch"
+                >
+                  <div className="border-b border-slate-100 bg-white p-4 sm:border-b-0 sm:border-r sm:bg-slate-50/30">
+                    <p className="text-[14px] font-semibold leading-snug text-slate-900">{t.title}</p>
                     <div className="mt-2">
                       <TaskOriginBlock task={t} onOpenTicket={onOpenTicket} compact />
                     </div>
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-navy-500 mb-2">Responsable</p>
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      <p className="mb-2 text-[12px] font-medium text-slate-500">Responsable</p>
                       <AssigneeBlock task={t} size="sm" />
                     </div>
                     <TaskMetaChips task={t} />
-                    {renderStatusControls(t, canStatus, canManage)}
+                    {renderStatusControls(t, canStatus, canManage, canDeleteTask)}
                   </div>
-                  <div className="p-4 flex flex-col justify-center min-h-[72px]">
-                    <div className="relative h-10 rounded-lg bg-gray-100 overflow-hidden ring-1 ring-gray-200/80">
+                  <div className="flex min-h-[72px] flex-col justify-center p-4">
+                    <div className="relative h-10 overflow-hidden rounded-[10px] bg-slate-100 ring-1 ring-slate-200/80">
                       <div
-                        className="absolute top-1 bottom-1 rounded-md shadow-md flex items-center px-2 min-w-[12px]"
+                        className="absolute bottom-1 top-1 flex min-w-[12px] items-center rounded-[8px] px-2 shadow-md"
                         style={{ left: `${left}%`, width: `${width}%`, background: color }}
                         title={`${t.start_date} → ${t.end_date}`}
                       >
-                        <span className="text-[9px] font-bold text-white truncate drop-shadow-sm">
+                        <span className="truncate text-[10px] font-semibold text-white drop-shadow-sm">
                           {parseYMD(t.start_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} —{' '}
                           {parseYMD(t.end_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                         </span>
                       </div>
                     </div>
-                    <p className="text-xs font-semibold text-navy-950 mt-1.5 text-center sm:text-left tabular-nums">
+                    <p className="mt-1.5 text-center text-[13px] font-semibold tabular-nums text-slate-800 sm:text-left">
                       {formatDateShort(t.start_date)} → {formatDateShort(t.end_date)}
                     </p>
                   </div>
@@ -1245,121 +1430,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
             })}
           </div>
         </div>
-      ) : (
-        <div className="hidden md:block rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[880px]">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-[10px] uppercase tracking-widest text-navy-600">
-                <th className="px-4 py-3 font-bold">Tarea</th>
-                <th className="px-4 py-3 font-bold">Ticket</th>
-                <th className="px-4 py-3 font-bold">Departamento</th>
-                <th className="px-4 py-3 font-bold">Responsable</th>
-                <th className="px-4 py-3 font-bold">Fechas</th>
-                <th className="px-4 py-3 font-bold">Estado</th>
-                <th className="px-4 py-3 font-bold w-24">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredTasks.map((t) => {
-                const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-                const canManage = canManageTaskRow(user, t);
-                const isAssignee = Number(t.assigned_to) === Number(user?.id);
-                const canStatus = canManage || isAssignee;
-                const dept = taskDept(t);
-                const linked = hasTicket(t);
-                return (
-                  <tr key={t.id} className="hover:bg-gold/5 align-top">
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-navy-950 text-xs">{t.title}</p>
-                      {t.description ? <p className="text-[10px] text-navy-500 line-clamp-2 mt-0.5">{t.description}</p> : null}
-                      <span className="inline-block mt-1 text-[9px] text-slate-500 tabular-nums">{taskDurationLabel(t.start_date, t.end_date)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-navy-700">
-                      {linked ? (
-                        <>
-                          <span className="font-black tabular-nums text-gold bg-navy-950 px-1.5 py-0.5 rounded text-[10px]">#{t.ticket_id}</span>
-                          <span className="block text-[10px] text-navy-600 line-clamp-2 mt-1 font-medium">{t.ticket_title}</span>
-                          {onOpenTicket && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenTicket(t.ticket_id)}
-                              className="mt-2 text-[10px] font-bold uppercase tracking-wide text-navy-950 bg-gold/15 hover:bg-gold/30 px-2 py-1 rounded border border-gold/30"
-                            >
-                              Abrir ticket
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <StandaloneTicketCell />
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {dept ? <DeptBadge label={dept} /> : <span className="text-[10px] text-navy-400">—</span>}
-                      {linked && TICKET_STATUS[t.ticket_status] ? (
-                        <span
-                          className="block mt-1 text-[9px] font-bold uppercase"
-                          style={{ color: TICKET_STATUS[t.ticket_status].color }}
-                        >
-                          {TICKET_STATUS[t.ticket_status].label}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <AssigneeBlock task={t} size="xs" />
-                    </td>
-                    <td className="px-4 py-3 text-xs tabular-nums text-navy-950 font-semibold whitespace-nowrap">
-                      <span className="block">{formatDateShort(t.start_date)}</span>
-                      <span className="text-navy-600">→</span>
-                      <span className="block">{formatDateShort(t.end_date)}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {canStatus ? (
-                        <select
-                          value={t.status}
-                          onChange={(e) => updateStatus(t.id, e.target.value)}
-                          className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white text-navy-800"
-                        >
-                          {Object.entries(TASK_STATUS).map(([k, v]) => (
-                            <option key={k} value={k}>
-                              {v.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: st.color + '22', color: st.color }}>
-                          {st.label}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 space-y-1">
-                      {canParticipateOnTask(user, t) && (
-                        <button
-                          type="button"
-                          onClick={() => openTaskDetail(t)}
-                          className="block text-[10px] font-bold text-navy-950 hover:underline"
-                        >
-                          Evidencia
-                        </button>
-                      )}
-                      {canManage && (
-                        <button type="button" onClick={() => deleteTask(t.id)} className="block text-[10px] font-bold text-red-600 hover:underline">
-                          Eliminar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       )}
-
-      <p className="text-xs text-navy-800 text-center pb-2 px-4 py-3 rounded-xl border border-gray-200 bg-white shadow-sm max-w-xl mx-auto leading-relaxed">
-        Crea tareas con <strong className="text-navy-950">Nueva tarea</strong> o desde{' '}
-        <strong className="text-navy-950">Tickets → Detalle y tareas</strong>. El responsable sube evidencia y comentarios con{' '}
-        <strong className="text-navy-950">Evidencia</strong> en cada tarea (sin depender del ticket).
-      </p>
 
       {detailTaskId && (
         <TaskDetailModal
@@ -1370,100 +1441,333 @@ export default function TasksModule({ onOpenTicket } = {}) {
         />
       )}
 
-      {createOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-navy-950/80 backdrop-blur-sm p-4" onClick={() => !creating && setCreateOpen(false)}>
+      {editOpen && editForm && (
+        <div
+          className="meeting-sheet-overlay z-[120] animate-fade-in"
+          onClick={() => !editSaving && setEditOpen(false)}
+          role="presentation"
+        >
           <div
-            className="surface-light w-full max-w-lg rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
+            className="meeting-sheet meeting-sheet--form animate-slide-up"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-task-modal-title"
           >
-            <div className="bg-navy-950 px-5 py-4">
-              <h3 className="text-lg font-display text-white">Nueva tarea operativa</h3>
-              <p className="text-[11px] text-white/70 mt-1">Sin ticket — queda en el cronograma del departamento.</p>
+            <div className="meeting-sheet__hero shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="meeting-sheet__pill meeting-sheet__pill--gold">Tareas operativas</span>
+                  <h3 id="edit-task-modal-title" className="meeting-sheet__hero-title mt-2">
+                    Editar tarea
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  disabled={editSaving}
+                  onClick={() => setEditOpen(false)}
+                  className="meeting-sheet__close"
+                  aria-label="Cerrar"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-navy-950">Título</label>
-                <input
-                  type="text"
-                  value={createForm.title}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-                  className="bosa-field w-full"
-                  placeholder="Ej. Revisión de planos zona norte"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-navy-950">Descripción (opcional)</label>
-                <textarea
-                  rows={2}
-                  value={createForm.description}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                  className="bosa-field w-full resize-none"
-                />
-              </div>
-              {isAdmin && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase text-navy-950">Departamento</label>
+
+            <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+              <p className="meeting-sheet__section-label">Detalles</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Título</label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                    className="meeting-sheet__input font-semibold"
+                  />
+                </div>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Descripción</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                    className="meeting-sheet__textarea"
+                  />
+                </div>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Estado</label>
                   <select
-                    value={createForm.department}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, department: e.target.value, assigned_to: '' }))}
-                    className="bosa-field w-full"
+                    value={editForm.status}
+                    onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                    className="meeting-sheet__select"
                   >
-                    <option value="">Selecciona departamento…</option>
-                    {catalogDepartments.map((d) => (
-                      <option key={d} value={d}>{d}</option>
+                    {Object.entries(TASK_STATUS).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v.label}
+                      </option>
                     ))}
                   </select>
                 </div>
-              )}
-              {!isAdmin && user?.departamento ? (
-                <p className="text-xs text-navy-600 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
-                  Departamento: <strong className="text-navy-950">{user.departamento}</strong>
-                </p>
-              ) : null}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-navy-950">Responsable</label>
-                <select
-                  value={createForm.assigned_to}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, assigned_to: e.target.value }))}
-                  className="bosa-field w-full"
-                  disabled={isAdmin && !createForm.department}
-                >
-                  <option value="">Selecciona quién ejecuta…</option>
-                  {deptMembers.map((u) => (
-                    <option key={u.id} value={String(u.id)}>
-                      {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
-                    </option>
-                  ))}
-                </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase text-navy-950">Inicio</label>
+
+              <p className="meeting-sheet__section-label">Asignación</p>
+              <div className="meeting-sheet__group">
+                {editForm.department ? (
+                  <div className="meeting-sheet__cell">
+                    <p className="meeting-sheet__cell-label">Departamento</p>
+                    <p className="meeting-sheet__cell-value">{editForm.department}</p>
+                  </div>
+                ) : null}
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Responsable</label>
+                  <select
+                    value={editForm.assigned_to}
+                    onChange={(e) => setEditForm((f) => ({ ...f, assigned_to: e.target.value }))}
+                    className="meeting-sheet__select"
+                  >
+                    <option value="">Selecciona responsable…</option>
+                    {editDeptMembers.map((u) => (
+                      <option key={u.id} value={String(u.id)}>
+                        {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="meeting-sheet__section-label">Horario</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Inicio</label>
+                  <input
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm((f) => ({ ...f, start_date: e.target.value }))}
+                    className="meeting-sheet__input tabular-nums"
+                  />
+                </div>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Fin</label>
+                  <input
+                    type="date"
+                    value={editForm.end_date}
+                    onChange={(e) => setEditForm((f) => ({ ...f, end_date: e.target.value }))}
+                    className="meeting-sheet__input tabular-nums"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="meeting-sheet__footer shrink-0">
+              <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
+                <button
+                  type="button"
+                  disabled={editSaving}
+                  onClick={() => setEditOpen(false)}
+                  className="voice-minute-footer__btn voice-minute-footer__btn--secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={editSaving}
+                  onClick={submitEditTask}
+                  className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:opacity-50"
+                >
+                  {editSaving ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createOpen && (
+        <div
+          className="meeting-sheet-overlay z-[120] animate-fade-in"
+          onClick={() => !creating && setCreateOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="meeting-sheet meeting-sheet--form animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-task-modal-title"
+          >
+            <div className="meeting-sheet__hero shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="meeting-sheet__pill meeting-sheet__pill--gold">Cronograma</span>
+                  <h3 id="new-task-modal-title" className="meeting-sheet__hero-title mt-2">
+                    Nueva tarea operativa
+                  </h3>
+                  <p className="meeting-sheet__hero-subtitle">
+                    Sin ticket — queda en el cronograma del departamento.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={creating}
+                  onClick={() => setCreateOpen(false)}
+                  className="meeting-sheet__close"
+                  aria-label="Cerrar"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+              <p className="meeting-sheet__section-label">Detalles</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Título</label>
+                  <input
+                    type="text"
+                    value={createForm.title}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                    className="meeting-sheet__input font-semibold"
+                    placeholder="Ej. Revisión de planos zona norte"
+                  />
+                </div>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Descripción (opcional)</label>
+                  <textarea
+                    rows={2}
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                    className="meeting-sheet__textarea"
+                  />
+                </div>
+              </div>
+
+              <p className="meeting-sheet__section-label">Asignación</p>
+              <div className="meeting-sheet__group">
+                {isAdmin && (
+                  <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                    <label className="meeting-sheet__cell-label">Departamento</label>
+                    <select
+                      value={createForm.department}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, department: e.target.value, assigned_to: '' }))}
+                      className="meeting-sheet__select"
+                    >
+                      <option value="">Selecciona departamento…</option>
+                      {catalogDepartments.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!isAdmin && user?.departamento ? (
+                  <div className="meeting-sheet__cell">
+                    <p className="meeting-sheet__cell-label">Departamento</p>
+                    <p className="meeting-sheet__cell-value">{user.departamento}</p>
+                  </div>
+                ) : null}
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Responsable</label>
+                  <select
+                    value={createForm.assigned_to}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, assigned_to: e.target.value }))}
+                    className="meeting-sheet__select"
+                    disabled={isAdmin && !createForm.department}
+                  >
+                    <option value="">Selecciona quién ejecuta…</option>
+                    {deptMembers.map((u) => (
+                      <option key={u.id} value={String(u.id)}>
+                        {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="meeting-sheet__section-label">Horario</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Inicio</label>
                   <input
                     type="date"
                     value={createForm.start_date}
                     onChange={(e) => setCreateForm((f) => ({ ...f, start_date: e.target.value }))}
-                    className="bosa-field w-full"
+                    className="meeting-sheet__input tabular-nums"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase text-navy-950">Fin</label>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label">Fin</label>
                   <input
                     type="date"
                     value={createForm.end_date}
                     onChange={(e) => setCreateForm((f) => ({ ...f, end_date: e.target.value }))}
-                    className="bosa-field w-full"
+                    className="meeting-sheet__input tabular-nums"
                   />
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 justify-end px-5 py-4 border-t border-gray-100 bg-gray-50/80">
-              <button type="button" disabled={creating} onClick={() => setCreateOpen(false)} className="px-4 py-2 text-xs font-bold uppercase text-navy-700">
-                Cancelar
-              </button>
-              <button type="button" disabled={creating} onClick={submitCreateTask} className="btn-gold text-[10px] py-2.5 px-5 uppercase tracking-widest font-bold">
-                {creating ? 'Guardando…' : 'Crear tarea'}
-              </button>
+
+            <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+              <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
+                <button
+                  type="button"
+                  disabled={creating}
+                  onClick={() => setCreateOpen(false)}
+                  className="voice-minute-footer__btn voice-minute-footer__btn--secondary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <svg
+                    className="voice-minute-footer__icon voice-minute-footer__icon--close"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    aria-hidden
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={creating}
+                  onClick={submitCreateTask}
+                  className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creating ? (
+                    <>
+                      <span
+                        className="h-[18px] w-[18px] shrink-0 animate-spin rounded-full border-2 border-navy-950/25 border-t-navy-950"
+                        aria-hidden
+                      />
+                      Guardando…
+                    </>
+                  ) : (
+                    <>
+                      <span className="bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--task" aria-hidden>
+                        <svg
+                          className="bosa-gold-btn__icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M19 8v6M22 11h-6" />
+                        </svg>
+                      </span>
+                      Crear tarea
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

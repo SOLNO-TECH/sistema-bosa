@@ -1,0 +1,31 @@
+# Despliegue con transcripción en servidor (Whisper + ffmpeg)
+# Uso: docker compose -f docker-compose.whisper.yml up -d --build
+
+services:
+  bosahub:
+    build:
+      context: .
+      dockerfile: Dockerfile.whisper
+    container_name: bosa-hub-app
+    ports:
+      - "4000:4000"
+    volumes:
+      - bosa_data:/app/backend/data
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:?Define JWT_SECRET en .env}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-8h}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - WHISPER_BIN=/usr/local/bin/whisper-cli
+      - WHISPER_MODEL=/opt/whisper/models/ggml-small.bin
+      - FFMPEG_BIN=/usr/bin/ffmpeg
+      - WHISPER_LANGUAGE=es
+      - WHISPER_USE_SERVER=false
+      - WHISPER_THREADS=${WHISPER_THREADS:-4}
+      - VOICE_MAX_MB=${VOICE_MAX_MB:-80}
+    restart: always
+
+volumes:
+  bosa_data:
+    driver: local

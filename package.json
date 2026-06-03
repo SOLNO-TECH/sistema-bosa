@@ -6,13 +6,18 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "start": "npm run dev",
+    "dev:share": "concurrently -k -n app,tunnel -c blue,magenta \"cross-env TUNNEL=1 npm run dev\" \"node scripts/tunnel.mjs --wait --http\"",
+    "tunnel": "node scripts/tunnel.mjs --http",
+    "tunnel:cf": "cloudflared tunnel --url https://127.0.0.1:5173 --no-tls-verify",
     "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "fix:native": "npm run rebuild:native --prefix backend",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "start:backend": "npm start --prefix backend",
     "build:frontend": "npm run build --prefix frontend"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3"
   }
 }

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { parseDbDateTime } from '../../utils/localDate';
+import BosaGoldButton from '../BosaGoldButton';
 const ICONS = {
   ticket:  <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg>,
   comment: <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>,
@@ -17,10 +19,9 @@ const TYPE_LABELS = {
 
 function formatDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso.replace(' ', 'T') + (iso.includes('Z') ? '' : 'Z'));
-  const now = new Date();
-  const diffMs = now - d;
-  const diffMin = Math.floor(diffMs / 60000);
+  const d = parseDbDateTime(iso);
+  if (!d) return '';
+  const diffMin = Math.floor((Date.now() - d) / 60000);
   if (diffMin < 1) return 'Ahora mismo';
   if (diffMin < 60) return `Hace ${diffMin} min`;
   const diffH = Math.floor(diffMin / 60);
@@ -126,12 +127,26 @@ export default function NotificationsModule() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setFilter('all')} className={`px-3 py-2 rounded-lg text-[11px] font-bold uppercase transition-colors ${filter === 'all' ? 'bg-navy-900 text-white' : 'bg-white text-navy-700 border border-gray-200 hover:bg-gray-50'}`}>
+          <BosaGoldButton
+            icon="bell-all"
+            variant="muted"
+            active={filter === 'all'}
+            onClick={() => setFilter('all')}
+            className="!py-2 !px-3 !text-[12px]"
+            aria-label={`Todas las notificaciones, ${notifications.length}`}
+          >
             Todas ({notifications.length})
-          </button>
-          <button onClick={() => setFilter('unread')} className={`px-3 py-2 rounded-lg text-[11px] font-bold uppercase transition-colors ${filter === 'unread' ? 'bg-navy-900 text-white' : 'bg-white text-navy-700 border border-gray-200 hover:bg-gray-50'}`}>
+          </BosaGoldButton>
+          <BosaGoldButton
+            icon="bell-unread"
+            variant="muted"
+            active={filter === 'unread'}
+            onClick={() => setFilter('unread')}
+            className="!py-2 !px-3 !text-[12px]"
+            aria-label={`No leídas, ${unreadCount}`}
+          >
             No leídas ({unreadCount})
-          </button>
+          </BosaGoldButton>
           {unreadCount > 0 && (
             <button onClick={markAllAsRead} className="px-3 py-2 rounded-lg text-[11px] font-bold uppercase text-gold bg-gold/10 hover:bg-gold/20 transition-colors border border-gold/30">
               Marcar todas leídas

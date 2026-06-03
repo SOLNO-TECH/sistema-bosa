@@ -17,6 +17,10 @@ build/
 
 *.sqlite
 
+# Runtime data (DB, uploads, VAPID keys — never commit)
+backend/data/
+backend/uploads/
+
 # Logs
 logs/
 *.log
@@ -33,7 +37,10 @@ Thumbs.db
 # Claude Code session data
 .claude/
 
-# Font files (proprietary — install manually)
+# Local STT binaries (whisper.cpp + ffmpeg — large, install locally)
+tools/whisper/
+tools/ffmpeg/
+
 frontend/public/fonts/*.woff
 frontend/public/fonts/*.woff2
 frontend/public/fonts/*.ttf

@@ -1,3 +1,4 @@
+/** BOSA API server */
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -72,9 +73,21 @@ app.use('/api/push', require('./routes/push'));
 app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads'), {
   setHeaders: (res, filePath) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    // Imágenes y PDFs se ven inline; el resto se descarga forzosamente
     const ext = path.extname(filePath).toLowerCase();
-    const inlineExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf'];
+    const audioMime = {
+      '.webm': 'audio/webm',
+      '.ogg': 'audio/ogg',
+      '.mp3': 'audio/mpeg',
+      '.mpeg': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.m4a': 'audio/mp4',
+      '.aac': 'audio/aac',
+    };
+    if (audioMime[ext]) {
+      res.setHeader('Content-Type', audioMime[ext]);
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+    const inlineExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf', '.webm', '.ogg', '.mp3', '.mpeg', '.wav', '.m4a', '.aac', '.mp4'];
     if (!inlineExts.includes(ext)) {
       res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
     }
@@ -116,6 +129,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Error interno del servidor.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🏨  BOSA Hospitality API corriendo en http://localhost:${PORT}\n`);
+const { getLanIPv4Addresses } = require('./utils/lanAddresses');
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`\n🏨  BOSA Hospitality API corriendo en http://localhost:${PORT}`);
+  const lan = getLanIPv4Addresses();
+  if (lan.length > 0) {
+    console.log('   Red local (API directa, solo si hace falta):');
+    lan.forEach(({ name, address }) => {
+      console.log(`   • ${name}: http://${address}:${PORT}`);
+    });
+  }
+  console.log('   En el celular use la URL HTTPS de Vite (puerto 5173), no este puerto.\n');
+  try {
+    const { warmupWhisper } = require('./services/whisperServerService');
+    warmupWhisper().then((ok) => {
+      if (ok) console.log('[Whisper] Modelo precargado (servidor persistente).');
+    }).catch(() => {});
+  } catch (_) { /* whisper opcional */ }
 });

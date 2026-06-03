@@ -1,14 +1,538 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import { useCatalog } from '../../hooks/useCatalog';
 
-const groupInputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
+const MOBILE_MQ = '(max-width: 767px)';
+const FORUM_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const FORUM_LONG_PRESS_MS = 500;
 
-const groupSectionTitle = 'mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400';
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
+function parseForumMessageContent(content) {
+  if (!content) return { text: '', refs: [] };
+  const refs = [];
+  const refRegex = /\[\[BOSA-REF:(TICKET|MEETING):(\d+)\]\]/g;
+  let m;
+  while ((m = refRegex.exec(content)) !== null) {
+    refs.push({ type: m[1].toLowerCase(), id: parseInt(m[2], 10) });
+  }
+  return { text: content.replace(/\[\[BOSA-REF:(TICKET|MEETING):\d+\]\]/g, '').trim(), refs };
+}
+
+function buildForumMessageContent(text, refs) {
+  const refTags = refs.map((r) => `[[BOSA-REF:${r.type.toUpperCase()}:${r.id}]]`);
+  return [text.trim(), ...refTags].filter(Boolean).join('\n');
+}
+
+function formatReaderName(reader) {
+  const full = [reader.user_name, reader.user_apellido].filter(Boolean).join(' ').trim();
+  return full || 'Usuario';
+}
+
+function ForumMessageTicks({ status }) {
+  const label =
+    status === 'read' ? 'Leído por todos' : status === 'delivered' ? 'Visto por algunos' : 'Enviado';
+  const tickClass =
+    status === 'read'
+      ? 'foro-msg-ticks--read'
+      : status === 'delivered'
+        ? 'foro-msg-ticks--delivered'
+        : 'foro-msg-ticks--sent';
+
+  if (status === 'sent') {
+    return (
+      <span className={`foro-msg-ticks ${tickClass}`} title={label} aria-label={label}>
+        <svg className="foro-msg-ticks__icon foro-msg-ticks__icon--single" viewBox="0 0 12 11" fill="none" aria-hidden>
+          <path
+            d="M1.5 5.5L4.5 8.5L10.5 1.5"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`foro-msg-ticks ${tickClass}`} title={label} aria-label={label}>
+      <svg className="foro-msg-ticks__icon" viewBox="0 0 16 11" fill="none" aria-hidden>
+        <path
+          d="M1 5.5L4 8.5L9 2"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M6 5.5L9 8.5L15 2"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function ForumComposerAttachTools({ disabled, variant, onPhoto, onFile, onTicket, onMeeting }) {
+  const itemClass =
+    variant === 'panel' ? 'foro-composer__attach-item' : 'foro-composer__tool-btn';
+  const iconClass = variant === 'panel' ? 'foro-composer__attach-icon' : 'w-5 h-5';
+
+  return (
+    <>
+      <label
+        title="Adjuntar foto"
+        className={`${itemClass}${variant === 'panel' ? ' foro-composer__attach-item--photo' : ''}${disabled ? ' foro-composer__tool-btn--disabled' : ''}`}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={disabled}
+          onChange={(e) => {
+            if (e.target.files?.[0]) onPhoto(e.target.files[0]);
+            e.target.value = '';
+          }}
+        />
+        <span className={iconClass} aria-hidden>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </span>
+        {variant === 'panel' && <span className="foro-composer__attach-label">Foto</span>}
+      </label>
+      <label
+        title="Adjuntar archivo"
+        className={`${itemClass}${disabled ? ' foro-composer__tool-btn--disabled' : ''}`}
+      >
+        <input
+          type="file"
+          className="hidden"
+          disabled={disabled}
+          onChange={(e) => {
+            if (e.target.files?.[0]) onFile(e.target.files[0]);
+            e.target.value = '';
+          }}
+        />
+        <span className={iconClass} aria-hidden>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+        </span>
+        {variant === 'panel' && <span className="foro-composer__attach-label">Archivo</span>}
+      </label>
+      <button
+        type="button"
+        title="Vincular ticket"
+        disabled={disabled}
+        onClick={onTicket}
+        className={`${itemClass}${disabled ? ' foro-composer__tool-btn--disabled' : ''}`}
+      >
+        <span className={iconClass} aria-hidden>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
+          </svg>
+        </span>
+        {variant === 'panel' && <span className="foro-composer__attach-label">Ticket</span>}
+      </button>
+      <button
+        type="button"
+        title="Vincular reunión"
+        disabled={disabled}
+        onClick={onMeeting}
+        className={`${itemClass}${disabled ? ' foro-composer__tool-btn--disabled' : ''}`}
+      >
+        <span className={iconClass} aria-hidden>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+        </span>
+        {variant === 'panel' && <span className="foro-composer__attach-label">Reunión</span>}
+      </button>
+    </>
+  );
+}
+
+function ForumMessageSeenSection({ message }) {
+  const readers = message.read_by || [];
+  if (!readers.length) {
+    return <p className="foro-msg-menu__seen-empty">Nadie ha visto este mensaje aún</p>;
+  }
+  return (
+    <ul className="foro-msg-menu__seen-list">
+      {readers.map((r) => (
+        <li key={r.user_id} className="foro-msg-menu__seen-item">
+          <span className="foro-msg-menu__seen-name">{formatReaderName(r)}</span>
+          <span className="foro-msg-menu__seen-time">
+            {new Date(r.read_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function canEditForumMessage(message, userId) {
+  if (!message || Number(message.user_id) !== Number(userId)) return false;
+  const createdMs = new Date(message.created_at).getTime();
+  if (Number.isNaN(createdMs) || Date.now() - createdMs > FORUM_MESSAGE_EDIT_WINDOW_MS) return false;
+  if (message.file_url) {
+    const { text } = parseForumMessageContent(message.content);
+    if (!text) return false;
+  }
+  return true;
+}
+
+const FORUM_ACCESS_OPTIONS = [
+  { value: 'all', label: 'Todo el equipo', iconWrap: 'bell-all' },
+  { value: 'department', label: 'Deptos.', iconWrap: 'depto' },
+  { value: 'users', label: 'Usuarios', iconWrap: 'user' },
+];
+
+function ForumAccessSegmentIcon({ type }) {
+  if (type === 'users') {
+    return (
+      <>
+        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M19 8v6M22 11h-6" />
+      </>
+    );
+  }
+  if (type === 'department') {
+    return (
+      <>
+        <path d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" />
+      </>
+    );
+  }
+  return (
+    <>
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87" />
+      <path d="M16 3.13a4 4 0 010 7.75" />
+    </>
+  );
+}
+
+function ForumAccessSegmented({ value, onChange }) {
+  return (
+    <div className="aviso-destinatario-segmented" role="radiogroup" aria-label="Acceso al foro">
+      {FORUM_ACCESS_OPTIONS.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={`aviso-destinatario-segmented__btn${active ? ' aviso-destinatario-segmented__btn--active' : ''}`}
+          >
+            <span className={`bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--${opt.iconWrap}`} aria-hidden>
+              <svg
+                className="bosa-gold-btn__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <ForumAccessSegmentIcon type={opt.value} />
+              </svg>
+            </span>
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ForumGroupFormFields({ form, setForm, isEdit, departments, allUsers, toggleAccessList }) {
+  const setAccessType = (access_type) => {
+    if (isEdit) {
+      setForm((f) => ({ ...f, access_type, access_list: [] }));
+    } else {
+      setForm({ ...form, access_type, access_list: [] });
+    }
+  };
+
+  return (
+    <>
+      <p className="meeting-sheet__section-label">Identidad del grupo</p>
+      <div className="meeting-sheet__group">
+        <div className="meeting-sheet__cell meeting-sheet__cell--field">
+          <label className="meeting-sheet__cell-label">Nombre</label>
+          <input
+            type="text"
+            autoFocus
+            required
+            value={form.name}
+            onChange={(e) => setForm(isEdit ? (f) => ({ ...f, name: e.target.value }) : { ...form, name: e.target.value })}
+            className="meeting-sheet__input font-semibold"
+            placeholder="Ej. Proyecto Alpha"
+          />
+        </div>
+        <div className="meeting-sheet__cell meeting-sheet__cell--field">
+          <label className="meeting-sheet__cell-label">Descripción</label>
+          <textarea
+            value={form.description}
+            onChange={(e) =>
+              setForm(isEdit ? (f) => ({ ...f, description: e.target.value }) : { ...form, description: e.target.value })
+            }
+            className="meeting-sheet__textarea"
+            rows={3}
+            placeholder="Objetivo del equipo o contexto del foro…"
+          />
+        </div>
+      </div>
+
+      <p className="meeting-sheet__section-label">Acceso al foro</p>
+      <div className="px-4 pb-3">
+        <ForumAccessSegmented value={form.access_type} onChange={setAccessType} />
+      </div>
+
+      {form.access_type === 'department' && (
+        <div className="meeting-sheet__group">
+          <div className="meeting-sheet__cell meeting-sheet__cell--field">
+            <label className="meeting-sheet__cell-label">Departamentos con acceso</label>
+            <div className="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+              {departments.map((d) => {
+                const selected = form.access_list.includes(d);
+                return (
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => toggleAccessList(d, isEdit)}
+                    className={`rounded-[10px] px-3 py-2.5 text-left text-[14px] font-semibold transition-colors ${
+                      selected ? 'bg-gold/20 text-navy-950 ring-1 ring-gold/30' : 'bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {form.access_type === 'users' && (
+        <div className="meeting-sheet__group">
+          <div className="meeting-sheet__cell meeting-sheet__cell--field">
+            <label className="meeting-sheet__cell-label">Usuarios con acceso</label>
+            <div className="max-h-44 space-y-2 overflow-y-auto">
+              {allUsers.map((u) => {
+                const selected = form.access_list.includes(u.id);
+                return (
+                  <button
+                    type="button"
+                    key={u.id}
+                    onClick={() => toggleAccessList(u.id, isEdit)}
+                    className={`flex w-full items-center justify-between gap-2 rounded-[10px] px-3 py-2.5 text-left text-[14px] font-semibold transition-colors ${
+                      selected ? 'bg-gold/20 text-navy-950 ring-1 ring-gold/30' : 'bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span className="min-w-0 truncate">
+                      {u.name} {u.apellido}
+                    </span>
+                    <span className="shrink-0 text-[12px] text-slate-500">{u.departamento || 'Sin depto.'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ForumMessageBubble({
+  message: m,
+  isMe,
+  canEdit,
+  canOpenMenu,
+  isMobile,
+  getRefData,
+  isImage,
+  onLightbox,
+  onViewRef,
+  onLongPressStart,
+  onLongPressEnd,
+  onContextMenu,
+  onOpenMenu,
+}) {
+  const { text, refs } = parseForumMessageContent(m.content);
+  const timeStr = new Date(m.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const edited = Boolean(m.edited_at);
+
+  return (
+    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex gap-2 lg:gap-3 max-w-[85%] lg:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+        {!isMe && (
+          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-xs flex-shrink-0">
+            {m.user_name.charAt(0)}
+          </div>
+        )}
+        <div className={`flex flex-col min-w-0 ${isMe ? 'items-end' : 'items-start'}`}>
+          {!isMe && <span className="text-[10px] font-bold text-navy-500 mb-1 ml-1">{m.user_name}</span>}
+          <div className={`foro-msg-bubble group relative ${isMe ? 'foro-msg-bubble--me' : 'foro-msg-bubble--them'}`}>
+            {isMe && canOpenMenu && !isMobile && (
+              <button
+                type="button"
+                className="foro-msg-bubble__menu-btn"
+                aria-label="Opciones del mensaje"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  onOpenMenu(m, rect);
+                }}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                  <path d="M5.23 7.21l3.47 3.47 3.47-3.47a.75.75 0 111.06 1.06l-4 4a.75.75 0 01-1.06 0l-4-4a.75.75 0 111.06-1.06z" />
+                </svg>
+              </button>
+            )}
+            <div
+              className={`foro-msg-bubble__body px-4 py-3 rounded-2xl shadow-sm ${
+                isMe ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-100 text-navy-900 rounded-bl-none'
+              }`}
+              onTouchStart={canOpenMenu && isMobile ? () => onLongPressStart(m) : undefined}
+              onTouchEnd={canOpenMenu && isMobile ? onLongPressEnd : undefined}
+              onTouchMove={canOpenMenu && isMobile ? onLongPressEnd : undefined}
+              onTouchCancel={canOpenMenu && isMobile ? onLongPressEnd : undefined}
+              onContextMenu={
+                canOpenMenu
+                  ? (e) => {
+                      if (isMobile) {
+                        e.preventDefault();
+                        return;
+                      }
+                      onContextMenu(e, m);
+                    }
+                  : undefined
+              }
+            >
+              {text && <p className="text-sm whitespace-pre-wrap">{text}</p>}
+              {refs.map((ref, idx) => {
+                const data = getRefData(ref);
+                const isTicket = ref.type === 'ticket';
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => data && onViewRef({ type: ref.type, data })}
+                    className={`mt-2 first:mt-0 ${text ? 'mt-2' : ''} flex items-stretch gap-3 rounded-lg overflow-hidden text-left min-w-[220px] max-w-[280px] transition hover:opacity-90 ${
+                      isMe ? 'bg-navy-800/60 border border-gold/30' : 'bg-gray-50 border border-gray-200'
+                    }`}
+                  >
+                    <div className={`w-1 flex-shrink-0 ${isTicket ? 'bg-gold' : 'bg-emerald-500'}`} />
+                    <div className="flex-1 min-w-0 py-2 pr-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {isTicket ? (
+                          <svg className={`w-3 h-3 ${isMe ? 'text-gold' : 'text-navy-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
+                          </svg>
+                        ) : (
+                          <svg className={`w-3 h-3 ${isMe ? 'text-emerald-300' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                          </svg>
+                        )}
+                        <span className={`text-[9px] font-bold tracking-widest uppercase ${isMe ? 'text-gold' : 'text-navy-500'}`}>
+                          {isTicket ? `Ticket #${ref.id}` : 'Reunión'}
+                        </span>
+                      </div>
+                      {data ? (
+                        <>
+                          <p className={`text-xs font-bold leading-tight line-clamp-2 ${isMe ? 'text-white' : 'text-navy-950'}`}>
+                            {data.title || '—'}
+                          </p>
+                          <p className={`text-[10px] mt-0.5 truncate ${isMe ? 'text-white/60' : 'text-navy-500'}`}>
+                            {isTicket
+                              ? `${(data.priority || '').toUpperCase()} · ${(data.status || '').replace('_', ' ').toUpperCase()}`
+                              : data.start_time
+                                ? `${new Date(data.start_time).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()} · ${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                : 'Sin fecha'}
+                          </p>
+                        </>
+                      ) : (
+                        <p className={`text-xs italic ${isMe ? 'text-white/60' : 'text-gray-400'}`}>
+                          {isTicket ? 'Ticket no disponible' : 'Reunión no disponible'}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {m.file_url && (
+                <div className={text || refs.length ? 'mt-2' : ''}>
+                  {isImage(m.file_url) ? (
+                    <button type="button" onClick={() => onLightbox(m.file_url)} className="block group/img">
+                      <img
+                        src={m.file_url}
+                        alt={m.file_name || 'imagen'}
+                        className="w-full max-w-[220px] lg:max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-zoom-in border border-black/5 group-hover/img:opacity-90 transition"
+                      />
+                    </button>
+                  ) : (
+                    <a
+                      href={m.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      download={m.file_name}
+                      className={`flex items-center gap-3 text-xs font-bold p-2.5 rounded-lg border min-w-[200px] hover:opacity-90 transition ${isMe ? 'bg-navy-800 border-navy-700 text-gold' : 'bg-gray-50 border-gray-200 text-navy-700'}`}
+                    >
+                      <div className={`w-9 h-9 flex-shrink-0 rounded flex items-center justify-center ${isMe ? 'bg-gold/15' : 'bg-navy-100'}`}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="truncate">{m.file_name || 'Archivo'}</p>
+                        <p className={`text-[9px] font-normal ${isMe ? 'text-gold/70' : 'text-navy-400'}`}>Descargar</p>
+                      </div>
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <span className="foro-msg-meta text-[9px] text-gray-400 mt-1 mx-1">
+            <span className="foro-msg-meta__time">
+              {timeStr}
+              {edited && <span className="foro-msg-bubble__edited"> · editado</span>}
+            </span>
+            {isMe && <ForumMessageTicks status={m.read_status || 'sent'} />}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ForoModule() {
   const { user } = useAuth();
@@ -33,6 +557,13 @@ export default function ForoModule() {
   const [viewingRef, setViewingRef] = useState(null); // { type, data }
   const [showMembers, setShowMembers] = useState(false);
   const messagesEndRef = useRef(null);
+  const messageInputRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const isMobile = useMediaQuery(MOBILE_MQ);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [messageMenu, setMessageMenu] = useState(null);
+  const [messageActionSheet, setMessageActionSheet] = useState(null);
+  const [composerAttachOpen, setComposerAttachOpen] = useState(false);
 
   const [joinRequests, setJoinRequests] = useState([]);
   const [showJoinRequestsPanel, setShowJoinRequestsPanel] = useState(false);
@@ -90,17 +621,6 @@ export default function ForoModule() {
   // Helper: formatear tamaño de archivo
   const formatSize = (bytes) => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`;
 
-  // Helper: extraer referencias [[BOSA-REF:TYPE:ID]] del contenido
-  const parseMessageContent = (content) => {
-    if (!content) return { text: '', refs: [] };
-    const refRegex = /\[\[BOSA-REF:(TICKET|MEETING):(\d+)\]\]/g;
-    const refs = [];
-    let m;
-    while ((m = refRegex.exec(content)) !== null) {
-      refs.push({ type: m[1].toLowerCase(), id: parseInt(m[2], 10) });
-    }
-    return { text: content.replace(refRegex, '').trim(), refs };
-  };
   // Helper: obtener datos de una referencia
   const getRefData = (ref) => {
     if (ref.type === 'ticket') return availableTickets.find(t => t.id === ref.id);
@@ -146,6 +666,98 @@ export default function ForoModule() {
       }));
     }
   };
+
+  const cancelMessageEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessageInput('');
+  }, []);
+
+  const startMessageEdit = useCallback((msg) => {
+    const { text, refs } = parseForumMessageContent(msg.content);
+    setEditingMessage({ id: msg.id, refs });
+    setMessageInput(text);
+    setMessageMenu(null);
+    setMessageActionSheet(null);
+    setFileInput(null);
+    setPendingRef(null);
+    setTimeout(() => messageInputRef.current?.focus(), 50);
+  }, []);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleMessageLongPressStart = useCallback(
+    (msg) => {
+      if (Number(msg.user_id) !== Number(user?.id)) return;
+      clearLongPress();
+      longPressTimerRef.current = setTimeout(() => {
+        setMessageActionSheet(msg);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(12);
+      }, FORUM_LONG_PRESS_MS);
+    },
+    [clearLongPress, user?.id]
+  );
+
+  const handleMessageContextMenu = useCallback((e, msg) => {
+    e.preventDefault();
+    setMessageMenu({ message: msg, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMessageOpenMenu = useCallback((msg, rect) => {
+    setMessageMenu({ message: msg, x: rect.right - 8, y: rect.bottom + 4 });
+  }, []);
+
+  useEffect(() => {
+    cancelMessageEdit();
+    setMessageMenu(null);
+    setMessageActionSheet(null);
+    setComposerAttachOpen(false);
+  }, [selectedGroup?.id, cancelMessageEdit]);
+
+  useEffect(() => {
+    if (editingMessage) setComposerAttachOpen(false);
+  }, [editingMessage]);
+
+  const closeComposerAttach = () => setComposerAttachOpen(false);
+  const handleComposerPhoto = (file) => {
+    setFileInput(file);
+    closeComposerAttach();
+  };
+  const handleComposerFile = (file) => {
+    setFileInput(file);
+    closeComposerAttach();
+  };
+  const handleComposerTicket = () => {
+    setPickerType('ticket');
+    setPickerSearch('');
+    closeComposerAttach();
+  };
+  const handleComposerMeeting = () => {
+    setPickerType('meeting');
+    setPickerSearch('');
+    closeComposerAttach();
+  };
+
+  useEffect(() => {
+    if (!messageMenu && !messageActionSheet) return undefined;
+    const close = () => {
+      setMessageMenu(null);
+      setMessageActionSheet(null);
+    };
+    const t = setTimeout(() => {
+      document.addEventListener('click', close);
+      document.addEventListener('touchstart', close, { passive: true });
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', close);
+      document.removeEventListener('touchstart', close);
+    };
+  }, [messageMenu, messageActionSheet]);
 
   // Polling para mensajes solo si hay acceso al foro
   useEffect(() => {
@@ -278,8 +890,25 @@ export default function ForoModule() {
     }
   };
 
+  const handleSaveMessageEdit = async () => {
+    if (!editingMessage || !selectedGroup || !messageInput.trim()) return;
+    const content = buildForumMessageContent(messageInput, editingMessage.refs);
+    try {
+      await axios.patch(`/api/forums/${selectedGroup.id}/messages/${editingMessage.id}`, { content });
+      cancelMessageEdit();
+      fetchMessages();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || 'No se pudo editar el mensaje');
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
+    if (editingMessage) {
+      await handleSaveMessageEdit();
+      return;
+    }
     if (!messageInput.trim() && !fileInput && !pendingRef) return;
 
     let finalContent = messageInput.trim();
@@ -302,6 +931,7 @@ export default function ForoModule() {
       setMessageInput('');
       setFileInput(null);
       setPendingRef(null);
+      setComposerAttachOpen(false);
       fetchMessages();
       PushEvents.forumMessage(selectedGroup?.name || 'foro');
     } catch (err) {
@@ -610,131 +1240,123 @@ export default function ForoModule() {
                   <p className="font-medium text-sm">Comienza la conversación en el grupo</p>
                 </div>
               ) : (
-                messages.map(m => {
+                messages.map((m) => {
                   const isMe = m.user_id === user?.id;
                   return (
-                    <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex gap-2 lg:gap-3 max-w-[85%] lg:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                        {!isMe && (
-                          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-xs flex-shrink-0">
-                            {m.user_name.charAt(0)}
-                          </div>
-                        )}
-                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                          {!isMe && <span className="text-[10px] font-bold text-navy-500 mb-1 ml-1">{m.user_name}</span>}
-                          <div className={`px-4 py-3 rounded-2xl shadow-sm ${
-                            isMe ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-100 text-navy-900 rounded-bl-none'
-                          }`}>
-                            {(() => {
-                              const { text, refs } = parseMessageContent(m.content);
-                              return (
-                                <>
-                                  {text && <p className="text-sm whitespace-pre-wrap">{text}</p>}
-                                  {refs.map((ref, idx) => {
-                                    const data = getRefData(ref);
-                                    const isTicket = ref.type === 'ticket';
-                                    return (
-                                      <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => data && setViewingRef({ type: ref.type, data })}
-                                        className={`mt-2 first:mt-0 ${text ? 'mt-2' : ''} flex items-stretch gap-3 rounded-lg overflow-hidden text-left min-w-[220px] max-w-[280px] transition hover:opacity-90 ${
-                                          isMe ? 'bg-navy-800/60 border border-gold/30' : 'bg-gray-50 border border-gray-200'
-                                        }`}
-                                      >
-                                        <div className={`w-1 flex-shrink-0 ${isTicket ? 'bg-gold' : 'bg-emerald-500'}`} />
-                                        <div className="flex-1 min-w-0 py-2 pr-2">
-                                          <div className="flex items-center gap-1.5 mb-1">
-                                            {isTicket ? (
-                                              <svg className={`w-3 h-3 ${isMe ? 'text-gold' : 'text-navy-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
-                                              </svg>
-                                            ) : (
-                                              <svg className={`w-3 h-3 ${isMe ? 'text-emerald-300' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                                              </svg>
-                                            )}
-                                            <span className={`text-[9px] font-bold tracking-widest uppercase ${isMe ? 'text-gold' : 'text-navy-500'}`}>
-                                              {isTicket ? `Ticket #${ref.id}` : 'Reunión'}
-                                            </span>
-                                          </div>
-                                          {data ? (
-                                            <>
-                                              <p className={`text-xs font-bold leading-tight line-clamp-2 ${isMe ? 'text-white' : 'text-navy-950'}`}>
-                                                {data.title || '—'}
-                                              </p>
-                                              <p className={`text-[10px] mt-0.5 truncate ${isMe ? 'text-white/60' : 'text-navy-500'}`}>
-                                                {isTicket
-                                                  ? `${(data.priority || '').toUpperCase()} · ${(data.status || '').replace('_',' ').toUpperCase()}`
-                                                  : (data.start_time
-                                                      ? `${new Date(data.start_time).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()} · ${new Date(data.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                                      : 'Sin fecha')
-                                                }
-                                              </p>
-                                            </>
-                                          ) : (
-                                            <p className={`text-xs italic ${isMe ? 'text-white/60' : 'text-gray-400'}`}>
-                                              {isTicket ? 'Ticket no disponible' : 'Reunión no disponible'}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </>
-                              );
-                            })()}
-                            {m.file_url && (
-                              <div className={m.content ? 'mt-2' : ''}>
-                                {isImage(m.file_url) ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setLightboxUrl(m.file_url)}
-                                    className="block group"
-                                  >
-                                    <img
-                                      src={m.file_url}
-                                      alt={m.file_name || 'imagen'}
-                                      className="w-full max-w-[220px] lg:max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-zoom-in border border-black/5 group-hover:opacity-90 transition"
-                                    />
-                                  </button>
-                                ) : (
-                                  <a
-                                    href={m.file_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    download={m.file_name}
-                                    className={`flex items-center gap-3 text-xs font-bold p-2.5 rounded-lg border min-w-[200px] hover:opacity-90 transition ${isMe ? 'bg-navy-800 border-navy-700 text-gold' : 'bg-gray-50 border-gray-200 text-navy-700'}`}
-                                  >
-                                    <div className={`w-9 h-9 flex-shrink-0 rounded flex items-center justify-center ${isMe ? 'bg-gold/15' : 'bg-navy-100'}`}>
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                      </svg>
-                                    </div>
-                                    <div className="flex-1 min-w-0 text-left">
-                                      <p className="truncate">{m.file_name || 'Archivo'}</p>
-                                      <p className={`text-[9px] font-normal ${isMe ? 'text-gold/70' : 'text-navy-400'}`}>Descargar</p>
-                                    </div>
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-[9px] text-gray-400 mt-1 mx-1">
-                            {new Date(m.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <ForumMessageBubble
+                      key={m.id}
+                      message={m}
+                      isMe={isMe}
+                      canOpenMenu={isMe}
+                      canEdit={isMe && canEditForumMessage(m, user?.id)}
+                      isMobile={isMobile}
+                      getRefData={getRefData}
+                      isImage={isImage}
+                      onLightbox={setLightboxUrl}
+                      onViewRef={setViewingRef}
+                      onLongPressStart={handleMessageLongPressStart}
+                      onLongPressEnd={clearLongPress}
+                      onContextMenu={handleMessageContextMenu}
+                      onOpenMenu={handleMessageOpenMenu}
+                    />
                   );
                 })
               )}
               <div ref={messagesEndRef} />
             </div>
 
+            {messageMenu &&
+              createPortal(
+                <div
+                  className="foro-msg-menu"
+                  style={{ top: messageMenu.y, left: messageMenu.x }}
+                  role="menu"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {canEditForumMessage(messageMenu.message, user?.id) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="foro-msg-menu__item"
+                      onClick={() => startMessageEdit(messageMenu.message)}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Editar
+                    </button>
+                  )}
+                  <div className="foro-msg-menu__seen" role="group" aria-label="Visto por">
+                    <p className="foro-msg-menu__seen-title">Visto por</p>
+                    <ForumMessageSeenSection message={messageMenu.message} />
+                  </div>
+                </div>,
+                document.body
+              )}
+
+            {messageActionSheet &&
+              createPortal(
+                <div
+                  className="foro-msg-action-overlay"
+                  role="presentation"
+                  onClick={() => setMessageActionSheet(null)}
+                >
+                  <div
+                    className="foro-msg-action-sheet"
+                    role="dialog"
+                    aria-label="Opciones del mensaje"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {canEditForumMessage(messageActionSheet, user?.id) && (
+                      <button
+                        type="button"
+                        className="foro-msg-action-sheet__btn foro-msg-action-sheet__btn--primary"
+                        onClick={() => startMessageEdit(messageActionSheet)}
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Editar mensaje
+                      </button>
+                    )}
+                    <div className="foro-msg-action-sheet__seen">
+                      <p className="foro-msg-menu__seen-title">Visto por</p>
+                      <ForumMessageSeenSection message={messageActionSheet} />
+                    </div>
+                    <button
+                      type="button"
+                      className="foro-msg-action-sheet__btn"
+                      onClick={() => setMessageActionSheet(null)}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )}
+
             {/* Input Area */}
-            <div className="p-3 lg:p-4 bg-white border-t border-gray-100">
-              {pendingRef && (
+            <div className="foro-composer border-t border-gray-100 bg-white">
+              <div className="foro-composer__extras">
+              {editingMessage && (
+                <div className="foro-msg-edit-bar mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span className="min-w-0 flex-1 text-xs font-semibold text-emerald-900">Editando mensaje</span>
+                  <button
+                    type="button"
+                    onClick={cancelMessageEdit}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    aria-label="Cancelar edición"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {pendingRef && !editingMessage && (
                 <div className="mb-3 flex items-center gap-3 bg-navy-50 border border-navy-200 rounded-lg px-3 py-2 w-fit max-w-full">
                   <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${pendingRef.type === 'ticket' ? 'bg-gold/15 text-gold' : 'bg-emerald-100 text-emerald-700'}`}>
                     {pendingRef.type === 'ticket' ? (
@@ -759,7 +1381,7 @@ export default function ForoModule() {
                   </button>
                 </div>
               )}
-              {fileInput && (
+              {fileInput && !editingMessage && (
                 <div className="mb-3 flex items-center gap-3 bg-gold/5 border border-gold/30 rounded-lg px-3 py-2 w-fit max-w-full">
                   {fileInput.type?.startsWith('image/') ? (
                     <img
@@ -790,69 +1412,86 @@ export default function ForoModule() {
                   </button>
                 </div>
               )}
-              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
-                {/* Botón Foto */}
-                <label
-                  title="Adjuntar foto"
-                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold/10 text-gold hover:bg-gold hover:text-white cursor-pointer transition-colors border border-gold/30"
-                >
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </label>
-                {/* Botón Archivo */}
-                <label
-                  title="Adjuntar archivo"
-                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-navy-900 hover:text-gold cursor-pointer transition-colors border border-gray-200"
-                >
-                  <input type="file" className="hidden" onChange={(e) => setFileInput(e.target.files[0])} />
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                </label>
-                {/* Botón Vincular Ticket */}
-                <button
-                  type="button"
-                  title="Vincular ticket"
-                  onClick={() => { setPickerType('ticket'); setPickerSearch(''); }}
-                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-gold hover:text-white cursor-pointer transition-colors border border-gray-200"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
-                  </svg>
-                </button>
-                {/* Botón Vincular Reunión */}
-                <button
-                  type="button"
-                  title="Vincular reunión"
-                  onClick={() => { setPickerType('meeting'); setPickerSearch(''); }}
-                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-50 text-navy-500 hover:bg-emerald-500 hover:text-white cursor-pointer transition-colors border border-gray-200"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                  </svg>
-                </button>
-                <textarea
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage(e);
-                    }
-                  }}
-                  placeholder="Escribe un mensaje..."
-                  className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-black font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold focus:bg-white transition-all max-h-32"
-                  rows={1}
-                />
-                <button
-                  type="submit"
-                  disabled={!messageInput.trim() && !fileInput && !pendingRef}
-                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-gold text-white disabled:opacity-50 hover:bg-yellow-500 transition-colors shadow-md"
-                >
-                  <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                </button>
+              </div>
+              <form onSubmit={handleSendMessage} className="foro-composer__form">
+                {isMobile && composerAttachOpen && !editingMessage && (
+                  <div className="foro-composer__attach-panel" role="toolbar" aria-label="Adjuntar al mensaje">
+                    <ForumComposerAttachTools
+                      variant="panel"
+                      disabled={!!editingMessage}
+                      onPhoto={handleComposerPhoto}
+                      onFile={handleComposerFile}
+                      onTicket={handleComposerTicket}
+                      onMeeting={handleComposerMeeting}
+                    />
+                  </div>
+                )}
+                <div className="foro-composer__row">
+                  {isMobile && !editingMessage && (
+                    <button
+                      type="button"
+                      className={`foro-composer__toggle${composerAttachOpen ? ' foro-composer__toggle--open' : ''}`}
+                      aria-label={composerAttachOpen ? 'Ocultar adjuntos' : 'Adjuntar'}
+                      aria-expanded={composerAttachOpen}
+                      onClick={() => setComposerAttachOpen((o) => !o)}
+                    >
+                      <svg className="foro-composer__toggle-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                        {composerAttachOpen ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        )}
+                      </svg>
+                    </button>
+                  )}
+                  <div className="foro-composer__tools hidden lg:flex" role="toolbar" aria-label="Adjuntar al mensaje">
+                    <ForumComposerAttachTools
+                      variant="inline"
+                      disabled={!!editingMessage}
+                      onPhoto={handleComposerPhoto}
+                      onFile={handleComposerFile}
+                      onTicket={handleComposerTicket}
+                      onMeeting={handleComposerMeeting}
+                    />
+                  </div>
+                  <textarea
+                    ref={messageInputRef}
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onFocus={() => isMobile && setComposerAttachOpen(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && editingMessage) {
+                        e.preventDefault();
+                        cancelMessageEdit();
+                        return;
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(e);
+                      }
+                    }}
+                    placeholder={editingMessage ? 'Edita el mensaje…' : 'Mensaje'}
+                    rows={1}
+                    className={`foro-composer__input${editingMessage ? ' foro-composer__input--edit' : ''}`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={editingMessage ? !messageInput.trim() : !messageInput.trim() && !fileInput && !pendingRef}
+                    className={`foro-composer__send${editingMessage ? ' foro-composer__send--edit' : ''}`}
+                    title={editingMessage ? 'Guardar edición' : 'Enviar'}
+                    aria-label={editingMessage ? 'Guardar edición' : 'Enviar mensaje'}
+                  >
+                    {editingMessage ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-[18px] h-[18px] ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </form>
             </div>
           </>
@@ -916,38 +1555,32 @@ export default function ForoModule() {
       {isCreatingGroup &&
         createPortal(
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            className="meeting-sheet-overlay z-[120] animate-fade-in"
             onClick={() => setIsCreatingGroup(false)}
             role="presentation"
           >
             <div
-              className="flex max-h-[min(92dvh,42rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              className="meeting-sheet meeting-sheet--form meeting-sheet--wide animate-slide-up"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="foro-new-group-title"
             >
-              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-6 sm:px-8 sm:pt-7">
-                <div className="pointer-events-none absolute -right-20 -top-28 h-60 w-60 rounded-full bg-gold/12 blur-3xl" aria-hidden />
-                <div className="relative flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
-                    <div className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/[0.12] sm:flex">
-                      <svg className="h-5 w-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.598 1.185 1.985l.383.179m.383-.179a23.97 23.97 0 011.503-.05c2.357 0 4.686.172 6.988.504 1.242.19 2.25-.982 2.25-2.213V10.013c0-1.23-.998-2.403-2.24-2.213a24.035 24.035 0 01-6.988-.504M16.5 13.36V7.86l-4.5 2.56v5.5l4.5-2.56z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Foro colaborativo</p>
-                      <h2 id="foro-new-group-title" className="mt-1.5 font-display text-xl font-medium leading-tight text-white sm:text-2xl">
-                        Nuevo grupo de trabajo
-                      </h2>
-                      <p className="mt-1.5 text-sm text-white/55">Nombre, descripción y quién puede entrar al chat.</p>
-                    </div>
+              <div className="meeting-sheet__hero shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="meeting-sheet__pill meeting-sheet__pill--gold">Foro colaborativo</span>
+                    <h3 id="foro-new-group-title" className="meeting-sheet__hero-title mt-2">
+                      Nuevo grupo de trabajo
+                    </h3>
+                    <p className="meeting-sheet__hero-subtitle">
+                      Nombre, descripción y quién puede entrar al chat.
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsCreatingGroup(false)}
-                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                    className="meeting-sheet__close"
                     aria-label="Cerrar"
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -958,134 +1591,59 @@ export default function ForoModule() {
               </div>
 
               <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleCreateGroup}>
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-8">
-                  <section>
-                    <h3 className={groupSectionTitle}>Identidad del grupo</h3>
-                    <div className="space-y-4">
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre *</span>
-                        <input
-                          type="text"
-                          autoFocus
-                          required
-                          value={newGroupForm.name}
-                          onChange={(e) => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
-                          className={groupInputClass}
-                          placeholder="Ej. Proyecto Alpha"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Descripción</span>
-                        <textarea
-                          value={newGroupForm.description}
-                          onChange={(e) => setNewGroupForm({ ...newGroupForm, description: e.target.value })}
-                          className={`${groupInputClass} min-h-[4.5rem] resize-y`}
-                          placeholder="Objetivo del equipo o contexto del foro…"
-                          rows={2}
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section>
-                    <h3 className={groupSectionTitle}>Acceso al foro</h3>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setNewGroupForm({ ...newGroupForm, access_type: 'all', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          newGroupForm.access_type === 'all'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Todo el equipo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewGroupForm({ ...newGroupForm, access_type: 'department', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          newGroupForm.access_type === 'department'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Departamentos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewGroupForm({ ...newGroupForm, access_type: 'users', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          newGroupForm.access_type === 'users'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Usuarios
-                      </button>
-                    </div>
-
-                    {newGroupForm.access_type === 'department' && (
-                      <div className="mt-4 max-h-40 grid grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2">
-                        {departments.map((d) => (
-                          <button
-                            type="button"
-                            key={d}
-                            onClick={() => toggleAccessList(d)}
-                            className={`truncate rounded-lg border px-3 py-2 text-left text-[10px] font-semibold transition-all sm:text-[11px] ${
-                              newGroupForm.access_list.includes(d)
-                                ? 'border-gold bg-white text-gold shadow-sm ring-1 ring-gold/15'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            {d}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {newGroupForm.access_type === 'users' && (
-                      <div className="mt-4 max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                        {allUsers.map((u) => (
-                          <button
-                            type="button"
-                            key={u.id}
-                            onClick={() => toggleAccessList(u.id)}
-                            className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-[11px] font-semibold transition-all ${
-                              newGroupForm.access_list.includes(u.id)
-                                ? 'border-gold bg-white text-gold shadow-sm ring-1 ring-gold/15'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            <span className="min-w-0 truncate">
-                              {u.name} {u.apellido}
-                            </span>
-                            <span className="shrink-0 text-[9px] uppercase text-slate-500">{u.departamento || 'Sin depto.'}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+                  <ForumGroupFormFields
+                    form={newGroupForm}
+                    setForm={setNewGroupForm}
+                    isEdit={false}
+                    departments={departments}
+                    allUsers={allUsers}
+                    toggleAccessList={toggleAccessList}
+                  />
                 </div>
 
-                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingGroup(false)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!newGroupForm.name}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-navy-900/10 bg-navy-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 disabled:opacity-50 sm:min-w-[10rem]"
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Crear grupo
-                  </button>
+                <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+                  <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingGroup(false)}
+                      className="voice-minute-footer__btn voice-minute-footer__btn--secondary"
+                    >
+                      <svg
+                        className="voice-minute-footer__icon voice-minute-footer__icon--close"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!newGroupForm.name}
+                      className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--notice" aria-hidden>
+                        <svg
+                          className="bosa-gold-btn__icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                          <path d="M10 12h6M10 16h4" />
+                        </svg>
+                      </span>
+                      Crear grupo
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -1097,39 +1655,32 @@ export default function ForoModule() {
       {isEditingGroup &&
         createPortal(
           <div
-            className="fixed inset-0 z-[105] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
+            className="meeting-sheet-overlay z-[125] animate-fade-in"
             onClick={() => setIsEditingGroup(false)}
             role="presentation"
           >
             <div
-              className="flex max-h-[min(92dvh,44rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              className="meeting-sheet meeting-sheet--form meeting-sheet--wide animate-slide-up"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="foro-edit-group-title"
             >
-              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-6 sm:px-8 sm:pt-7">
-                <div className="pointer-events-none absolute -right-20 -top-28 h-60 w-60 rounded-full bg-gold/12 blur-3xl" aria-hidden />
-                <div className="relative flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
-                    <div className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/[0.12] sm:flex">
-                      <svg className="h-5 w-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Configuración</p>
-                      <h2 id="foro-edit-group-title" className="mt-1.5 font-display text-xl font-medium leading-tight text-white sm:text-2xl">
-                        Grupo de trabajo
-                      </h2>
-                      <p className="mt-1.5 text-sm text-white/55">Ajusta nombre, descripción y permisos de acceso.</p>
-                    </div>
+              <div className="meeting-sheet__hero shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="meeting-sheet__pill meeting-sheet__pill--gold">Configuración</span>
+                    <h3 id="foro-edit-group-title" className="meeting-sheet__hero-title mt-2">
+                      Grupo de trabajo
+                    </h3>
+                    <p className="meeting-sheet__hero-subtitle">
+                      Ajusta nombre, descripción y permisos de acceso.
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsEditingGroup(false)}
-                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+                    className="meeting-sheet__close"
                     aria-label="Cerrar"
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1140,136 +1691,61 @@ export default function ForoModule() {
               </div>
 
               <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleUpdateGroup}>
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-8">
-                  <section>
-                    <h3 className={groupSectionTitle}>Identidad del grupo</h3>
-                    <div className="space-y-4">
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre *</span>
-                        <input
-                          type="text"
-                          autoFocus
-                          required
-                          value={editGroupForm.name}
-                          onChange={(e) => setEditGroupForm({ ...editGroupForm, name: e.target.value })}
-                          className={groupInputClass}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Descripción</span>
-                        <textarea
-                          value={editGroupForm.description}
-                          onChange={(e) => setEditGroupForm({ ...editGroupForm, description: e.target.value })}
-                          className={`${groupInputClass} min-h-[4.5rem] resize-y`}
-                          rows={2}
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section>
-                    <h3 className={groupSectionTitle}>Acceso al foro</h3>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditGroupForm({ ...editGroupForm, access_type: 'all', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          editGroupForm.access_type === 'all'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Todo el equipo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditGroupForm({ ...editGroupForm, access_type: 'department', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          editGroupForm.access_type === 'department'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Departamentos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditGroupForm({ ...editGroupForm, access_type: 'users', access_list: [] })}
-                        className={`flex-1 rounded-xl border py-3 text-[10px] font-bold uppercase tracking-wide transition-all sm:text-xs ${
-                          editGroupForm.access_type === 'users'
-                            ? 'border-gold bg-gold/10 text-gold shadow-sm ring-1 ring-gold/20'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        Usuarios
-                      </button>
-                    </div>
-
-                    {editGroupForm.access_type === 'department' && (
-                      <div className="mt-4 max-h-40 grid grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2">
-                        {departments.map((d) => (
-                          <button
-                            type="button"
-                            key={d}
-                            onClick={() => toggleAccessList(d, true)}
-                            className={`truncate rounded-lg border px-3 py-2 text-left text-[10px] font-semibold transition-all sm:text-[11px] ${
-                              editGroupForm.access_list.includes(d)
-                                ? 'border-gold bg-white text-gold shadow-sm ring-1 ring-gold/15'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            {d}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {editGroupForm.access_type === 'users' && (
-                      <div className="mt-4 max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                        {allUsers.map((u) => (
-                          <button
-                            type="button"
-                            key={u.id}
-                            onClick={() => toggleAccessList(u.id, true)}
-                            className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-[11px] font-semibold transition-all ${
-                              editGroupForm.access_list.includes(u.id)
-                                ? 'border-gold bg-white text-gold shadow-sm ring-1 ring-gold/15'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            <span className="min-w-0 truncate">
-                              {u.name} {u.apellido}
-                            </span>
-                            <span className="shrink-0 text-[9px] uppercase text-slate-500">{u.departamento || 'Sin depto.'}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+                  <ForumGroupFormFields
+                    form={editGroupForm}
+                    setForm={setEditGroupForm}
+                    isEdit
+                    departments={departments}
+                    allUsers={allUsers}
+                    toggleAccessList={toggleAccessList}
+                  />
                 </div>
 
-                <div className="shrink-0 space-y-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-8">
-                  <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+                  <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
                     <button
                       type="button"
                       onClick={() => setIsEditingGroup(false)}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
+                      className="voice-minute-footer__btn voice-minute-footer__btn--secondary"
                     >
+                      <svg
+                        className="voice-minute-footer__icon voice-minute-footer__icon--close"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={!editGroupForm.name}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-navy-900/10 bg-navy-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 disabled:opacity-50 sm:min-w-[9rem]"
+                      className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:cursor-not-allowed disabled:opacity-50"
                     >
+                      <span className="bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--save" aria-hidden>
+                        <svg
+                          className="bosa-gold-btn__icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                          <path d="M15 4v3h3" />
+                          <path d="M9 14l2 2 4-4.5" />
+                        </svg>
+                      </span>
                       Guardar
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleDeleteGroup}
-                    className="w-full rounded-xl border border-red-200 bg-red-50 py-3 text-xs font-bold uppercase tracking-widest text-red-700 transition-colors hover:bg-red-100"
-                  >
+                  <button type="button" onClick={handleDeleteGroup} className="meeting-sheet__btn-destructive">
                     Eliminar grupo
                   </button>
                 </div>

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoldRule } from '../components/Illustrations';
+import { SolnoLoginFooter } from '../components/SolnoBrandMark';
+import AppVersionBadge from '../components/AppVersionBadge';
 
 function EyeIcon({ open }) {
   return open ? (
@@ -12,6 +14,22 @@ function EyeIcon({ open }) {
   ) : (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+    </svg>
+  );
+}
+
+function IconMail() {
+  return (
+    <svg className="login-input-wrap__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+    </svg>
+  );
+}
+
+function IconLock() {
+  return (
+    <svg className="login-input-wrap__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
     </svg>
   );
 }
@@ -49,9 +67,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}>
+    <div
+      className="login-page flex min-h-[100dvh] flex-col lg:flex-row"
+      style={{ background: 'linear-gradient(160deg, #071221 0%, #050D1A 100%)' }}
+    >
 
-      {/* ── Panel izquierdo — foto de fondo ── */}
+      {/* ── Panel izquierdo — foto de fondo (desktop) ── */}
       <div className="hidden lg:flex lg:w-[52%] flex-col relative overflow-hidden">
 
         {/* Foto de fondo */}
@@ -140,59 +161,86 @@ export default function Login() {
         </div>
       </div>
 
+      {/* ── Hero móvil / tablet — solo logo, compacto ── */}
+      <div className="relative overflow-hidden lg:hidden">
+        <img
+          src="/fondo.jpeg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: 'brightness(0.45) saturate(0.7)' }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(5,13,26,0.55) 0%, rgba(5,13,26,0.92) 100%)',
+          }}
+        />
+        <div className="relative z-10 flex min-h-[6.5rem] items-center justify-center px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:min-h-[7rem]">
+          <img
+            src="/bosahublogo-02.svg"
+            alt="BOSA Hub"
+            className="mx-auto h-auto w-44 drop-shadow-xl sm:w-48"
+            style={{ filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4))' }}
+          />
+        </div>
+      </div>
+
       {/* ── Panel derecho — formulario ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
+      <div className="relative flex flex-1 items-start justify-center px-4 py-4 sm:px-6 sm:py-6 lg:items-center lg:py-12 pb-[max(1rem,env(safe-area-inset-bottom))]">
 
         {/* Destello dorado muy sutil */}
         <div className="absolute top-0 right-0 w-96 h-96 pointer-events-none"
           style={{ background: 'radial-gradient(circle at 80% 10%, rgba(203,172,128,0.04) 0%, transparent 60%)' }} />
 
-        <div className={`w-full max-w-[400px] transition-all duration-600 delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+        <div className={`login-form-wrap w-full max-w-[400px] transition-all duration-600 delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
 
-          {/* Logo móvil */}
-          <div className="lg:hidden flex items-center justify-center mb-10">
-            <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-56 h-auto drop-shadow-xl" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4))' }} />
-          </div>
-
-          {/* Encabezado del form */}
-          <div className="mb-8">
-            {/* Eyebrow — PODIUM Sharp */}
-            <p className="font-label text-gold text-xs tracking-[0.35em] uppercase mb-2">Acceso al sistema</p>
-            {/* Título — Neogrotesk SC */}
-            <h2 className="font-display font-light text-slate-text text-3xl">Iniciar Sesión</h2>
+          {/* Encabezado del form — solo desktop (logo va en hero móvil) */}
+          <div className="mb-4 sm:mb-8">
+            <p className="font-label text-gold text-[10px] tracking-[0.28em] uppercase mb-2 sm:text-xs sm:tracking-[0.35em]">
+              Acceso al sistema
+            </p>
+            <h2 className="font-display font-light text-slate-text text-2xl sm:text-3xl">Iniciar Sesión</h2>
           </div>
 
           {/* Card del formulario */}
-          <div className="rounded-sm shadow-card-lg border border-surface p-8"
-            style={{ background: 'rgba(10,25,46,0.7)', backdropFilter: 'blur(16px)' }}>
+          <div
+            className="login-form-card rounded-sm shadow-card-lg border border-surface p-5 sm:p-8"
+            style={{ background: 'rgba(10,25,46,0.7)', backdropFilter: 'blur(16px)' }}
+          >
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
 
-              {/* Email */}
               <div className="space-y-1.5">
-                <label className="font-label text-slate-subtle text-xs tracking-[0.2em] uppercase block">
-                  Correo Electrónico
+                <label htmlFor="login-email" className="font-label text-slate-subtle text-xs tracking-[0.2em] uppercase block">
+                  Correo electrónico
                 </label>
-                <input
-                  type="email"
-                  className="input-corporate"
-                  placeholder="superadmin@bosa.mx"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  autoComplete="email"
-                  required
-                />
+                <div className="login-input-wrap">
+                  <IconMail />
+                  <input
+                    id="login-email"
+                    type="email"
+                    className="input-corporate login-input login-input--icon"
+                    placeholder="superadmin@bosa.mx"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
               </div>
 
-              {/* Contraseña */}
               <div className="space-y-1.5">
-                <label className="font-label text-slate-subtle text-xs tracking-[0.2em] uppercase block">
+                <label htmlFor="login-password" className="font-label text-slate-subtle text-xs tracking-[0.2em] uppercase block">
                   Contraseña
                 </label>
-                <div className="relative">
+                <div className="login-input-wrap">
+                  <IconLock />
                   <input
+                    id="login-password"
                     type={showPwd ? 'text' : 'password'}
-                    className="input-corporate pr-11"
+                    className="input-corporate login-input login-input--icon login-input--icon-right"
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
@@ -203,7 +251,8 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowPwd(!showPwd)}
                     tabIndex={-1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-muted hover:text-gold transition-colors"
+                    aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    className="login-input-wrap__action"
                   >
                     <EyeIcon open={showPwd} />
                   </button>
@@ -222,8 +271,8 @@ export default function Login() {
               )}
 
               {/* Submit */}
-              <div className="pt-2">
-                <button type="submit" disabled={loading} className="btn-gold w-full">
+              <div className="pt-1 sm:pt-2">
+                <button type="submit" disabled={loading} className="btn-gold login-submit w-full">
                   {loading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-navy-950/40 border-t-navy-950 rounded-full animate-spin" />
@@ -242,15 +291,12 @@ export default function Login() {
             </form>
           </div>
 
-          {/* Nota de seguridad */}
-          <div className="mt-5 flex items-center justify-center gap-2">
-            <svg className="w-3 h-3 text-slate-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-            <p className="font-sans text-slate-muted text-[10px] tracking-[0.2em] uppercase">
-              Acceso restringido · Solo personal autorizado
-            </p>
-          </div>
+          <AppVersionBadge className="mb-3" />
+          <SolnoLoginFooter className="px-1" />
+
+          <p className="mt-4 text-center font-label text-[9px] tracking-widest text-slate-muted/60 lg:hidden">
+            © 2026 BOSA · Todos los derechos reservados
+          </p>
         </div>
       </div>
     </div>

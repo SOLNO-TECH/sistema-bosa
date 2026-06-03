@@ -87,6 +87,26 @@ const createTicket = (req, res) => {
     }
 
     const db = getDb();
+    const titleNorm = String(title).trim();
+    const categoryNorm = category || '';
+
+    const recent = db.prepare(`
+      SELECT id FROM tickets
+      WHERE created_by = ?
+        AND TRIM(title) = TRIM(?)
+        AND COALESCE(category, '') = COALESCE(?, '')
+        AND datetime(created_at) >= datetime('now', '-45 seconds')
+      ORDER BY id DESC
+      LIMIT 1
+    `).get(created_by, titleNorm, categoryNorm);
+
+    if (recent?.id) {
+      return res.status(200).json({
+        id: recent.id,
+        message: 'Ticket ya registrado (evitado duplicado)',
+        duplicate: true,
+      });
+    }
 
     const stmt = db.prepare(`
       INSERT INTO tickets (title, description, priority, category, assigned_to, created_by, due_date)
@@ -94,7 +114,7 @@ const createTicket = (req, res) => {
     `);
 
     const info = stmt.run(
-      String(title).trim(),
+      titleNorm,
       description,
       priority || 'medium',
       category,

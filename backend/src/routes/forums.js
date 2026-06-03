@@ -9,6 +9,10 @@ const {
   userHasAccessToGroup,
 } = require('../utils/forumAccess');
 const { notifyForumGroup } = require('../utils/participantNotify');
+const {
+  markForumMessagesRead,
+  enrichMessagesWithReadReceipts,
+} = require('../utils/forumMessageReads');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -149,6 +153,9 @@ router.delete('/:id', (req, res) => {
     } catch (_) { /* noop */ }
 
     db.prepare('DELETE FROM forum_join_requests WHERE workgroup_id = ?').run(req.params.id);
+    db.prepare(
+      `DELETE FROM forum_message_reads WHERE message_id IN (SELECT id FROM workgroup_messages WHERE workgroup_id = ?)`
+    ).run(req.params.id);
     db.prepare('DELETE FROM workgroup_messages WHERE workgroup_id = ?').run(req.params.id);
     db.prepare('DELETE FROM workgroups WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -310,6 +317,8 @@ router.get('/:id/messages', (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a este grupo' });
     }
 
+    markForumMessagesRead(db, req.params.id, req.user.id);
+
     const messages = db.prepare(`
       SELECT m.*, u.name as user_name, u.role as user_role
       FROM workgroup_messages m
@@ -317,7 +326,8 @@ router.get('/:id/messages', (req, res) => {
       WHERE m.workgroup_id = ?
       ORDER BY m.created_at ASC
     `).all(req.params.id);
-    res.json(messages);
+
+    res.json(enrichMessagesWithReadReceipts(db, group, messages));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener mensajes' });
@@ -372,10 +382,77 @@ router.post('/:id/messages', upload.single('file'), (req, res) => {
       });
     } catch (_) { /* noop */ }
 
-    res.json(newMessage);
+    const [enriched] = enrichMessagesWithReadReceipts(db, group, [newMessage]);
+    res.json(enriched || newMessage);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
+
+const FORUM_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+function stripForumRefTags(content) {
+  return (content || '').replace(/\[\[BOSA-REF:(TICKET|MEETING):\d+\]\]/g, '').trim();
+}
+
+// Editar mensaje propio (ventana 15 min, como WhatsApp)
+router.patch('/:id/messages/:messageId', (req, res) => {
+  try {
+    const db = getDb();
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+
+    const group = db.prepare('SELECT * FROM workgroups WHERE id = ?').get(req.params.id);
+    if (!group) return res.status(404).json({ error: 'Grupo no encontrado' });
+    if (!userHasAccessToGroup(db, user_id, group)) {
+      return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+    }
+
+    const message = db
+      .prepare('SELECT * FROM workgroup_messages WHERE id = ? AND workgroup_id = ?')
+      .get(req.params.messageId, req.params.id);
+    if (!message) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (Number(message.user_id) !== Number(user_id)) {
+      return res.status(403).json({ error: 'Solo puedes editar tus propios mensajes' });
+    }
+
+    const createdMs = new Date(message.created_at).getTime();
+    if (Number.isNaN(createdMs) || Date.now() - createdMs > FORUM_MESSAGE_EDIT_WINDOW_MS) {
+      return res.status(400).json({
+        error: 'El tiempo para editar este mensaje ha expirado (15 minutos).',
+      });
+    }
+
+    if (message.file_url && !stripForumRefTags(message.content)) {
+      return res.status(400).json({ error: 'No se puede editar un mensaje que solo contiene un archivo.' });
+    }
+
+    const content = typeof req.body?.content === 'string' ? req.body.content : '';
+    if (!stripForumRefTags(content)) {
+      return res.status(400).json({ error: 'El mensaje no puede quedar vacío.' });
+    }
+
+    db.prepare(
+      `UPDATE workgroup_messages SET content = ?, edited_at = datetime('now') WHERE id = ?`
+    ).run(content, message.id);
+
+    const updated = db
+      .prepare(
+        `
+      SELECT m.*, u.name as user_name, u.role as user_role
+      FROM workgroup_messages m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.id = ?
+    `
+      )
+      .get(message.id);
+
+    const [enriched] = enrichMessagesWithReadReceipts(db, group, [updated]);
+    res.json(enriched || updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al editar mensaje' });
   }
 });
 

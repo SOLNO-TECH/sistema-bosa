@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { EmptyStateIllustration, SparkleIcon } from '../components/Illustrations';
+import { EmptyStateIllustration } from '../components/Illustrations';
 import UsersModule from '../components/modules/UsersModule';
 import ConfigModule from '../components/modules/ConfigModule';
 import TicketsModule from '../components/modules/TicketsModule';
@@ -9,9 +9,14 @@ import TasksModule from '../components/modules/TasksModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
 import ForoModule from '../components/modules/ForoModule';
+import KnowledgeModule from '../components/modules/KnowledgeModule';
+import CronogramaModule from '../components/modules/CronogramaModule';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
 import MinutasModule from '../components/modules/MinutasModule';
+import NotificationHeaderPanel from '../components/NotificationHeaderPanel';
+import { SolnoSidebarCredit } from '../components/SolnoBrandMark';
+import AppVersionBadge from '../components/AppVersionBadge';
 import ToastContainer from '../components/ToastContainer';
 import {
   showIncomingNotificationToast,
@@ -25,6 +30,14 @@ import {
   countUnseenSince,
 } from '../utils/navModuleSeen';
 import {
+  NAV_NEW_MODULES,
+  NAV_COMING_SOON_MODULES,
+  loadNavNewSeen,
+  markNavNewSeen,
+  shouldShowNavNew,
+} from '../utils/navModuleNew';
+import { localDateYMD, parseYMD } from '../utils/localDate';
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
@@ -34,6 +47,16 @@ const ROLE_LABELS = {
   administrator: 'Administrador',
   manager: 'Gerente',
 };
+
+function getUserDisplayName(user) {
+  if (!user) return '';
+  return [user.name, user.apellido].filter(Boolean).join(' ').trim() || user.email?.split('@')[0] || 'Usuario';
+}
+
+function getUserFirstName(user) {
+  const full = getUserDisplayName(user);
+  return full.split(/\s+/)[0] || full;
+}
 
 // ── Iconos ──────────────────────────────────────────────
 const IconGrid = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>;
@@ -49,7 +72,17 @@ const IconTaskGantt = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24
 const IconAvisos = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" /></svg>;
 const IconBell = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>;
 const IconForo = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>;
+const IconKnowledge = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.148 0-2.236.21-3.22.582A10.983 10.983 0 003 12c0 1.657.402 3.22 1.125 4.612M12 6.042a8.966 8.966 0 016-2.292c1.148 0 2.236.21 3.22.582A10.983 10.983 0 0121 12c0 1.657-.402 3.22-1.125 4.612M12 6.042V12m0 5.958V12m0 0H3.75m8.25 0H20.25" />
+  </svg>
+);
 const IconMinuta = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>;
+const IconCronograma = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h12M3 18h7.5M16.5 7.5v12m0 0l-2.25-2.25M16.5 19.5l2.25-2.25" />
+  </svg>
+);
 
 // ── Chart colors ─────────────────────────────────────────
 const CHART_DATA_KEYS = [
@@ -133,12 +166,32 @@ function NavCountBadge({ count }) {
   if (!n || n <= 0) return null;
   return (
     <span
-      className="ml-auto flex-shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center"
+      className="flex-shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center"
       aria-label={`${n} sin revisar`}
     >
       <span className="text-[9px] font-bold leading-none tabular-nums">
         {n > 99 ? '99+' : n}
       </span>
+    </span>
+  );
+}
+
+/** Etiqueta dorada para módulos recién lanzados (se oculta al entrar al módulo). */
+function NavNewBadge({ show }) {
+  if (!show) return null;
+  return (
+    <span className="nav-item-new" aria-label="Nuevo">
+      Nuevo
+    </span>
+  );
+}
+
+/** Etiqueta para módulos aún no disponibles. */
+function NavSoonBadge({ show }) {
+  if (!show) return null;
+  return (
+    <span className="nav-item-soon" aria-label="Próximamente">
+      Próximamente
     </span>
   );
 }
@@ -152,6 +205,8 @@ export default function Dashboard() {
   const [pendingTicketOpen, setPendingTicketOpen] = useState(null);
   const [sidebarOpen, setSidebar] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifPanelClosing, setNotifPanelClosing] = useState(false);
+  const notifCloseTimerRef = useRef(null);
   const [mounted, setMounted] = useState(false);
   
   const [stats, setStats] = useState({ users: 0, meetings: 0, tickets: 0, avisos: 0 });
@@ -159,9 +214,29 @@ export default function Dashboard() {
   const [recentNotifs, setRecentNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [navBadges, setNavBadges] = useState({});
+  const [navNewSeen, setNavNewSeen] = useState({});
   const notifPollReadyRef = useRef(false);
   const lastSeenKey = user?.id ? `bosa_last_notif_id_${user.id}` : 'bosa_last_notif_id';
   const lastSeenNotifIdRef = useRef(0);
+
+  useEffect(() => () => {
+    if (notifCloseTimerRef.current) clearTimeout(notifCloseTimerRef.current);
+  }, []);
+
+  const openNotifications = () => {
+    if (notifCloseTimerRef.current) clearTimeout(notifCloseTimerRef.current);
+    setNotifPanelClosing(false);
+    setShowNotifications(true);
+  };
+
+  const closeNotifications = () => {
+    if (!showNotifications || notifPanelClosing) return;
+    setNotifPanelClosing(true);
+    notifCloseTimerRef.current = setTimeout(() => {
+      setShowNotifications(false);
+      setNotifPanelClosing(false);
+    }, 280);
+  };
 
   const fetchRecentNotifications = async () => {
     try {
@@ -184,7 +259,7 @@ export default function Dashboard() {
           .sort((a, b) => a.id - b.id);
         for (const n of incoming) {
           showIncomingNotificationToast(n, () => {
-            setShowNotifications(false);
+            closeNotifications();
             openFromPushData({
               module: n.module,
               related_id: n.related_id,
@@ -226,6 +301,26 @@ export default function Dashboard() {
     else setActive('notifications');
   };
 
+  const handleOpenHeaderNotification = async (n) => {
+    if (!n.is_read) {
+      try { await axios.patch(`/api/notifications/${n.id}/read`); } catch (_) {}
+    }
+    closeNotifications();
+    openFromPushData({
+      module: n.module,
+      related_id: n.related_id,
+      link_id: n.related_id,
+    });
+    fetchRecentNotifications();
+  };
+
+  const handleMarkAllHeaderNotificationsRead = async () => {
+    try {
+      await axios.patch('/api/notifications/read-all');
+      await fetchRecentNotifications();
+    } catch (_) {}
+  };
+
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     fetchStats();
@@ -234,6 +329,10 @@ export default function Dashboard() {
       clearTimeout(t);
       clearInterval(statsInterval);
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) setNavNewSeen(loadNavNewSeen(user.id));
   }, [user?.id]);
 
   const getNavBadgeCount = (itemId) => {
@@ -263,6 +362,11 @@ export default function Dashboard() {
       markNavModuleSeen(user.id, active);
       setNavBadges((prev) => ({ ...prev, [active]: 0 }));
     }
+
+    if (NAV_NEW_MODULES.includes(active)) {
+      markNavNewSeen(user.id, active);
+      setNavNewSeen((prev) => ({ ...prev, [active]: new Date().toISOString() }));
+    }
   }, [active, user?.id]);
 
   useEffect(() => {
@@ -277,7 +381,9 @@ export default function Dashboard() {
     const onSwMessage = (event) => {
       if (event.data?.type === 'NOTIFICATION_CLICK') {
         openFromPushData(event.data.data);
+        if (notifCloseTimerRef.current) clearTimeout(notifCloseTimerRef.current);
         setShowNotifications(false);
+        setNotifPanelClosing(false);
         return;
       }
       if (event.data?.type === 'PUSH_RECEIVED') {
@@ -327,8 +433,8 @@ export default function Dashboard() {
       const ticketTasks = Array.isArray(taskRes.data) ? taskRes.data : [];
       const uid = user?.id;
 
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = localDateYMD();
+      const todayStart = parseYMD(todayStr);
 
       setStats({
         users: users.length,
@@ -342,11 +448,16 @@ export default function Dashboard() {
       const closed = tickets.filter(t => t.status === 'closed' || t.status === 'resolved').length;
       const inProgress = tickets.filter(t => t.status === 'in_progress').length;
       const urgent = tickets.filter(t => t.priority === 'urgent' && t.status !== 'closed').length;
-      const overdue = tickets.filter(t => t.due_date && new Date(t.due_date) < today && t.status !== 'closed').length;
+      const overdue = tickets.filter((t) => {
+        if (!t.due_date || t.status === 'closed' || !todayStart) return false;
+        const due = parseYMD(t.due_date);
+        return due && due < todayStart;
+      }).length;
 
       // Reuniones de la semana actual (Dom → Sáb)
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
+      const startOfWeek = new Date();
+      startOfWeek.setHours(0, 0, 0, 0);
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 7);
@@ -423,6 +534,7 @@ export default function Dashboard() {
           { id: 'tasks', label: 'Tareas operativas', icon: <IconTaskGantt /> },
           { id: 'avisos', label: 'Avisos', icon: <IconAvisos /> },
           { id: 'minutas', label: 'Minutas', icon: <IconMinuta /> },
+          { id: 'cronograma', label: 'Cronograma', icon: <IconCronograma /> },
         ],
       }
     ];
@@ -432,6 +544,7 @@ export default function Dashboard() {
       systemItems.push({ id: 'users', label: 'Usuarios', icon: <IconUserAdmin /> });
     }
     systemItems.push({ id: 'foro', label: 'Foro', icon: <IconForo /> });
+    systemItems.push({ id: 'knowledge', label: 'Knowledge', icon: <IconKnowledge /> });
     systemItems.push({ id: 'settings', label: 'Configuración', icon: <IconSettings /> });
     systemItems.push({ id: 'notifications', label: 'Notificaciones', icon: <IconBell /> });
     
@@ -483,7 +596,11 @@ export default function Dashboard() {
                   >
                     {item.icon}
                     <span className="flex-1 min-w-0 truncate text-left">{item.label}</span>
-                    <NavCountBadge count={getNavBadgeCount(item.id)} />
+                    <span className="ml-auto flex flex-shrink-0 items-center gap-1">
+                      <NavSoonBadge show={NAV_COMING_SOON_MODULES.includes(item.id)} />
+                      <NavNewBadge show={shouldShowNavNew(user?.id, item.id, navNewSeen)} />
+                      <NavCountBadge count={getNavBadgeCount(item.id)} />
+                    </span>
                   </button>
                 ))}
               </div>
@@ -501,24 +618,41 @@ export default function Dashboard() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
             Cerrar Sesión
           </button>
+          <div className="sidebar-footer-meta">
+            <SolnoSidebarCredit className="!mt-0" />
+          </div>
         </div>
       </aside>
 
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebar(false)} />}
 
       <div className={`flex flex-col min-h-screen min-w-0 transition-opacity duration-1000 lg:ml-60 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/90 backdrop-blur-md">
+        <header
+          className={`sticky top-0 flex items-center justify-between border-b border-gray-200 px-6 py-4 ${
+            showNotifications || notifPanelClosing
+              ? 'z-50 bg-white'
+              : 'z-20 bg-white/90 backdrop-blur-md'
+          }`}
+        >
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
             </button>
               <div className="flex items-center gap-4">
-                <h2 className="font-display font-medium text-navy-950 text-xl">{allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}</h2>
+                <h2 className="font-sans text-lg font-semibold tracking-tight text-navy-950 sm:text-xl">
+                  {allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}
+                </h2>
               </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center pl-2 border-l border-gray-200 relative">
-              <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-navy-600 hover:text-gold transition-colors">
+              <button
+                type="button"
+                onClick={() => (showNotifications ? closeNotifications() : openNotifications())}
+                className="relative p-2 text-navy-600 transition-colors hover:text-gold"
+                aria-expanded={showNotifications}
+                aria-haspopup="dialog"
+              >
                 <IconBell />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white flex items-center justify-center">
@@ -527,79 +661,26 @@ export default function Dashboard() {
                 )}
               </button>
 
-              {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
-                    <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                      <span className="font-sans font-bold text-navy-950 text-sm">Notificaciones</span>
-                      {unreadCount > 0 ? (
-                        <span className="text-[10px] bg-gold/15 text-gold px-2 py-0.5 rounded-full font-bold">{unreadCount} sin leer</span>
-                      ) : (
-                        <span className="text-[10px] text-navy-500">Al día</span>
-                      )}
-                    </div>
-                    <div className="max-h-72 overflow-y-auto">
-                      {recentNotifs.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-navy-500">Sin notificaciones aún</div>
-                      ) : (
-                        recentNotifs.map(n => (
-                          <button
-                            key={n.id}
-                            onClick={async () => {
-                              if (!n.is_read) {
-                                try { await axios.patch(`/api/notifications/${n.id}/read`); } catch(_) {}
-                              }
-                              if (n.module) {
-                                const mod = n.module;
-                                if (mod === 'avisos') setActive('avisos');
-                                else if (mod === 'calendar') setActive('calendar');
-                                else if (mod === 'tickets') setActive('tickets');
-                                else if (mod === 'tasks') setActive('tasks');
-                                else if (mod === 'foro') setActive('foro');
-                                else if (mod === 'minutas') setActive('minutas');
-                                else setActive('notifications');
-                              }
-                              else setActive('notifications');
-                              setShowNotifications(false);
-                              fetchRecentNotifications();
-                            }}
-                            className={`w-full text-left p-3 border-b border-gray-100 hover:bg-gold/5 cursor-pointer transition-colors block ${!n.is_read ? 'bg-gold/5' : ''}`}
-                          >
-                            <div className="flex items-start gap-2">
-                              {!n.is_read && <span className="w-1.5 h-1.5 bg-gold rounded-full mt-1.5 flex-shrink-0" />}
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-navy-900 truncate">{n.title}</p>
-                                <p className="text-[10px] text-navy-600 mt-0.5 line-clamp-2">{n.message}</p>
-                                <span className="text-[9px] text-navy-500 mt-1 block">
-                                  {(() => {
-                                    if (!n.created_at) return '';
-                                    const d = new Date(n.created_at.replace(' ', 'T') + (n.created_at.includes('Z') ? '' : 'Z'));
-                                    const diffMin = Math.floor((Date.now() - d) / 60000);
-                                    if (diffMin < 1) return 'Ahora mismo';
-                                    if (diffMin < 60) return `Hace ${diffMin} min`;
-                                    if (diffMin < 1440) return `Hace ${Math.floor(diffMin/60)} h`;
-                                    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-                                  })()}
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    <div className="p-2 text-center bg-gray-50 border-t border-gray-200">
-                      <button onClick={() => { setActive('notifications'); setShowNotifications(false); }} className="text-[10px] font-bold text-gold hover:text-navy-900 uppercase tracking-wider">Ver todas</button>
-                    </div>
-                  </div>
-                </>
+              {(showNotifications || notifPanelClosing) && (
+                <NotificationHeaderPanel
+                  notifications={recentNotifs}
+                  unreadCount={unreadCount}
+                  closing={notifPanelClosing}
+                  onClose={closeNotifications}
+                  onOpenNotification={handleOpenHeaderNotification}
+                  onMarkAllRead={handleMarkAllHeaderNotificationsRead}
+                  onViewAll={() => {
+                    closeNotifications();
+                    setActive('notifications');
+                  }}
+                />
               )}
             </div>
           </div>
         </header>
 
         <main className="surface-light flex-1 bg-gray-50 p-4 lg:p-8 overflow-y-auto pb-24 lg:pb-8 text-navy-950">
-          {active === 'foro' ? <ForoModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? (user?.role === 'superadmin' ? <UsersModule /> : (
+          {active === 'foro' ? <ForoModule /> : active === 'knowledge' ? <KnowledgeModule /> : active === 'notifications' ? <NotificationsModule /> : active === 'users' ? (user?.role === 'superadmin' ? <UsersModule /> : (
             <div className="flex flex-col items-center justify-center py-32 gap-4 text-center max-w-md mx-auto">
               <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
                 <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -623,13 +704,28 @@ export default function Dashboard() {
                 setActive('tickets');
               }}
             />
-          ) : active === 'avisos' ? <AvisosModule /> : active === 'minutas' ? <MinutasModule /> : active === 'calendar' ? <CalendarModule /> : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
+          ) : active === 'avisos' ? <AvisosModule /> : active === 'minutas' ? <MinutasModule /> : active === 'cronograma' ? (
+            <CronogramaModule />
+          ) : active === 'calendar' ? (
+            <CalendarModule onMinuteSaved={() => setActive('minutas')} />
+          ) : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
-              <div className="flex items-center gap-2">
-                <SparkleIcon size={16} className="text-gold" />
-                <p className="font-label text-gold text-[10px] tracking-widest uppercase font-bold">Bienvenido</p>
+              <div className="dashboard-welcome">
+                <img
+                  src="/fondo.jpeg"
+                  alt=""
+                  aria-hidden="true"
+                  className="dashboard-welcome__bg"
+                />
+                <div className="dashboard-welcome__overlay" aria-hidden="true" />
+                <div className="dashboard-welcome__content">
+                  <h3 className="dashboard-welcome__title">
+                    Bienvenido,{' '}
+                    <span className="text-gold-shimmer">{getUserFirstName(user)}</span>
+                  </h3>
+                  <AppVersionBadge variant="welcome" className="dashboard-welcome__version shrink-0" />
+                </div>
               </div>
-              <h3 className="font-display font-medium text-navy-950 text-2xl mt-0.5">{user?.name}</h3>
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 <MetricCard title="Usuarios" value={stats.users} sub="Colaboradores activos" highlight icon={<IconGrid />} onClick={user?.role === 'superadmin' ? () => setActive('users') : undefined} />
                 <MetricCard title="Reuniones" value={stats.meetings} sub="Programadas hoy" icon={<IconCalendar />} onClick={() => setActive('calendar')} />

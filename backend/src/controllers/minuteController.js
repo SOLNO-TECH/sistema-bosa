@@ -1,5 +1,6 @@
 const { getDb } = require('../database/init');
 const { notifyMinutaParticipants } = require('../utils/participantNotify');
+const { deleteAudioFileIfExists, resolveAudioFile, streamAudioFile } = require('../utils/minuteAudio');
 
 function safeJson(s, fallback) {
   try {
@@ -8,6 +9,19 @@ function safeJson(s, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function resolvePermissionLevel(user) {
+  if (!user) return 'user';
+  if (user.permission_level) return user.permission_level;
+  if (user.role === 'superadmin') return 'superadmin';
+  if (user.role === 'administrator') return 'administrator';
+  if (user.role === 'manager') return 'manager';
+  return 'user';
+}
+
+function isSuperadminUser(user) {
+  return resolvePermissionLevel(user) === 'superadmin';
 }
 
 const defaultTopics = () => [
@@ -25,6 +39,9 @@ function normalizePayload(body) {
     tema = '',
     attendees,
     topics,
+    meeting_id,
+    transcript_text,
+    audio_path,
   } = body;
   if (!fecha || String(fecha).trim() === '') {
     return { error: 'La fecha es obligatoria.' };
@@ -44,6 +61,12 @@ function normalizePayload(body) {
     descripcion: String(t.descripcion ?? '').trim(),
     comentarios: String(t.comentarios ?? '').trim(),
   }));
+  let meetingId = null;
+  if (meeting_id != null && meeting_id !== '') {
+    const n = Number(meeting_id);
+    if (!Number.isNaN(n) && n > 0) meetingId = n;
+  }
+
   return {
     lugar: String(lugar).trim(),
     fecha: String(fecha).trim(),
@@ -52,6 +75,9 @@ function normalizePayload(body) {
     tema: String(tema).trim(),
     attendees: att,
     topics: top,
+    meeting_id: meetingId,
+    transcript_text: String(transcript_text ?? '').trim(),
+    audio_path: audio_path != null && String(audio_path).trim() !== '' ? String(audio_path).trim() : null,
   };
 }
 
@@ -71,6 +97,12 @@ function mapRow(r) {
     updated_at: r.updated_at,
     creator_name: r.creator_name,
     creator_apellido: r.creator_apellido,
+    meeting_id: r.meeting_id ?? null,
+    transcript_text: r.transcript_text || '',
+    audio_path: r.audio_path || null,
+    audio_url: r.audio_path
+      ? `/api/uploads/${String(r.audio_path).replace(/^\/+/, '').replace(/\\/g, '/')}`
+      : null,
   };
 }
 
@@ -123,8 +155,8 @@ const createMinute = (req, res) => {
     const info = db
       .prepare(
         `INSERT INTO meeting_minutes
-         (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by, meeting_id, transcript_text, audio_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         n.lugar,
@@ -134,7 +166,10 @@ const createMinute = (req, res) => {
         n.tema,
         JSON.stringify(n.attendees),
         JSON.stringify(n.topics),
-        created_by
+        created_by,
+        n.meeting_id,
+        n.transcript_text,
+        n.audio_path
       );
     const minuteId = info.lastInsertRowid;
     try {
@@ -163,10 +198,18 @@ const updateMinute = (req, res) => {
     const exists = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
     if (!exists) return res.status(404).json({ message: 'Minuta no encontrada.' });
 
+    const audioPathProvided = Object.prototype.hasOwnProperty.call(req.body, 'audio_path');
+    const audioPathToSave = audioPathProvided ? n.audio_path : exists.audio_path;
+
+    if (audioPathProvided && n.audio_path && exists.audio_path && n.audio_path !== exists.audio_path) {
+      deleteAudioFileIfExists(exists.audio_path);
+    }
+
     db.prepare(
       `UPDATE meeting_minutes SET
         lugar = ?, fecha = ?, hora_inicio = ?, hora_cierre = ?, tema = ?,
-        attendees_json = ?, topics_json = ?, updated_at = datetime('now')
+        attendees_json = ?, topics_json = ?, meeting_id = ?, transcript_text = ?, audio_path = ?,
+        updated_at = datetime('now')
        WHERE id = ?`
     ).run(
       n.lugar,
@@ -176,6 +219,9 @@ const updateMinute = (req, res) => {
       n.tema,
       JSON.stringify(n.attendees),
       JSON.stringify(n.topics),
+      n.meeting_id,
+      n.transcript_text,
+      audioPathToSave,
       req.params.id
     );
     try {
@@ -198,6 +244,9 @@ const updateMinute = (req, res) => {
 
 const deleteMinute = (req, res) => {
   try {
+    if (!isSuperadminUser(req.user)) {
+      return res.status(403).json({ message: 'Solo el superadministrador puede eliminar minutas.' });
+    }
     const db = getDb();
     const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ message: 'Minuta no encontrada.' });
@@ -211,11 +260,27 @@ const deleteMinute = (req, res) => {
         related_id: Number(req.params.id),
       });
     } catch (_) { /* noop */ }
+    if (row.audio_path) deleteAudioFileIfExists(row.audio_path);
     db.prepare('DELETE FROM meeting_minutes WHERE id = ?').run(req.params.id);
     res.json({ message: 'Minuta eliminada.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al eliminar la minuta.' });
+  }
+};
+
+const streamMinuteAudio = (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT id, audio_path FROM meeting_minutes WHERE id = ?').get(req.params.id);
+    if (!row?.audio_path) {
+      return res.status(404).json({ message: 'Esta minuta no tiene grabación de audio.' });
+    }
+    const fullPath = resolveAudioFile(row.audio_path);
+    streamAudioFile(req, res, fullPath);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al reproducir el audio.' });
   }
 };
 
@@ -225,4 +290,5 @@ module.exports = {
   createMinute,
   updateMinute,
   deleteMinute,
+  streamMinuteAudio,
 };

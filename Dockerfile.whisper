@@ -1,0 +1,68 @@
+# BOSA Hub — producción con ffmpeg + whisper.cpp (minutas por voz en el servidor)
+# Dokploy: usar este archivo como Dockerfile path (no el Dockerfile por defecto).
+
+# --- STAGE 1: Frontend ---
+FROM node:20-bookworm-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ .
+RUN npm run build
+
+# --- STAGE 2: Compilar whisper.cpp ---
+FROM debian:bookworm-slim AS whisper-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    curl \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git
+WORKDIR /build/whisper.cpp
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  && cmake --build build -j"$(nproc)"
+
+RUN mkdir -p /opt/whisper/models \
+  && curl -fsSL -o /opt/whisper/models/ggml-small.bin \
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin"
+
+# --- STAGE 3: Runtime ---
+FROM node:20-bookworm-slim
+WORKDIR /app/backend
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    python3 \
+    make \
+    g++ \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=whisper-builder /build/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY --from=whisper-builder /opt/whisper/models /opt/whisper/models
+
+COPY backend/package*.json ./
+RUN npm install --omit=dev
+
+COPY backend ./
+
+RUN mkdir -p public data/uploads/voice
+COPY --from=frontend-builder /app/frontend/dist ./public
+
+ENV NODE_ENV=production
+ENV PORT=4000
+ENV WHISPER_BIN=/usr/local/bin/whisper-cli
+ENV WHISPER_MODEL=/opt/whisper/models/ggml-small.bin
+ENV FFMPEG_BIN=/usr/bin/ffmpeg
+ENV WHISPER_LANGUAGE=es
+ENV WHISPER_USE_SERVER=false
+ENV WHISPER_THREADS=4
+ENV WHISPER_TIMEOUT_MS=600000
+ENV VOICE_MAX_MB=80
+
+EXPOSE 4000
+
+CMD ["node", "src/server.js"]

@@ -5,11 +5,7 @@ import { PushEvents } from '../../utils/pushNotify';
 import { useCatalog } from '../../hooks/useCatalog';
 import { roleLabelFromCatalog, roleBadgeClass } from '../../utils/catalog';
 import { DepartmentModal, RoleModal } from './CatalogModals';
-
-const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
-
-const sectionTitle = 'mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400';
+import BosaGoldButton from '../BosaGoldButton';
 
 export default function UsersModule() {
   const { departments, roles, refresh: refreshCatalog } = useCatalog();
@@ -155,18 +151,15 @@ export default function UsersModule() {
           <h3 className="font-display font-medium text-navy-950 text-xl sm:text-2xl">Gestión de Usuarios</h3>
           <p className="font-sans text-navy-600 text-sm mt-1">Administra los accesos y roles del sistema operativo BOSA.</p>
         </div>
-        <button
-          type="button"
+        <BosaGoldButton
+          icon="user"
           onClick={() => { setEditingUser(null); setFormData({}); setIsFormOpen(true); }}
-          className="btn-gold-header self-end sm:self-auto"
+          className="self-end sm:!w-auto sm:self-auto"
           aria-label="Nuevo usuario"
         >
-          <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
           <span className="sm:hidden">Nuevo</span>
-          <span className="hidden sm:inline">Nuevo Usuario</span>
-        </button>
+          <span className="hidden sm:inline">Nuevo usuario</span>
+        </BosaGoldButton>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
@@ -334,43 +327,28 @@ export default function UsersModule() {
       {/* Form Modal */}
       {isFormOpen &&
         createPortal(
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
-            onClick={closeUserForm}
-            role="presentation"
-          >
+          <div className="meeting-sheet-overlay z-[120] animate-fade-in" onClick={closeUserForm} role="presentation">
             <div
-              className="flex max-h-[min(92dvh,44rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              className="meeting-sheet meeting-sheet--form meeting-sheet--wide animate-slide-up"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="user-form-title"
             >
-              <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-6 sm:px-8 sm:pt-7">
-                <div className="pointer-events-none absolute -right-20 -top-28 h-60 w-60 rounded-full bg-gold/12 blur-3xl" aria-hidden />
-                <div className="relative flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
-                    <div className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/[0.12] sm:flex">
-                      <svg className="h-5 w-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Accesos BOSA</p>
-                      <h2 id="user-form-title" className="mt-1.5 font-display text-xl font-medium leading-tight text-white sm:text-2xl">
-                        {editingUser ? 'Editar usuario' : 'Nuevo usuario'}
-                      </h2>
-                      <p className="mt-1.5 text-sm text-white/55">
-                        {editingUser ? 'Actualiza datos de contacto, área y rol.' : 'Alta de colaborador con correo de acceso y contraseña inicial.'}
-                      </p>
-                    </div>
+              <div className="meeting-sheet__hero shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="meeting-sheet__pill meeting-sheet__pill--gold">Accesos BOSA</span>
+                    <h3 id="user-form-title" className="meeting-sheet__hero-title mt-2">
+                      {editingUser ? 'Editar usuario' : 'Nuevo usuario'}
+                    </h3>
+                    <p className="meeting-sheet__hero-subtitle">
+                      {editingUser
+                        ? 'Actualiza datos de contacto, área y rol.'
+                        : 'Alta de colaborador con correo de acceso y contraseña inicial.'}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={closeUserForm}
-                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
-                    aria-label="Cerrar"
-                  >
+                  <button type="button" onClick={closeUserForm} className="meeting-sheet__close" aria-label="Cerrar">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -379,174 +357,190 @@ export default function UsersModule() {
               </div>
 
               <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave} autoComplete="off">
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-8">
-                  <section>
-                    <h3 className={sectionTitle}>Datos personales</h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre *</span>
-                        <input
-                          required
-                          type="text"
-                          autoComplete="off"
-                          value={formData.name || ''}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className={inputClass}
-                          placeholder="Nombre"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Apellido</span>
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          value={formData.apellido || ''}
-                          onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
-                          className={inputClass}
-                          placeholder="Apellido(s)"
-                        />
-                      </label>
+                <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+                  <p className="meeting-sheet__section-label">Datos personales</p>
+                  <div className="meeting-sheet__group">
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Nombre</label>
+                      <input
+                        required
+                        type="text"
+                        autoComplete="off"
+                        value={formData.name || ''}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="meeting-sheet__input font-semibold"
+                        placeholder="Nombre"
+                      />
                     </div>
-                  </section>
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Apellido</label>
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        value={formData.apellido || ''}
+                        onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                        className="meeting-sheet__input"
+                        placeholder="Apellido(s)"
+                      />
+                    </div>
+                  </div>
 
-                  <section>
-                    <h3 className={sectionTitle}>Contacto</h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <label className="block sm:col-span-2">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Correo (inicio de sesión) *</span>
-                        <input
-                          required
-                          type="email"
-                          autoComplete="off"
-                          value={formData.email || ''}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className={inputClass}
-                          placeholder="correo@empresa.com"
-                        />
-                      </label>
-                      <label className="block sm:col-span-2">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Teléfono</span>
-                        <input
-                          type="tel"
-                          autoComplete="off"
-                          value={formData.telefono || ''}
-                          onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                          className={inputClass}
-                          placeholder="Opcional"
-                        />
-                      </label>
+                  <p className="meeting-sheet__section-label">Contacto</p>
+                  <div className="meeting-sheet__group">
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Correo (inicio de sesión)</label>
+                      <input
+                        required
+                        type="email"
+                        autoComplete="off"
+                        value={formData.email || ''}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="meeting-sheet__input"
+                        placeholder="correo@empresa.com"
+                      />
                     </div>
-                  </section>
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Teléfono</label>
+                      <input
+                        type="tel"
+                        autoComplete="off"
+                        value={formData.telefono || ''}
+                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                        className="meeting-sheet__input"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
 
-                  <section>
-                    <h3 className={sectionTitle}>Organización y rol</h3>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Departamento *</span>
-                        <select
-                          required
-                          value={formData.departamento || ''}
-                          onChange={(e) => setFormData({ ...formData, departamento: e.target.value })}
-                          className={`${inputClass} h-[46px] cursor-pointer`}
-                        >
-                          <option value="" disabled>
-                            Seleccione departamento…
+                  <p className="meeting-sheet__section-label">Organización y rol</p>
+                  <div className="meeting-sheet__group">
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Departamento</label>
+                      <select
+                        required
+                        value={formData.departamento || ''}
+                        onChange={(e) => setFormData({ ...formData, departamento: e.target.value })}
+                        className="meeting-sheet__select"
+                      >
+                        <option value="" disabled>
+                          Seleccione departamento…
+                        </option>
+                        {departments.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
                           </option>
-                          {departments.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Puesto</span>
-                        <select
-                          value={formData.puesto || ''}
-                          onChange={(e) => setFormData({ ...formData, puesto: e.target.value })}
-                          className={`${inputClass} h-[46px] cursor-pointer`}
-                        >
-                          <option value="">Seleccione un puesto</option>
-                          <option value="Gerente">Gerente</option>
-                          <option value="Sub-Gerente">Sub-Gerente</option>
-                          <option value="Coordinador">Coordinador</option>
-                          <option value="Supervisor">Supervisor</option>
-                          <option value="Auxiliar">Auxiliar</option>
-                          <option value="Asistente">Asistente</option>
-                          <option value="Analista">Analista</option>
-                          <option value="Técnico">Técnico</option>
-                          <option value="Operativo">Operativo</option>
-                        </select>
-                      </label>
-                      <label className="block sm:col-span-2">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Rol *</span>
-                        <select
-                          required
-                          value={formData.role || ''}
-                          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                          className={`${inputClass} h-[46px] cursor-pointer`}
-                        >
-                          <option value="" disabled>
-                            Seleccione un rol…
-                          </option>
-                          {roles.map((r) => (
-                            <option key={r.slug} value={r.slug}>
-                              {r.label}
-                              {r.permission_level === 'manager' ? ' (coordina departamento)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        ))}
+                      </select>
                     </div>
-                  </section>
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Puesto</label>
+                      <select
+                        value={formData.puesto || ''}
+                        onChange={(e) => setFormData({ ...formData, puesto: e.target.value })}
+                        className="meeting-sheet__select"
+                      >
+                        <option value="">Seleccione un puesto</option>
+                        <option value="Gerente">Gerente</option>
+                        <option value="Sub-Gerente">Sub-Gerente</option>
+                        <option value="Coordinador">Coordinador</option>
+                        <option value="Supervisor">Supervisor</option>
+                        <option value="Auxiliar">Auxiliar</option>
+                        <option value="Asistente">Asistente</option>
+                        <option value="Analista">Analista</option>
+                        <option value="Técnico">Técnico</option>
+                        <option value="Operativo">Operativo</option>
+                      </select>
+                    </div>
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Rol</label>
+                      <select
+                        required
+                        value={formData.role || ''}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        className="meeting-sheet__select"
+                      >
+                        <option value="" disabled>
+                          Seleccione un rol…
+                        </option>
+                        {roles.map((r) => (
+                          <option key={r.slug} value={r.slug}>
+                            {r.label}
+                            {r.permission_level === 'manager' ? ' (coordina departamento)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
                   {!editingUser && (
-                    <section>
-                      <h3 className={sectionTitle}>Contraseña inicial</h3>
-                      <label className="block">
-                        <span className="mb-1.5 block text-xs font-semibold text-slate-700">Contraseña *</span>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <input
-                            required
-                            type="text"
-                            autoComplete="new-password"
-                            value={formData.password || ''}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            className={`${inputClass} min-w-0 flex-1 font-mono text-sm`}
-                            placeholder="Mínimo recomendado: 12 caracteres"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, password: generatePassword() })}
-                            className="shrink-0 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15 sm:self-stretch"
-                          >
-                            Generar
-                          </button>
+                    <>
+                      <p className="meeting-sheet__section-label">Contraseña inicial</p>
+                      <div className="meeting-sheet__group">
+                        <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                          <label className="meeting-sheet__cell-label">Contraseña</label>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              required
+                              type="text"
+                              autoComplete="new-password"
+                              value={formData.password || ''}
+                              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                              className="meeting-sheet__input min-w-0 flex-1 font-mono text-[14px]"
+                              placeholder="Mínimo recomendado: 12 caracteres"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, password: generatePassword() })}
+                              className="meeting-sheet__btn meeting-sheet__btn--secondary shrink-0 px-4 py-2.5 text-[14px] sm:self-stretch"
+                            >
+                              Generar
+                            </button>
+                          </div>
                         </div>
-                      </label>
-                    </section>
+                      </div>
+                    </>
                   )}
                 </div>
 
-                <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
-                  <button
-                    type="button"
-                    onClick={closeUserForm}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-navy-900/10 bg-navy-950 px-6 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 sm:min-w-[10rem]"
-                  >
-                    {!editingUser && (
-                      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+                  <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
+                    <button
+                      type="button"
+                      onClick={closeUserForm}
+                      className="voice-minute-footer__btn voice-minute-footer__btn--secondary"
+                    >
+                      <svg
+                        className="voice-minute-footer__icon voice-minute-footer__icon--close"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <path d="M6 6l12 12M18 6L6 18" />
                       </svg>
-                    )}
-                    Guardar
-                  </button>
+                      Cancelar
+                    </button>
+                    <button type="submit" className="voice-minute-footer__btn voice-minute-footer__btn--primary">
+                      <span className="bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--save" aria-hidden>
+                        <svg
+                          className="bosa-gold-btn__icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                          <path d="M15 4v3h3" />
+                          <path d="M9 14l2 2 4-4.5" />
+                        </svg>
+                      </span>
+                      Guardar
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -557,78 +551,69 @@ export default function UsersModule() {
       {/* Password Modal */}
       {isPasswordOpen &&
         createPortal(
-          <div
-            className="fixed inset-0 z-[105] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in"
-            onClick={closePasswordModal}
-            role="presentation"
-          >
+          <div className="meeting-sheet-overlay z-[125] animate-fade-in" onClick={closePasswordModal} role="presentation">
             <div
-              className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_25px_60px_-15px_rgba(15,23,42,0.45)] ring-1 ring-black/[0.04] animate-slide-up"
+              className="meeting-sheet meeting-sheet--form animate-slide-up"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="user-password-title"
             >
-              <div className="relative overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-[#0f172af2] px-6 pt-6 pb-5 sm:px-8 sm:pt-7">
-                <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/12 blur-3xl" aria-hidden />
-                <div className="relative flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/90">Seguridad</p>
-                    <h2 id="user-password-title" className="mt-1.5 font-display text-lg font-medium text-white sm:text-xl">
+              <div className="meeting-sheet__hero shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="meeting-sheet__pill meeting-sheet__pill--gold">Seguridad</span>
+                    <h3 id="user-password-title" className="meeting-sheet__hero-title mt-2">
                       Cambiar contraseña
-                    </h2>
-                    <p className="mt-1 truncate text-sm text-white/50" title={editingUser?.email}>
+                    </h3>
+                    <p className="meeting-sheet__hero-subtitle truncate" title={editingUser?.email}>
                       {editingUser?.email}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={closePasswordModal}
-                    className="shrink-0 rounded-xl p-2 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
-                    aria-label="Cerrar"
-                  >
+                  <button type="button" onClick={closePasswordModal} className="meeting-sheet__close" aria-label="Cerrar">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               </div>
-              <form className="p-6 sm:p-8" onSubmit={handleChangePassword} autoComplete="off">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nueva contraseña *</span>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      required
-                      type="text"
-                      autoComplete="new-password"
-                      value={passwordData}
-                      onChange={(e) => setPasswordData(e.target.value)}
-                      className={`${inputClass} min-w-0 flex-1 font-mono text-sm`}
-                      placeholder="Nueva clave"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPasswordData(generatePassword())}
-                      className="shrink-0 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gold transition-colors hover:bg-gold/15"
-                    >
-                      Generar
+
+              <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleChangePassword} autoComplete="off">
+                <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+                  <div className="meeting-sheet__group">
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label">Nueva contraseña</label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          required
+                          type="text"
+                          autoComplete="new-password"
+                          value={passwordData}
+                          onChange={(e) => setPasswordData(e.target.value)}
+                          className="meeting-sheet__input min-w-0 flex-1 font-mono text-[14px]"
+                          placeholder="Nueva clave"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPasswordData(generatePassword())}
+                          className="meeting-sheet__btn meeting-sheet__btn--secondary shrink-0 px-4 py-2.5 text-[14px]"
+                        >
+                          Generar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="meeting-sheet__footer shrink-0">
+                  <div className="meeting-sheet__footer-actions">
+                    <button type="button" onClick={closePasswordModal} className="meeting-sheet__btn meeting-sheet__btn--secondary">
+                      Cancelar
+                    </button>
+                    <button type="submit" className="meeting-sheet__btn meeting-sheet__btn--primary">
+                      Actualizar
                     </button>
                   </div>
-                </label>
-                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={closePasswordModal}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:min-w-[8rem]"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center rounded-xl border border-navy-900/10 bg-navy-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-gold shadow-md transition-colors hover:bg-navy-900 sm:min-w-[9rem]"
-                  >
-                    Actualizar
-                  </button>
                 </div>
               </form>
             </div>

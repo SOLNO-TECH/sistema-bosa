@@ -80,3 +80,73 @@ export function formatBusyRangeLabel(start, end) {
     d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true });
   return `${fmt(start)} – ${fmt(end)}`;
 }
+
+function parseMeetingAttendeeIds(meeting) {
+  const raw = meeting?.attendees;
+  if (Array.isArray(raw)) return raw.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getMeetingParticipantIds(meeting) {
+  const ids = new Set(parseMeetingAttendeeIds(meeting));
+  if (meeting?.created_by) ids.add(Number(meeting.created_by));
+  return ids;
+}
+
+function userCountsAsBusyInMeeting(meeting, userId) {
+  if (!getMeetingParticipantIds(meeting).has(Number(userId))) return false;
+  const rsvp = (meeting.rsvps || []).find((r) => Number(r.user_id) === Number(userId));
+  return rsvp?.status !== 'declined';
+}
+
+export function getRsvpForUser(meeting, userId) {
+  return (meeting?.rsvps || []).find((r) => Number(r.user_id) === Number(userId)) || null;
+}
+
+export function getOverlappingMeetings(meetings, startIso, endIso, excludeMeetingId = null) {
+  const s = new Date(startIso).getTime();
+  const e = new Date(endIso).getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(e) || s >= e) return [];
+
+  return meetings.filter((m) => {
+    if (excludeMeetingId != null && Number(m.id) === Number(excludeMeetingId)) return false;
+    const ms = new Date(m.start_time).getTime();
+    const me = new Date(m.end_time).getTime();
+    return ms < e && s < me;
+  });
+}
+
+/** Mapa userId → reunión que lo mantiene ocupado en el rango propuesto. */
+export function getBusyUsersInRange(meetings, startIso, endIso, excludeMeetingId = null) {
+  const busy = new Map();
+  for (const meeting of getOverlappingMeetings(meetings, startIso, endIso, excludeMeetingId)) {
+    for (const uid of getMeetingParticipantIds(meeting)) {
+      if (!userCountsAsBusyInMeeting(meeting, uid)) continue;
+      if (!busy.has(uid)) {
+        busy.set(uid, {
+          meetingId: meeting.id,
+          title: meeting.title,
+          start: meeting.start_time,
+          end: meeting.end_time,
+        });
+      }
+    }
+  }
+  return busy;
+}
+
+export function formatBusyUserHint(info) {
+  if (!info) return 'Ocupado en otro horario';
+  const start = new Date(info.start);
+  const end = new Date(info.end);
+  const when = formatBusyRangeLabel(start, end);
+  return info.title ? `En "${info.title}" · ${when}` : `Ocupado · ${when}`;
+}

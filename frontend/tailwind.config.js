@@ -42,6 +42,7 @@ export default {
         'slide-up':   'slideUp 0.5s ease-out forwards',
         'slide-left': 'slideLeft 0.35s cubic-bezier(0.16,1,0.3,1) forwards',
         'shimmer':    'shimmer 2.5s linear infinite',
+        'voice-bar':  'voiceBar 0.9s ease-in-out infinite',
       },
       keyframes: {
         fadeIn:    { from: { opacity: 0 }, to: { opacity: 1 } },
@@ -51,6 +52,10 @@ export default {
         shimmer: {
           '0%':   { backgroundPosition: '-200% center' },
           '100%': { backgroundPosition:  '200% center' },
+        },
+        voiceBar: {
+          '0%, 100%': { height: '8px', opacity: '0.35' },
+          '50%': { height: '32px', opacity: '1' },
         },
       },
     },

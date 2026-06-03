@@ -50,6 +50,75 @@ function taskEffectiveDept(row) {
   return (row?.ticket_category || row?.department || '').trim();
 }
 
+function resolvePermissionLevel(user) {
+  if (!user) return 'user';
+  if (user.permission_level) return user.permission_level;
+  if (user.role === 'superadmin') return 'superadmin';
+  if (user.role === 'administrator') return 'administrator';
+  if (user.role === 'manager') return 'manager';
+  return 'user';
+}
+
+function isSuperadminUser(user) {
+  return resolvePermissionLevel(user) === 'superadmin';
+}
+
+/** Evita doble clic / doble envío en ventana corta. */
+function findRecentDuplicateTask(db, fields) {
+  const {
+    created_by,
+    assigned_to,
+    start_date,
+    end_date,
+    title,
+    ticket_id = null,
+    department = '',
+    windowSeconds = 45,
+  } = fields;
+  const titleNorm = String(title || '').trim();
+  const s = String(start_date).slice(0, 10);
+  const e = String(end_date).slice(0, 10);
+  const dept = String(department || '').trim();
+
+  if (ticket_id != null && ticket_id !== '') {
+    return db.prepare(`
+      SELECT tt.*,
+        u1.name as assignee_name, u1.apellido as assignee_apellido,
+        u2.name as creator_name
+      FROM ticket_tasks tt
+      LEFT JOIN users u1 ON tt.assigned_to = u1.id
+      LEFT JOIN users u2 ON tt.created_by = u2.id
+      WHERE tt.ticket_id = ?
+        AND tt.assigned_to = ?
+        AND tt.start_date = ?
+        AND tt.end_date = ?
+        AND tt.created_by = ?
+        AND datetime(tt.created_at) >= datetime('now', ? || ' seconds')
+      ORDER BY tt.id DESC
+      LIMIT 1
+    `).get(Number(ticket_id), Number(assigned_to), s, e, Number(created_by), `-${windowSeconds}`);
+  }
+
+  return db.prepare(`
+    SELECT tt.*,
+      u1.name as assignee_name, u1.apellido as assignee_apellido,
+      u2.name as creator_name
+    FROM ticket_tasks tt
+    LEFT JOIN users u1 ON tt.assigned_to = u1.id
+    LEFT JOIN users u2 ON tt.created_by = u2.id
+    WHERE (tt.ticket_id IS NULL OR tt.ticket_id = '')
+      AND TRIM(COALESCE(tt.department, '')) = ?
+      AND TRIM(tt.title) = ?
+      AND tt.assigned_to = ?
+      AND tt.start_date = ?
+      AND tt.end_date = ?
+      AND tt.created_by = ?
+      AND datetime(tt.created_at) >= datetime('now', ? || ' seconds')
+    ORDER BY tt.id DESC
+    LIMIT 1
+  `).get(dept, titleNorm, Number(assigned_to), s, e, Number(created_by), `-${windowSeconds}`);
+}
+
 function canManageTaskByDept(user, department) {
   if (!user) return false;
   const level = user.permission_level
@@ -273,6 +342,19 @@ const createStandaloneTask = (req, res) => {
     const e = String(end_date).slice(0, 10);
     if (s > e) return res.status(400).json({ error: 'La fecha de fin debe ser igual o posterior al inicio' });
 
+    const dup = findRecentDuplicateTask(db, {
+      created_by: user_id,
+      assigned_to: assignee.id,
+      start_date: s,
+      end_date: e,
+      title: String(title).trim(),
+      department: dept,
+    });
+    if (dup) {
+      const full = loadTaskRow(db, dup.id);
+      return res.status(200).json({ ...(full || dup), duplicate: true });
+    }
+
     const info = db.prepare(`
       INSERT INTO ticket_tasks (ticket_id, department, title, description, assigned_to, created_by, start_date, end_date, status)
       VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, 'pending')
@@ -344,6 +426,20 @@ const createTask = (req, res) => {
     const s = String(start_date).slice(0, 10);
     const e = String(end_date).slice(0, 10);
     if (s > e) return res.status(400).json({ error: 'La fecha de fin debe ser igual o posterior al inicio' });
+
+    const dup = findRecentDuplicateTask(db, {
+      created_by: user_id,
+      assigned_to: assignee.id,
+      start_date: s,
+      end_date: e,
+      title: String(title).trim(),
+      ticket_id: ticketId,
+      department: ticket.category,
+    });
+    if (dup) {
+      const full = loadTaskRow(db, dup.id);
+      return res.status(200).json({ ...(full || dup), duplicate: true });
+    }
 
     const info = db.prepare(`
       INSERT INTO ticket_tasks (ticket_id, department, title, description, assigned_to, created_by, start_date, end_date, status)
@@ -515,13 +611,10 @@ const deleteTask = (req, res) => {
     const db = getDb();
     const task = db.prepare('SELECT * FROM ticket_tasks WHERE id = ?').get(id);
     if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
-    const ctx = getTaskContext(db, task);
-    const canDelete = ctx.linkedToTicket
-      ? canManageDeptTicketAssignments(req.user, ctx.ticket)
-      : canManageTaskByDept(req.user, ctx.department);
-    if (!canDelete) {
-      return res.status(403).json({ error: 'Sin permiso para eliminar la tarea' });
+    if (!isSuperadminUser(req.user)) {
+      return res.status(403).json({ error: 'Solo un superadministrador puede eliminar tareas operativas.' });
     }
+    const ctx = getTaskContext(db, task);
     try {
       if (ctx.linkedToTicket && task.ticket_id) {
         const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);

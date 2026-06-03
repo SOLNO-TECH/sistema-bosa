@@ -4,6 +4,8 @@ import axios from 'axios';
 import UserAvatar from '../UserAvatar';
 import { isSupported, getPermission, isEnabled, setEnabled, requestPermission, pushNotify } from '../../utils/pushNotify';
 import { registerPushSubscription, unregisterPushSubscription, canUseWebPush } from '../../utils/pushSubscribe';
+import AppVersionBadge from '../AppVersionBadge';
+import BosaGoldButton from '../BosaGoldButton';
 
 export default function ConfigModule() {
   const { user, refreshUser } = useAuth();
@@ -133,6 +135,9 @@ export default function ConfigModule() {
                 </button>
               ))}
             </nav>
+            <div className="border-t border-gray-100 px-3 py-3">
+              <AppVersionBadge variant="light" />
+            </div>
           </div>
         </div>
 
@@ -202,7 +207,9 @@ export default function ConfigModule() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <button className="btn-gold shadow-md">Guardar Cambios</button>
+                  <BosaGoldButton icon="save" type="button" aria-label="Guardar cambios">
+                    Guardar cambios
+                  </BosaGoldButton>
                 </div>
               </div>
             )}
@@ -317,7 +324,9 @@ export default function ConfigModule() {
                   </select>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <button className="btn-gold shadow-md">Guardar Preferencias</button>
+                  <BosaGoldButton icon="save" type="button" aria-label="Guardar preferencias">
+                    Guardar preferencias
+                  </BosaGoldButton>
                 </div>
               </div>
             )}
