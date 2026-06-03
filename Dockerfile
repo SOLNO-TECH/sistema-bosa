@@ -15,7 +15,8 @@ RUN apk add --no-cache python3 make g++
 
 # Instalar dependencias del backend
 COPY backend/package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --ignore-scripts \
+  && npm rebuild better-sqlite3
 
 # Copiar el código del backend
 COPY backend ./
