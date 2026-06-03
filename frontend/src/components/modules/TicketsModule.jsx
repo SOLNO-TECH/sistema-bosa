@@ -483,7 +483,7 @@ export default function TicketsModule({
             role="presentation"
           >
           <div
-            className="meeting-sheet meeting-sheet--form animate-slide-up"
+            className="meeting-sheet meeting-sheet--form animate-slide-up flex min-h-0 flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"

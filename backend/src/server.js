@@ -57,6 +57,13 @@ app.use(express.json({ limit: '2mb' }));
 initDatabase();
 initPushService();
 
+for (const dir of [
+  path.join(__dirname, '../data/uploads'),
+  path.join(__dirname, '../data/uploads/voice'),
+]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/catalog', require('./routes/catalog'));

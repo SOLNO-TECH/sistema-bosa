@@ -469,11 +469,13 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       setVoiceExistingMinuteId(data.existing_minute_id ?? null);
       setVoiceRecordingAudioPath(data.audio_path || null);
       const serverAudioUrl = data.audio_url || null;
-      if (serverAudioUrl && voicePreviewAudioUrlRef.current) {
-        URL.revokeObjectURL(voicePreviewAudioUrlRef.current);
-        voicePreviewAudioUrlRef.current = null;
+      const serverAudioOk = Number(data.audio_size) > 64;
+      // Mantener blob local para previsualización (más fiable que re-fetch en producción).
+      if (serverAudioUrl && serverAudioOk && !voicePreviewAudioUrlRef.current) {
+        setVoiceRecordingAudioUrl(serverAudioUrl);
+      } else {
+        setVoiceRecordingAudioUrl(voicePreviewAudioUrlRef.current || serverAudioUrl);
       }
-      setVoiceRecordingAudioUrl(serverAudioUrl || voicePreviewAudioUrlRef.current);
       setVoiceMinuteOpen(true);
       if (data.whisperConfigured != null) setWhisperConfigured(!!data.whisperConfigured);
     } catch (err) {

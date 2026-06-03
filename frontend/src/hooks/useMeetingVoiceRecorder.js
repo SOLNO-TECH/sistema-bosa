@@ -553,12 +553,26 @@ export function useMeetingVoiceRecorder({ serverSttAvailable = false } = {}) {
 
       if (!recorder || recorder.state === 'inactive') {
         stopTimer();
+        const pendingChunks = chunksRef.current.filter((c) => c?.size > 0);
+        chunksRef.current = [];
         if (!keepStream) {
           stopTracks();
           stopRecognition();
           speechEngineStartedRef.current = false;
         }
         setIsRecording(false);
+        if (pendingChunks.length > 0) {
+          const blob = new Blob(pendingChunks, {
+            type: pendingChunks[0]?.type || 'audio/webm',
+          });
+          resolve({
+            blob,
+            browserTranscript: transcriptRef.current.trim() || text,
+            tabAudioUsed: tabAudioActive,
+            audioFilename: audioFilenameForBlob(blob),
+          });
+          return;
+        }
         resolve({
           blob: new Blob([], { type: 'audio/webm' }),
           browserTranscript: text,
@@ -594,7 +608,7 @@ export function useMeetingVoiceRecorder({ serverSttAvailable = false } = {}) {
         });
       };
 
-      recorder.onstop = () => setTimeout(finish, 400);
+      recorder.onstop = () => setTimeout(finish, 750);
       recorder.onerror = () => reject(new Error('Error al finalizar la grabación.'));
       try {
         if (typeof recorder.requestData === 'function') recorder.requestData();

@@ -1592,7 +1592,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
           role="presentation"
         >
           <div
-            className="meeting-sheet meeting-sheet--form animate-slide-up"
+            className="meeting-sheet meeting-sheet--form animate-slide-up flex min-h-0 flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -1623,6 +1623,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
               </div>
             </div>
 
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
               <p className="meeting-sheet__section-label">Detalles</p>
               <div className="meeting-sheet__group">
@@ -1768,6 +1769,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                   )}
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>

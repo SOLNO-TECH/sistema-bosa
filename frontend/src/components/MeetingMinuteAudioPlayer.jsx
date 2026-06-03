@@ -8,6 +8,13 @@ function apiUrl(path) {
   return `${base}${path}`;
 }
 
+/** Misma origen / blob: el <audio> nativo usa Range y metadatos WebM correctamente. */
+function shouldUseDirectPlayback(url) {
+  if (!url) return false;
+  if (url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) return true;
+  return url.startsWith('/api/uploads/');
+}
+
 /** MediaRecorder suele dejar duration en Infinity; forzar lectura del final del WebM. */
 function fixWebmDuration(audioEl) {
   const repair = () => {
@@ -63,7 +70,7 @@ export default function MeetingMinuteAudioPlayer({
       return undefined;
     }
 
-    if (requestUrl.startsWith('blob:')) {
+    if (shouldUseDirectPlayback(requestUrl)) {
       setPlaybackUrl(requestUrl);
       setLoadError('');
       setLoading(false);

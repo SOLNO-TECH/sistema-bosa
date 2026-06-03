@@ -5,7 +5,7 @@ const { parseMeetingAttendees } = require('../utils/participantNotify');
 const { buildMinuteDraftFromTranscript } = require('../services/minuteFromTranscriptService');
 const { structureTranscript } = require('../services/transcriptSpeakerService');
 const { transcribeAudioFile, isConfigured } = require('../services/voiceTranscriptionService');
-const { relativeAudioPath } = require('../utils/minuteAudio');
+const { relativeAudioPath, uploadsRoot } = require('../utils/minuteAudio');
 function parseMeetingRow(row) {
   if (!row) return null;
   return {
@@ -56,6 +56,7 @@ const generateMinuteFromVoice = async (req, res) => {
     let transcriptionSource = clientTranscript ? 'client' : null;
     let audioPath = null;
     let audioUrl = null;
+    let audioSize = 0;
 
     if (req.file) {
       const audioFilePath = req.file.path;
@@ -96,7 +97,14 @@ const generateMinuteFromVoice = async (req, res) => {
 
       audioPath = relativeAudioPath(audioFilePath);
       if (audioPath) {
-        audioUrl = `/api/uploads/${audioPath}`;
+        const saved = path.join(uploadsRoot(), audioPath);
+        const savedSize = fs.existsSync(saved) ? fs.statSync(saved).size : 0;
+        if (savedSize > 64) {
+          audioUrl = `/api/uploads/${audioPath}`;
+          audioSize = savedSize;
+        } else {
+          audioPath = null;
+        }
       }
       }
     }
@@ -139,6 +147,7 @@ const generateMinuteFromVoice = async (req, res) => {
       existing_minute_id: existing?.id ?? null,
       audio_path: audioPath,
       audio_url: audioUrl,
+      audio_size: audioSize,
       whisperConfigured: isConfigured(),
       diarizationHint:
         structured.speakerCount <= 1 && meeting.location_type === 'sala_juntas'
