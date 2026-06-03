@@ -608,8 +608,7 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        {/* En móvil: padding extra para quedar sobre la barra inferior de módulos */}
-        <div className="flex-shrink-0 border-t border-surface px-4 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:px-4 lg:pb-4 bg-[#071221] shadow-[0_-10px_28px_rgba(0,0,0,0.4)]">
+        <div className="sidebar-footer flex-shrink-0 mt-auto border-t border-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] lg:px-4 lg:pb-4 bg-[#071221] shadow-[0_-10px_28px_rgba(0,0,0,0.4)]">
           <button
             type="button"
             onClick={handleLogout}
