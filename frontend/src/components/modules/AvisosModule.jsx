@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
@@ -117,6 +117,31 @@ function AvisoDestinatarioSegmented({ value, onChange }) {
   );
 }
 
+function AvisoCardDeco() {
+  const glowId = useId().replace(/:/g, '');
+  return (
+    <div className="aviso-card__deco" aria-hidden>
+      <svg className="aviso-card__deco-ring" viewBox="0 0 100 100">
+        <defs>
+          <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#cbac80" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#cbac80" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="46" fill={`url(#${glowId})`} />
+      </svg>
+      <svg className="aviso-card__deco-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+        />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 8l2-2M20 12h3M20 16l2 2" opacity="0.85" />
+      </svg>
+    </div>
+  );
+}
+
 function AvisoCard({ aviso, onOpen }) {
   const prio = PRIORIDAD_META[aviso.prioridad] || PRIORIDAD_META.normal;
   const estado = ESTADO_META[aviso.estado] || ESTADO_META.borrador;
@@ -124,7 +149,7 @@ function AvisoCard({ aviso, onOpen }) {
 
   return (
     <article
-      className="tasks-module__card cursor-pointer transition-transform active:scale-[0.995]"
+      className="aviso-card"
       onClick={() => onOpen(aviso)}
       role="button"
       tabIndex={0}
@@ -135,14 +160,13 @@ function AvisoCard({ aviso, onOpen }) {
         }
       }}
     >
-      <div className="tasks-module__card-main">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="tasks-module__card-title flex-1 min-w-0">{aviso.titulo}</h3>
-          <span className="tasks-module__pill shrink-0 tabular-nums" style={{ background: 'rgba(7,18,33,0.08)', color: '#071221' }}>
-            {aviso.id}
-          </span>
-        </div>
-        <div className="tasks-module__card-meta">
+      <div className="aviso-card__inner">
+        <header className="aviso-card__header">
+          <h3 className="aviso-card__title">{aviso.titulo}</h3>
+          <span className="aviso-card__id">{aviso.id}</span>
+        </header>
+
+        <div className="aviso-card__meta">
           <span className="tasks-module__pill" style={{ background: prio.bg, color: prio.color }}>
             {prio.label}
           </span>
@@ -151,44 +175,52 @@ function AvisoCard({ aviso, onOpen }) {
           </span>
           <span className="tasks-module__pill bg-slate-100 text-slate-600">{tipo.label}</span>
         </div>
-        <p className="mt-2 line-clamp-2 text-[14px] text-slate-600">{aviso.mensaje}</p>
+
+        <div className="aviso-card__message-wrap">
+          <AvisoCardDeco />
+          <p className="aviso-card__message">{aviso.mensaje}</p>
+        </div>
+
         {(aviso.destinatarios || []).length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {(aviso.destinatarios || []).slice(0, 4).map((d) => (
+          <div className="aviso-card__recipients">
+            {(aviso.destinatarios || []).slice(0, 3).map((d) => (
               <span key={d} className="tasks-module__pill bg-slate-100 text-slate-600">
                 {d}
               </span>
             ))}
-            {(aviso.destinatarios || []).length > 4 && (
+            {(aviso.destinatarios || []).length > 3 && (
               <span className="tasks-module__pill bg-slate-100 text-slate-500">
-                +{(aviso.destinatarios || []).length - 4}
+                +{(aviso.destinatarios || []).length - 3}
               </span>
             )}
           </div>
         )}
-      </div>
-      <div className="tasks-module__card-section">
-        <div className="tasks-module__card-dates">
-          <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          {aviso.fecha} · {aviso.hora}
-        </div>
-        <p className="mt-2 text-[13px] text-slate-500">
-          Por <span className="font-semibold text-slate-700">{aviso.autor}</span>
-        </p>
-      </div>
-      <div className="tasks-module__card-actions">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen(aviso);
-          }}
-          className="tasks-module__action-primary"
-        >
-          Ver detalle
-        </button>
+
+        <footer className="aviso-card__footer">
+          <div className="aviso-card__meta-row">
+            <div className="aviso-card__when">
+              <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>
+                {aviso.fecha} · {aviso.hora}
+              </span>
+            </div>
+            <p className="aviso-card__author">
+              Por <span className="font-semibold text-slate-700">{aviso.autor}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(aviso);
+            }}
+            className="aviso-card__cta"
+          >
+            Ver detalle
+          </button>
+        </footer>
       </div>
     </article>
   );
@@ -511,7 +543,7 @@ export default function AvisosModule() {
           </button>
         </div>
       ) : (
-        <div className="tasks-module__list">
+        <div className="aviso-list">
           {filtered.map((aviso) => (
             <AvisoCard key={aviso.id} aviso={aviso} onOpen={setSelectedAviso} />
           ))}
