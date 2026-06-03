@@ -8,7 +8,7 @@ function apiUrl(path) {
   return `${base}${path}`;
 }
 
-/** Misma origen / blob: el <audio> nativo usa Range y metadatos WebM correctamente. */
+/** Misma origen: el <audio> nativo puede usar Range (M4A/WebM con metadatos). */
 function shouldUseDirectPlayback(url) {
   if (!url) return false;
   if (url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) return true;
@@ -39,12 +39,36 @@ function fixWebmDuration(audioEl) {
   return () => audioEl.removeEventListener('loadedmetadata', repair);
 }
 
+async function fetchAudioAsObjectUrl(requestUrl, revokeRef) {
+  const res = await axios.get(requestUrl, {
+    responseType: 'blob',
+    timeout: 120000,
+  });
+  const rawType = (res.headers['content-type'] || 'audio/mp4').split(';')[0].trim();
+  const type =
+    rawType === 'video/webm' || rawType === 'application/octet-stream'
+      ? 'audio/webm'
+      : rawType === 'video/mp4'
+        ? 'audio/mp4'
+        : rawType;
+  const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type });
+  if (!blob.size) {
+    throw new Error('El archivo de audio está vacío.');
+  }
+  if (revokeRef.current) URL.revokeObjectURL(revokeRef.current);
+  const objectUrl = URL.createObjectURL(blob);
+  revokeRef.current = objectUrl;
+  return objectUrl;
+}
+
 /**
  * Reproductor de la grabación completa de la reunión.
- * @param {string|null} audioUrl — blob:, /api/uploads/… o URL absoluta
- * @param {number|null} minuteId — si existe, usa /api/minutes/:id/audio (con auth)
+ * @param {Blob|null} audioBlob — grabación local (previsualización)
+ * @param {string|null} audioUrl — /api/uploads/… o URL absoluta
+ * @param {number|null} minuteId — /api/minutes/:id/audio (con auth)
  */
 export default function MeetingMinuteAudioPlayer({
+  audioBlob = null,
   audioUrl,
   minuteId = null,
   className = '',
@@ -52,62 +76,92 @@ export default function MeetingMinuteAudioPlayer({
 }) {
   const audioRef = useRef(null);
   const revokeRef = useRef(null);
+  const blobRevokeRef = useRef(null);
   const [playbackUrl, setPlaybackUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [useDirect, setUseDirect] = useState(false);
 
-  const requestUrl = useMemo(() => {
+  const serverRequestUrl = useMemo(() => {
     const direct = apiUrl(audioUrl);
     if (direct) return direct;
     if (minuteId) return apiUrl(`/api/minutes/${minuteId}/audio`);
     return null;
   }, [audioUrl, minuteId]);
 
+  const hasLocalBlob = Boolean(audioBlob && audioBlob.size > 64);
+
   useEffect(() => {
-    if (!requestUrl) {
+    let cancelled = false;
+
+    const reset = () => {
       setPlaybackUrl(null);
       setLoadError('');
-      return undefined;
-    }
-
-    if (shouldUseDirectPlayback(requestUrl)) {
-      setPlaybackUrl(requestUrl);
-      setLoadError('');
+      setUseDirect(false);
       setLoading(false);
+    };
+
+    if (!hasLocalBlob && !serverRequestUrl) {
+      reset();
       return undefined;
     }
 
-    let cancelled = false;
-    setLoading(true);
-    setLoadError('');
+    if (blobRevokeRef.current) {
+      URL.revokeObjectURL(blobRevokeRef.current);
+      blobRevokeRef.current = null;
+    }
+    if (revokeRef.current) {
+      URL.revokeObjectURL(revokeRef.current);
+      revokeRef.current = null;
+    }
 
     (async () => {
+      setLoading(true);
+      setLoadError('');
+
       try {
-        const res = await axios.get(requestUrl, {
-          responseType: 'blob',
-          timeout: 120000,
-        });
-        if (cancelled) return;
-
-        const rawType = (res.headers['content-type'] || 'audio/webm').split(';')[0].trim();
-        const type =
-          rawType === 'video/webm' || rawType === 'application/octet-stream' ? 'audio/webm' : rawType;
-        const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type });
-
-        if (!blob.size) {
-          setLoadError('El archivo de audio está vacío.');
-          setPlaybackUrl(null);
+        if (serverRequestUrl && shouldUseDirectPlayback(serverRequestUrl)) {
+          if (!cancelled) {
+            setUseDirect(true);
+            setPlaybackUrl(serverRequestUrl);
+          }
           return;
         }
 
-        if (revokeRef.current) URL.revokeObjectURL(revokeRef.current);
-        const objectUrl = URL.createObjectURL(blob);
-        revokeRef.current = objectUrl;
-        setPlaybackUrl(objectUrl);
+        if (serverRequestUrl) {
+          const objectUrl = await fetchAudioAsObjectUrl(serverRequestUrl, revokeRef);
+          if (!cancelled) {
+            setUseDirect(false);
+            setPlaybackUrl(objectUrl);
+          }
+          return;
+        }
+
+        if (hasLocalBlob) {
+          const objectUrl = URL.createObjectURL(audioBlob);
+          blobRevokeRef.current = objectUrl;
+          if (!cancelled) {
+            setUseDirect(false);
+            setPlaybackUrl(objectUrl);
+          }
+        }
       } catch (err) {
         if (cancelled) return;
+        if (hasLocalBlob) {
+          try {
+            const objectUrl = URL.createObjectURL(audioBlob);
+            blobRevokeRef.current = objectUrl;
+            setUseDirect(false);
+            setPlaybackUrl(objectUrl);
+            setLoadError('');
+            return;
+          } catch (_) {
+            /* noop */
+          }
+        }
         const msg =
           err.response?.data?.message ||
+          err.message ||
           (err.response?.status === 404
             ? 'No se encontró la grabación.'
             : 'No se pudo cargar el audio.');
@@ -124,8 +178,12 @@ export default function MeetingMinuteAudioPlayer({
         URL.revokeObjectURL(revokeRef.current);
         revokeRef.current = null;
       }
+      if (blobRevokeRef.current) {
+        URL.revokeObjectURL(blobRevokeRef.current);
+        blobRevokeRef.current = null;
+      }
     };
-  }, [requestUrl]);
+  }, [serverRequestUrl, hasLocalBlob, audioBlob]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -133,7 +191,26 @@ export default function MeetingMinuteAudioPlayer({
     return fixWebmDuration(el);
   }, [playbackUrl]);
 
-  if (!requestUrl && !audioUrl && !minuteId) return null;
+  const handleAudioError = () => {
+    if (!serverRequestUrl || !useDirect) {
+      setLoadError('No se pudo reproducir este formato de audio en el navegador.');
+      return;
+    }
+    setUseDirect(false);
+    setLoading(true);
+    fetchAudioAsObjectUrl(serverRequestUrl, revokeRef)
+      .then((url) => {
+        setPlaybackUrl(url);
+        setLoadError('');
+      })
+      .catch((err) => {
+        setLoadError(err.message || 'No se pudo cargar el audio.');
+        setPlaybackUrl(null);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  if (!hasLocalBlob && !serverRequestUrl && !audioUrl && !minuteId) return null;
 
   const audioControl = loading ? (
     <p className="meeting-minute-audio__status">Cargando audio…</p>
@@ -144,11 +221,12 @@ export default function MeetingMinuteAudioPlayer({
       ref={audioRef}
       key={playbackUrl}
       controls
-      preload="auto"
+      preload="metadata"
       className={
         variant === 'embed' ? 'meeting-minute-audio__player--embed' : 'meeting-minute-audio__player w-full'
       }
       src={playbackUrl}
+      onError={handleAudioError}
     >
       Tu navegador no puede reproducir este audio.
     </audio>

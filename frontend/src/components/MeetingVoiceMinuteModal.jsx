@@ -43,7 +43,16 @@ function BulletBlock({ items, empty = 'Sin elementos detectados.' }) {
   );
 }
 
-function MinutePreview({ form, brief, transcript, transcriptSegments, audioUrl, showRecordingSection = false }) {
+function MinutePreview({
+  form,
+  brief,
+  transcript,
+  transcriptSegments,
+  audioUrl,
+  audioBlob = null,
+  minuteId = null,
+  showRecordingSection = false,
+}) {
   const filledAttendees = (form.attendees || []).filter((a) => (a.nombre || '').trim());
 
   return (
@@ -168,8 +177,13 @@ function MinutePreview({ form, brief, transcript, transcriptSegments, audioUrl, 
             <p className="voice-minute-audio-head__sub">Escucha la grabación completa</p>
           </div>
           <div className="voice-minute-audio-body">
-            {audioUrl ? (
-              <MeetingMinuteAudioPlayer audioUrl={audioUrl} variant="plain" />
+            {audioUrl || audioBlob?.size || minuteId ? (
+              <MeetingMinuteAudioPlayer
+                audioBlob={audioBlob}
+                audioUrl={audioUrl}
+                minuteId={minuteId}
+                variant="plain"
+              />
             ) : (
               <p className="voice-minute-empty">
                 No se detectó archivo de audio. Vuelve a grabar la reunión para conservar el audio.
@@ -213,6 +227,7 @@ export default function MeetingVoiceMinuteModal({
   existingMinuteId,
   recordingAudioPath = null,
   recordingAudioUrl = null,
+  recordingAudioBlob = null,
   showRecordingSection = false,
   onSaved,
 }) {
@@ -340,6 +355,7 @@ export default function MeetingVoiceMinuteModal({
               transcript={transcript}
               transcriptSegments={transcriptSegments}
               audioUrl={recordingAudioUrl}
+              audioBlob={recordingAudioBlob}
               showRecordingSection={showRecordingSection}
             />
           ) : (

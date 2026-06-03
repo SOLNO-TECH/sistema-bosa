@@ -6,6 +6,7 @@ const { buildMinuteDraftFromTranscript } = require('../services/minuteFromTransc
 const { structureTranscript } = require('../services/transcriptSpeakerService');
 const { transcribeAudioFile, isConfigured } = require('../services/voiceTranscriptionService');
 const { relativeAudioPath, uploadsRoot } = require('../utils/minuteAudio');
+const { ensurePlaybackAudioFile } = require('../utils/audioPlayback');
 function parseMeetingRow(row) {
   if (!row) return null;
   return {
@@ -71,41 +72,49 @@ const generateMinuteFromVoice = async (req, res) => {
           });
         }
       } else {
-      try {
-        const fromWhisper = await transcribeAudioFile(audioFilePath);
-        if (fromWhisper) {
-          transcript = fromWhisper;
-          transcriptionSource = 'whisper';
+        let playbackFilePath = audioFilePath;
+        try {
+          const fromWhisper = await transcribeAudioFile(audioFilePath);
+          if (fromWhisper) {
+            transcript = fromWhisper;
+            transcriptionSource = 'whisper';
+          }
+        } catch (sttErr) {
+          if (sttErr.code === 'WHISPER_NOT_CONFIGURED' && clientTranscript) {
+            transcript = clientTranscript;
+            transcriptionSource = 'client_fallback';
+          } else if (!clientTranscript) {
+            try {
+              if (fs.existsSync(audioFilePath)) fs.unlinkSync(audioFilePath);
+            } catch (_) { /* noop */ }
+            return res.status(503).json({
+              message: sttErr.message || 'No se pudo transcribir el audio.',
+              code: sttErr.code || 'STT_ERROR',
+              whisperConfigured: isConfigured(),
+            });
+          } else {
+            transcriptionSource = 'client_fallback';
+          }
         }
-      } catch (sttErr) {
-        if (sttErr.code === 'WHISPER_NOT_CONFIGURED' && clientTranscript) {
-          transcript = clientTranscript;
-          transcriptionSource = 'client_fallback';
-        } else if (!clientTranscript) {
-          try {
-            if (fs.existsSync(audioFilePath)) fs.unlinkSync(audioFilePath);
-          } catch (_) { /* noop */ }
-          return res.status(503).json({
-            message: sttErr.message || 'No se pudo transcribir el audio.',
-            code: sttErr.code || 'STT_ERROR',
-            whisperConfigured: isConfigured(),
-          });
-        } else {
-          transcriptionSource = 'client_fallback';
-        }
-      }
 
-      audioPath = relativeAudioPath(audioFilePath);
-      if (audioPath) {
-        const saved = path.join(uploadsRoot(), audioPath);
-        const savedSize = fs.existsSync(saved) ? fs.statSync(saved).size : 0;
-        if (savedSize > 64) {
-          audioUrl = `/api/uploads/${audioPath}`;
-          audioSize = savedSize;
-        } else {
-          audioPath = null;
+        try {
+          playbackFilePath = await ensurePlaybackAudioFile(audioFilePath);
+        } catch (convErr) {
+          console.warn('[meetingVoice] conversión reproducción:', convErr.message);
+          playbackFilePath = audioFilePath;
         }
-      }
+
+        audioPath = relativeAudioPath(playbackFilePath);
+        if (audioPath) {
+          const saved = path.join(uploadsRoot(), audioPath);
+          const savedSize = fs.existsSync(saved) ? fs.statSync(saved).size : 0;
+          if (savedSize > 64) {
+            audioUrl = `/api/uploads/${audioPath}`;
+            audioSize = savedSize;
+          } else {
+            audioPath = null;
+          }
+        }
       }
     }
 

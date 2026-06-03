@@ -212,10 +212,10 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   const [voiceMinuteBrief, setVoiceMinuteBrief] = useState(null);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceTranscriptSegments, setVoiceTranscriptSegments] = useState([]);
-  const voicePreviewAudioUrlRef = useRef(null);
   const [voiceExistingMinuteId, setVoiceExistingMinuteId] = useState(null);
   const [voiceRecordingAudioPath, setVoiceRecordingAudioPath] = useState(null);
   const [voiceRecordingAudioUrl, setVoiceRecordingAudioUrl] = useState(null);
+  const [voiceRecordingBlob, setVoiceRecordingBlob] = useState(null);
   const [whisperConfigured, setWhisperConfigured] = useState(null);
   const [rsvpDraft, setRsvpDraft] = useState({ status: '', comment: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
@@ -454,11 +454,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
 
     setVoiceProcessing(true);
     try {
-      if (voicePreviewAudioUrlRef.current) {
-        URL.revokeObjectURL(voicePreviewAudioUrlRef.current);
-        voicePreviewAudioUrlRef.current = null;
-      }
-      voicePreviewAudioUrlRef.current = URL.createObjectURL(blob);
+      setVoiceRecordingBlob(blob);
       const mode = selectedMeeting.location_type === 'virtual' ? 'virtual' : 'sala_juntas';
       const data = await uploadVoiceAndGenerateMinute(selectedMeeting.id, blob, browserTranscript, mode);
       setVoiceCaptureOpen(false);
@@ -470,12 +466,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       setVoiceRecordingAudioPath(data.audio_path || null);
       const serverAudioUrl = data.audio_url || null;
       const serverAudioOk = Number(data.audio_size) > 64;
-      // Mantener blob local para previsualización (más fiable que re-fetch en producción).
-      if (serverAudioUrl && serverAudioOk && !voicePreviewAudioUrlRef.current) {
-        setVoiceRecordingAudioUrl(serverAudioUrl);
-      } else {
-        setVoiceRecordingAudioUrl(voicePreviewAudioUrlRef.current || serverAudioUrl);
-      }
+      setVoiceRecordingAudioUrl(serverAudioOk && serverAudioUrl ? serverAudioUrl : null);
       setVoiceMinuteOpen(true);
       if (data.whisperConfigured != null) setWhisperConfigured(!!data.whisperConfigured);
     } catch (err) {
@@ -1674,16 +1665,13 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       <MeetingVoiceMinuteModal
         open={voiceMinuteOpen}
         onClose={() => {
-          if (voicePreviewAudioUrlRef.current) {
-            URL.revokeObjectURL(voicePreviewAudioUrlRef.current);
-            voicePreviewAudioUrlRef.current = null;
-          }
           setVoiceMinuteOpen(false);
           setVoiceMinuteDraft(null);
           setVoiceMinuteBrief(null);
           setVoiceTranscriptSegments([]);
           setVoiceRecordingAudioPath(null);
           setVoiceRecordingAudioUrl(null);
+          setVoiceRecordingBlob(null);
         }}
         draft={voiceMinuteDraft}
         minuteBrief={voiceMinuteBrief}
@@ -1693,6 +1681,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
         existingMinuteId={voiceExistingMinuteId}
         recordingAudioPath={voiceRecordingAudioPath}
         recordingAudioUrl={voiceRecordingAudioUrl}
+        recordingAudioBlob={voiceRecordingBlob}
         showRecordingSection
         onSaved={() => {
           fetchMeetings();

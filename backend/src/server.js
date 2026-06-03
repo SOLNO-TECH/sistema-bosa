@@ -29,6 +29,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
       // Imágenes: permitimos blob/data para previews y https para placeholders externos
       imgSrc: ["'self'", "data:", "blob:", "https:"],
+      // Audio/video: blob para previsualizar grabaciones; self para /api/uploads y minutas
+      mediaSrc: ["'self'", "blob:"],
       // Fuentes
       fontSrc: ["'self'", "data:", "https:"],
       // Conexiones (fetch/xhr/websocket)

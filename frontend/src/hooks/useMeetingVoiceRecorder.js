@@ -608,7 +608,7 @@ export function useMeetingVoiceRecorder({ serverSttAvailable = false } = {}) {
         });
       };
 
-      recorder.onstop = () => setTimeout(finish, 750);
+      recorder.onstop = () => setTimeout(finish, 1000);
       recorder.onerror = () => reject(new Error('Error al finalizar la grabación.'));
       try {
         if (typeof recorder.requestData === 'function') recorder.requestData();
