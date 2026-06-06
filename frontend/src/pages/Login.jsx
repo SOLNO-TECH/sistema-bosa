@@ -81,12 +81,12 @@ export default function Login() {
           alt=""
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: 'brightness(0.55) saturate(0.75)' }}
+          style={{ filter: 'brightness(1.12) saturate(1.15) contrast(1.03)' }}
         />
 
-        {/* Overlay degradado — garantiza legibilidad del texto */}
+        {/* Overlay suave — un poco más de contraste para logo y texto */}
         <div className="absolute inset-0" style={{
-          background: 'linear-gradient(170deg, rgba(5,13,26,0.6) 0%, rgba(7,18,33,0.45) 40%, rgba(5,13,26,0.8) 100%)'
+          background: 'linear-gradient(170deg, rgba(5,13,26,0.22) 0%, rgba(7,18,33,0.28) 45%, rgba(5,13,26,0.52) 100%)'
         }} />
 
         {/* Línea dorada derecha */}
@@ -94,29 +94,28 @@ export default function Login() {
           style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(203,172,128,0.3) 25%, rgba(203,172,128,0.3) 75%, transparent 100%)' }} />
 
         {/* Contenido sobre la foto */}
-        <div className={`relative z-10 flex flex-col h-full px-14 py-12 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className={`relative z-10 flex flex-col h-full px-14 py-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
 
           {/* Logo */}
           <div className="flex items-start">
-            <img src="/bosahublogo-02.svg" alt="BOSA Hub" className="w-64 h-auto drop-shadow-2xl" style={{ filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.6))' }} />
+            <img
+              src="/bosahublogo-02.svg"
+              alt="BOSA Hub"
+              className="w-64 h-auto drop-shadow-2xl"
+              style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.55)) drop-shadow(0 8px 24px rgba(0,0,0,0.45))' }}
+            />
           </div>
 
-          {/* Centro — propuesta de valor */}
-          <div className="flex-1 flex flex-col justify-center max-w-sm">
-            <GoldRule className="w-36 mb-8" />
+          {/* Propuesta de valor — pegado debajo del logo */}
+          <div className="login-hero__body max-w-sm">
+            <GoldRule className="w-36 mb-5" />
 
-            <h1 className="font-display font-light leading-tight" style={{ fontSize: '2.75rem', color: '#F0F4FA', textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
-              Sistema de<br />
-              <span className="text-gold-shimmer">Gestión</span><br />
-              Corporativa
-            </h1>
-
-            <p className="font-sans text-sm leading-relaxed mt-6" style={{ color: 'rgba(200,215,235,0.85)', textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>
+            <p className="login-hero__lead font-sans text-sm leading-relaxed" style={{ color: 'rgba(226,236,248,0.95)', textShadow: '0 1px 3px rgba(0,0,0,0.45), 0 2px 10px rgba(0,0,0,0.4)' }}>
               Plataforma integral para la administración de operaciones hoteleras y residenciales.
             </p>
 
             {/* Pilares */}
-            <div className="grid grid-cols-3 gap-3 mt-12">
+            <div className="grid grid-cols-3 gap-3 mt-7">
               {[
                 {
                   label: 'Hotel',
@@ -146,17 +145,19 @@ export default function Login() {
               ].map((item) => (
                 <div key={item.label}
                   className="rounded-sm px-2 py-3 text-center flex flex-col items-center justify-center transition-all duration-300 hover:bg-white/10"
-                  style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', border: '1px solid rgba(203,172,128,0.2)' }}>
+                  style={{ background: 'rgba(5,13,26,0.28)', backdropFilter: 'blur(8px)', border: '1px solid rgba(203,172,128,0.28)' }}>
                   {item.icon}
-                  <p className="font-label text-[9px] tracking-widest uppercase" style={{ color: 'rgba(200,215,235,0.75)' }}>{item.label}</p>
+                  <p className="font-label text-[9px] tracking-widest uppercase" style={{ color: 'rgba(226,236,248,0.88)' }}>{item.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
+          <div className="flex-1 min-h-4" aria-hidden />
+
           {/* Footer */}
-          <p className="font-label text-[10px] tracking-widest" style={{ color: 'rgba(180,200,220,0.5)' }}>
-            © 2026 BOSA · Todos los derechos reservados
+          <p className="font-label text-[10px] tracking-widest" style={{ color: 'rgba(200,215,235,0.72)', textShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>
+            © 2026 BOSA MX · Todos los derechos reservados
           </p>
         </div>
       </div>
@@ -168,13 +169,13 @@ export default function Login() {
           alt=""
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: 'brightness(0.45) saturate(0.7)' }}
+          style={{ filter: 'brightness(1.1) saturate(1.12) contrast(1.02)' }}
         />
         <div
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(180deg, rgba(5,13,26,0.55) 0%, rgba(5,13,26,0.92) 100%)',
+              'linear-gradient(180deg, rgba(5,13,26,0.2) 0%, rgba(5,13,26,0.38) 55%, rgba(5,13,26,0.82) 100%)',
           }}
         />
         <div className="relative z-10 flex min-h-[6.5rem] items-center justify-center px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:min-h-[7rem]">
@@ -182,7 +183,7 @@ export default function Login() {
             src="/bosahublogo-02.svg"
             alt="BOSA Hub"
             className="mx-auto h-auto w-44 drop-shadow-xl sm:w-48"
-            style={{ filter: 'drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4))' }}
+            style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5)) drop-shadow(0 6px 16px rgba(0,0,0,0.4))' }}
           />
         </div>
       </div>
@@ -272,18 +273,34 @@ export default function Login() {
 
               {/* Submit */}
               <div className="pt-1 sm:pt-2">
-                <button type="submit" disabled={loading} className="btn-gold login-submit w-full">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="voice-minute-footer__btn voice-minute-footer__btn--primary login-submit w-full disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   {loading ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-navy-950/40 border-t-navy-950 rounded-full animate-spin" />
+                      <span
+                        className="h-[1.625rem] w-[1.625rem] shrink-0 animate-spin rounded-full border-2 border-navy-950/25 border-t-navy-950"
+                        aria-hidden
+                      />
                       Verificando...
                     </>
                   ) : (
                     <>
-                      Ingresar al Sistema
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      <svg
+                        className="voice-minute-footer__icon voice-minute-footer__icon--ticket"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                       </svg>
+                      Ingresar al Sistema
                     </>
                   )}
                 </button>
@@ -295,7 +312,7 @@ export default function Login() {
           <SolnoLoginFooter className="px-1" />
 
           <p className="mt-4 text-center font-label text-[9px] tracking-widest text-slate-muted/60 lg:hidden">
-            © 2026 BOSA · Todos los derechos reservados
+            © 2026 BOSA MX · Todos los derechos reservados
           </p>
         </div>
       </div>

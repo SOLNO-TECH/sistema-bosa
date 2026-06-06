@@ -209,22 +209,22 @@
     color: rgba(203, 172, 128, 0.9);
   }
 
-  .login-submit {
-    min-height: 2.875rem;
-    padding-top: 0.875rem;
-    padding-bottom: 0.875rem;
-  }
-
-  @media (min-width: 640px) {
-    .login-submit {
-      min-height: auto;
-      padding-top: 0.875rem;
-      padding-bottom: 0.875rem;
-    }
+  .login-submit.voice-minute-footer__btn {
+    flex: none;
+    width: 100%;
+    min-height: 3.25rem;
   }
 
   .login-page {
     -webkit-overflow-scrolling: touch;
+  }
+
+  .login-hero__body {
+    margin-top: 6rem;
+  }
+
+  .login-hero__lead {
+    margin: 0;
   }
 
   @media (max-width: 1023px) {

@@ -66,28 +66,11 @@ function SolnoLoginBrandRow({ asLink = false }) {
   return row;
 }
 
-/** Pie login: acceso restringido (desktop) + marca SOLNO */
+/** Pie login: marca SOLNO */
 export function SolnoLoginFooter({ className = '' }) {
   return (
     <footer className={`solno-login-footer mt-14 lg:mt-5 lg:pt-4 ${className}`}>
-      <div className="login-security-note">
-        <span className="login-security-note__icon" aria-hidden>
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-            />
-          </svg>
-        </span>
-        <p className="login-security-note__text">
-          Acceso restringido
-          <span className="login-security-note__sep"> · </span>
-          <br className="sm:hidden" />
-          Solo personal autorizado
-        </p>
-      </div>
-      <div className="flex justify-center lg:mt-3.5">
+      <div className="flex justify-center">
         <SolnoLoginBrandRow asLink={Boolean(SOLNO_URL)} />
       </div>
     </footer>
