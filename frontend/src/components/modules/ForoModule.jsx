@@ -762,7 +762,7 @@ export default function ForoModule() {
   // Polling para mensajes solo si hay acceso al foro
   useEffect(() => {
     setShowMembers(false); // cerrar popover al cambiar de grupo
-    if (!selectedGroup || !selectedGroup.has_access) {
+    if (!selectedGroup) {
       setMessages([]);
       return;
     }
@@ -773,7 +773,7 @@ export default function ForoModule() {
 
   // Solicitudes pendientes (creador / superadmin)
   useEffect(() => {
-    if (!selectedGroup?.id || !selectedGroup.has_access) {
+    if (!selectedGroup?.id) {
       setJoinRequests([]);
       setShowJoinRequestsPanel(false);
       return;
@@ -793,7 +793,7 @@ export default function ForoModule() {
     load();
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
-  }, [selectedGroup?.id, selectedGroup?.has_access, selectedGroup?.created_by, user?.id, user?.role]);
+  }, [selectedGroup?.id, selectedGroup?.created_by, user?.id, user?.role]);
 
   useEffect(() => {
     if (joinRequests.length === 0) setShowJoinRequestsPanel(false);
@@ -814,7 +814,7 @@ export default function ForoModule() {
       setSelectedGroup((prev) => {
         if (!prev) return prev;
         const up = data.find((g) => g.id === prev.id);
-        return up || prev;
+        return up || null;
       });
     } catch (err) {
       console.error(err);
@@ -979,7 +979,7 @@ export default function ForoModule() {
         <div className="p-4 lg:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
           <div>
             <h2 className="font-display font-medium text-navy-950 text-base lg:text-lg">Foro & Equipos</h2>
-            <p className="text-xs text-navy-500 mt-0.5">Comunidad · todos los foros visibles</p>
+            <p className="text-xs text-navy-500 mt-0.5">Solo los foros en los que participas</p>
           </div>
           <button
             onClick={() => setIsCreatingGroup(true)}
@@ -1012,16 +1012,11 @@ export default function ForoModule() {
                     {g.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-bold text-sm truncate flex items-center gap-1.5 ${selectedGroup?.id === g.id ? 'text-white' : 'text-navy-950'}`}>
-                      {g.has_access === false && (
-                        <svg className="w-3.5 h-3.5 flex-shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Sin acceso">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      )}
+                    <h3 className={`font-bold text-sm truncate ${selectedGroup?.id === g.id ? 'text-white' : 'text-navy-950'}`}>
                       <span className="truncate"># {g.name}</span>
                     </h3>
                     <p className={`text-xs truncate mt-0.5 ${selectedGroup?.id === g.id ? 'text-navy-200' : 'text-navy-500'}`}>
-                      {g.has_access === false ? 'Restringido · solicita acceso al entrar' : (g.description || 'Sin descripción')}
+                      {g.description || 'Sin descripción'}
                     </p>
                   </div>
                 </div>
@@ -1034,7 +1029,6 @@ export default function ForoModule() {
       {/* Columna Derecha: Chat Area */}
       <div className={`flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex-col overflow-hidden ${selectedGroup ? 'flex' : 'hidden lg:flex'}`}>
         {selectedGroup ? (
-          selectedGroup.has_access ? (
           <>
             <div className="p-3 lg:p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-2">
               {/* Botón "regresar" — solo móvil */}
@@ -1495,54 +1489,6 @@ export default function ForoModule() {
               </form>
             </div>
           </>
-          ) : (
-            <>
-              <div className="p-3 lg:p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-2">
-                <button
-                  onClick={() => setSelectedGroup(null)}
-                  className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-navy-50 text-navy-700 hover:bg-navy-100 transition-colors"
-                  title="Volver a la lista de grupos"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-display font-bold text-navy-950 text-base lg:text-lg flex items-center gap-2 truncate">
-                    <span className="text-gold flex-shrink-0">#</span>
-                    <span className="truncate">{selectedGroup.name}</span>
-                  </h3>
-                  <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide mt-0.5">
-                    Foro restringido · sin acceso al chat
-                  </p>
-                  <p className="text-xs text-navy-500 mt-0.5 truncate">{selectedGroup.description}</p>
-                </div>
-              </div>
-              <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[url('/pattern.png')] bg-repeat text-center gap-5">
-                <div className="w-16 h-16 rounded-full bg-navy-900/90 flex items-center justify-center shadow-lg">
-                  <svg className="w-8 h-8 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-navy-800 font-medium max-w-md leading-relaxed">
-                  Este foro existe en la comunidad, pero solo quien tiene permiso puede ver los mensajes. Pide acceso al creador; cuando te acepte, el chat se desbloqueará aquí.
-                </p>
-                {selectedGroup.pending_join_request ? (
-                  <p className="text-xs font-black text-gold uppercase tracking-widest bg-gold/10 border border-gold/30 px-4 py-2 rounded-xl">
-                    Solicitud enviada · pendiente de aprobación
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSendJoinRequest}
-                    className="btn-gold px-8 py-3.5 rounded-xl text-xs font-black uppercase tracking-[0.15em] shadow-lg shadow-gold/20"
-                  >
-                    Solicitar acceso
-                  </button>
-                )}
-              </div>
-            </>
-          )
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-4 bg-gray-50/30">
             <svg className="w-16 h-16 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>

@@ -7,6 +7,13 @@ export function getLocationLabel(type) {
   return MEETING_LOCATION_OPTIONS.find((o) => o.value === type)?.label ?? 'Sala de juntas';
 }
 
+/** Etiqueta de lugar para minuta / PDF según modalidad. */
+export function meetingPlaceLabelForType(locationType) {
+  if (locationType === 'virtual') return 'Reunión virtual';
+  const base = getLocationLabel(locationType);
+  return base === 'Sala de juntas' ? 'Sala de juntas corporativo' : base;
+}
+
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 20;
 const STEP_MINUTES = 30;

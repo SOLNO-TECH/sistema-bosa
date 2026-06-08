@@ -45,20 +45,19 @@ function canManageJoinRequests(db, userId, role, group) {
   return Number(group.created_by) === Number(userId);
 }
 
-// Listar todos los grupos (comunidad); el cliente usa has_access / pending_join_request
+// Listar solo los foros a los que el usuario tiene acceso
 router.get('/', (req, res) => {
   try {
     const db = getDb();
     const userId = req.user.id;
     const groups = db.prepare('SELECT * FROM workgroups ORDER BY created_at DESC').all();
-    const pendingStmt = db.prepare(
-      'SELECT id FROM forum_join_requests WHERE workgroup_id = ? AND user_id = ? AND status = ?'
-    );
-    const payload = groups.map((g) => ({
-      ...g,
-      has_access: userHasAccessToGroup(db, userId, g),
-      pending_join_request: !!pendingStmt.get(g.id, userId, 'pending'),
-    }));
+    const payload = groups
+      .filter((g) => userHasAccessToGroup(db, userId, g))
+      .map((g) => ({
+        ...g,
+        has_access: true,
+        pending_join_request: false,
+      }));
     res.json(payload);
   } catch (error) {
     console.error('GET /forums error:', error);
@@ -369,18 +368,24 @@ router.post('/:id/messages', upload.single('file'), (req, res) => {
       WHERE m.id = ?
     `).get(info.lastInsertRowid);
 
-    try {
-      const author = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
-      const preview = (content || file_name || 'Archivo adjunto').toString();
-      const body = preview.length > 120 ? `${preview.slice(0, 117)}…` : preview;
-      notifyForumGroup(db, group, user_id, {
-        type: 'forum',
-        title: `Mensaje en «${group.name}»`,
-        message: `${author?.name || 'Alguien'}: ${body}`,
-        module: 'foro',
-        related_id: Number(req.params.id),
-      });
-    } catch (_) { /* noop */ }
+    const suppressNotify =
+      req.body.suppress_notify === true ||
+      req.body.suppress_notify === '1' ||
+      req.body.suppress_notify === 1;
+    if (!suppressNotify) {
+      try {
+        const author = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);
+        const preview = (content || file_name || 'Archivo adjunto').toString();
+        const body = preview.length > 120 ? `${preview.slice(0, 117)}…` : preview;
+        notifyForumGroup(db, group, user_id, {
+          type: 'forum',
+          title: `Mensaje en «${group.name}»`,
+          message: `${author?.name || 'Alguien'}: ${body}`,
+          module: 'foro',
+          related_id: Number(req.params.id),
+        });
+      } catch (_) { /* noop */ }
+    }
 
     const [enriched] = enrichMessagesWithReadReceipts(db, group, [newMessage]);
     res.json(enriched || newMessage);

@@ -77,7 +77,7 @@ export default function Login() {
 
         {/* Foto de fondo */}
         <img
-          src="/fondo.jpeg"
+          src="/fondo.png"
           alt=""
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover"
@@ -165,7 +165,7 @@ export default function Login() {
       {/* ── Hero móvil / tablet — solo logo, compacto ── */}
       <div className="relative overflow-hidden lg:hidden">
         <img
-          src="/fondo.jpeg"
+          src="/fondo.png"
           alt=""
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"

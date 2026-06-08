@@ -1,5 +1,6 @@
 const { getDb } = require('../../database/init');
 const { localDateYMD } = require('../../utils/localDate');
+const { userCanSeeAviso } = require('../../utils/avisoTargeting');
 
 function parseMeetingAttendees(raw) {
   if (!raw) return [];
@@ -176,10 +177,12 @@ function messageForTasks(tasks, params) {
   return `Hay ${tasks.length} tareas${mine ? ' tuyas' : ''}: ${preview}${tasks.length > 3 ? ` y ${tasks.length - 3} más` : ''}.`;
 }
 
-function filterAvisos(rows, params) {
+function filterAvisos(rows, params, user, db) {
   const scope = params?.scope || 'all';
-  let list = rows.filter((a) => Number(a.is_active) === 1);
-  if (scope === 'urgent') list = list.filter((a) => a.category === 'important' || a.category === 'emergency');
+  let list = rows.filter((a) => Number(a.is_active) === 1 && userCanSeeAviso(db, user.id, a));
+  if (scope === 'urgent') {
+    list = list.filter((a) => a.category === 'importante' || a.category === 'urgente' || a.category === 'important' || a.category === 'emergency');
+  }
   if (scope === 'recent') list = list.slice(0, 5);
   return list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
@@ -276,7 +279,7 @@ function executeVoiceQuery(intent, params, user) {
     }
     case 'query_avisos': {
       const all = db.prepare('SELECT * FROM avisos ORDER BY created_at DESC').all();
-      items = filterAvisos(all, params);
+      items = filterAvisos(all, params, user, db);
       message = messageForAvisos(items);
       break;
     }

@@ -1,4 +1,5 @@
 const { getDb } = require('../database/init');
+const { clearMinuteFollowUpLink, syncMinutesFromMeetingUpdate } = require('../utils/minuteFollowUpSync');
 const { sendMeetingNotification } = require('../services/emailService');
 const { notifyUser } = require('../services/notificationService');
 const {
@@ -243,6 +244,15 @@ const updateMeeting = (req, res) => {
       WHERE id = ?
     `).run(title, description || '', start_time, end_time, attendeesJson, location_type, id);
 
+    try {
+      syncMinutesFromMeetingUpdate(db, {
+        id: Number(id),
+        start_time,
+        end_time,
+        location_type,
+      });
+    } catch (_) { /* noop */ }
+
     const when = (() => {
       try {
         const d = new Date(start_time);
@@ -348,6 +358,9 @@ const deleteMeeting = (req, res) => {
         module: 'calendar',
         related_id: Number(id),
       });
+    } catch (_) { /* noop */ }
+    try {
+      clearMinuteFollowUpLink(db, id);
     } catch (_) { /* noop */ }
     db.prepare('DELETE FROM meetings WHERE id = ?').run(id);
     res.json({ message: 'Reunión eliminada exitosamente' });

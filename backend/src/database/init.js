@@ -107,13 +107,17 @@ function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS avisos (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      title       TEXT    NOT NULL,
-      content     TEXT    NOT NULL,
-      category    TEXT    NOT NULL DEFAULT 'general', -- general, important, emergency
-      is_active   INTEGER NOT NULL DEFAULT 1,
-      created_by  INTEGER NOT NULL,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      title               TEXT    NOT NULL,
+      content             TEXT    NOT NULL,
+      category            TEXT    NOT NULL DEFAULT 'general', -- normal, importante, urgente
+      is_active           INTEGER NOT NULL DEFAULT 1,
+      created_by          INTEGER NOT NULL,
+      tipo                TEXT,
+      target_forum_id     INTEGER,
+      target_user_id      INTEGER,
+      target_departments  TEXT    DEFAULT '[]',
+      created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
@@ -306,6 +310,9 @@ function initDatabase() {
   migrateMeetingMinutesVoiceOnce(db);
   migrateMeetingMinutesAudioOnce(db);
   migrateVoiceLearningOnce(db);
+  migrateAvisosTargetingOnce(db);
+  migrateMeetingMinutesSynerteamOnce(db);
+  migrateMeetingMinutesNextFollowupOnce(db);
 
   try {
     db.exec(`
@@ -827,6 +834,97 @@ function repairBrokenUserForeignKeys(db) {
 
   db.pragma(`foreign_keys = ${wasOn ? 'ON' : 'OFF'}`);
   return fixed > 0;
+}
+
+/** Campos Synerteam en minutas (tema principal, desarrollo, acuerdos, próxima reunión). */
+function migrateMeetingMinutesSynerteamOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meeting_minutes_synerteam_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meeting_minutes)').all().map((c) => c.name);
+    const add = (name, sql) => {
+      if (!cols.includes(name)) db.prepare(sql).run();
+    };
+    add('tema_principal_json', `ALTER TABLE meeting_minutes ADD COLUMN tema_principal_json TEXT NOT NULL DEFAULT '[]'`);
+    add('desarrollo_json', `ALTER TABLE meeting_minutes ADD COLUMN desarrollo_json TEXT NOT NULL DEFAULT '[]'`);
+    add('acuerdos_json', `ALTER TABLE meeting_minutes ADD COLUMN acuerdos_json TEXT NOT NULL DEFAULT '[]'`);
+    add('next_meeting_fecha', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_fecha TEXT DEFAULT ''`);
+    add('next_meeting_hora', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_hora TEXT DEFAULT ''`);
+    add('next_meeting_lugar', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_lugar TEXT DEFAULT ''`);
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meeting_minutes_synerteam_v1')").run();
+    console.log('[DB] meeting_minutes: campos Synerteam listos');
+  } catch (err) {
+    console.warn('[DB] meeting_minutes_synerteam migration:', err.message);
+  }
+}
+
+/** Próxima reunión: modalidad, hora fin, seguimiento y enlace al calendario. */
+function migrateMeetingMinutesNextFollowupOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meeting_minutes_next_followup_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meeting_minutes)').all().map((c) => c.name);
+    const add = (name, sql) => {
+      if (!cols.includes(name)) db.prepare(sql).run();
+    };
+    add('next_meeting_planned', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_planned TEXT NOT NULL DEFAULT 'no'`);
+    add('next_meeting_location_type', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_location_type TEXT NOT NULL DEFAULT 'sala_juntas'`);
+    add('next_meeting_hora_fin', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_hora_fin TEXT DEFAULT ''`);
+    add('next_meeting_scheduled_id', `ALTER TABLE meeting_minutes ADD COLUMN next_meeting_scheduled_id INTEGER`);
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meeting_minutes_next_followup_v1')").run();
+    console.log('[DB] meeting_minutes: seguimiento próxima reunión listo');
+  } catch (err) {
+    console.warn('[DB] meeting_minutes next followup migration:', err.message);
+  }
+}
+
+/** Columnas de destinatario en avisos (foro, departamento, usuario). */
+function migrateAvisosTargetingOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'avisos_targeting_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare(`PRAGMA table_info(avisos)`).all().map((c) => c.name);
+    if (!cols.includes('tipo')) {
+      db.prepare(`ALTER TABLE avisos ADD COLUMN tipo TEXT`).run();
+    }
+    if (!cols.includes('target_forum_id')) {
+      db.prepare(`ALTER TABLE avisos ADD COLUMN target_forum_id INTEGER`).run();
+    }
+    if (!cols.includes('target_user_id')) {
+      db.prepare(`ALTER TABLE avisos ADD COLUMN target_user_id INTEGER`).run();
+    }
+    if (!cols.includes('target_departments')) {
+      db.prepare(`ALTER TABLE avisos ADD COLUMN target_departments TEXT DEFAULT '[]'`).run();
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('avisos_targeting_v1')").run();
+    console.log('[DB] avisos: columnas de destinatario listas');
+  } catch (err) {
+    console.warn('[DB] avisos_targeting migration:', err.message);
+  }
 }
 
 /** Repara migración a medias (users_old huérfana / triggers que apuntan a users_old). */

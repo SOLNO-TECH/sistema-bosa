@@ -268,13 +268,14 @@ export default function AvisosModule() {
           titulo: a.title,
           mensaje: a.content,
           prioridad: a.category,
+          tipo: a.tipo || 'departamento',
           estado: 'enviado',
           fecha: new Date(a.created_at).toLocaleDateString('es-MX'),
           hora: new Date(a.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
           autor: a.creator_name || 'Sistema',
           enviados: 0,
           leidos: 0,
-          destinatarios: ['Todos'],
+          destinatarios: Array.isArray(a.destinatarios) && a.destinatarios.length ? a.destinatarios : [],
         }))
       );
     } catch (err) {
@@ -328,13 +329,17 @@ export default function AvisosModule() {
         title: form.titulo,
         content: form.mensaje,
         category: form.prioridad,
-        created_by: user?.id,
+        tipo: form.tipo,
+        foroId: form.tipo === 'foro' ? form.foroId : undefined,
+        usuarioId: form.tipo === 'individual' ? form.usuarioId : undefined,
+        departamentos: form.tipo === 'departamento' ? form.departamentos : undefined,
       });
 
       if (form.tipo === 'foro' && form.foroId) {
         try {
           const fd = new FormData();
           fd.append('user_id', user?.id || '');
+          fd.append('suppress_notify', '1');
           const prioLabel = form.prioridad === 'urgente' ? 'URGENTE' : form.prioridad === 'importante' ? 'IMPORTANTE' : 'AVISO';
           fd.append('content', `📢 ${prioLabel} — ${form.titulo}\n\n${form.mensaje}`);
           await axios.post(`/api/forums/${form.foroId}/messages`, fd, {

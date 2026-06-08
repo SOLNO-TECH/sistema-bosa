@@ -30,7 +30,11 @@ function userHasAccessToGroup(db, userId, group) {
   const list = parseAccessList(group.access_list);
 
   if (accessType === 'all') return true;
-  if (accessType === 'department') return !!u.departamento && list.includes(u.departamento);
+  if (accessType === 'department') {
+    const userDept = String(u.departamento || '').trim();
+    if (!userDept) return false;
+    return list.some((d) => String(d).trim() === userDept);
+  }
   if (accessType === 'users') return userIdInAccessList(list, u.id);
   return false;
 }

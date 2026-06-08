@@ -7,20 +7,13 @@ const { structureTranscript } = require('../services/transcriptSpeakerService');
 const { transcribeAudioFile, isConfigured } = require('../services/voiceTranscriptionService');
 const { relativeAudioPath, uploadsRoot } = require('../utils/minuteAudio');
 const { ensurePlaybackAudioFile } = require('../utils/audioPlayback');
+const { canManageMeetingMinute } = require('../utils/meetingMinuteAccess');
 function parseMeetingRow(row) {
   if (!row) return null;
   return {
     ...row,
     attendees: parseMeetingAttendees(row.attendees),
   };
-}
-
-function userCanAccessMeeting(meeting, user) {
-  if (!meeting || !user) return false;
-  const uid = Number(user.id);
-  if (Number(meeting.created_by) === uid) return true;
-  if (user.role === 'superadmin' || user.role === 'administrator') return true;
-  return (meeting.attendees || []).some((id) => Number(id) === uid);
 }
 
 function loadUsersMap(db) {
@@ -42,8 +35,10 @@ const generateMinuteFromVoice = async (req, res) => {
     const db = getDb();
     const meeting = parseMeetingRow(db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId));
     if (!meeting) return res.status(404).json({ message: 'Reunión no encontrada.' });
-    if (!userCanAccessMeeting(meeting, req.user)) {
-      return res.status(403).json({ message: 'No tienes permiso para generar minuta de esta reunión.' });
+    if (!canManageMeetingMinute(req.user, meeting)) {
+      return res.status(403).json({
+        message: 'Solo el organizador de la reunión o un superadministrador puede generar la minuta.',
+      });
     }
 
     const clientTranscript = String(req.body?.transcript || '').trim();

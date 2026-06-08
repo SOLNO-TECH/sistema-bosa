@@ -35,3 +35,10 @@ export function canCreateStandaloneTask(user) {
   const l = resolveLevel(user);
   return l === 'superadmin' || l === 'administrator' || l === 'manager';
 }
+
+/** Crear o editar minuta de una reunión: solo organizador o superadmin. */
+export function canManageMeetingMinute(user, meeting) {
+  if (!user || !meeting) return false;
+  if (isSuperadminUser(user)) return true;
+  return Number(meeting.created_by) === Number(user.id);
+}

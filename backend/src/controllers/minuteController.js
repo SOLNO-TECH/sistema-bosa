@@ -1,6 +1,8 @@
 const { getDb } = require('../database/init');
 const { notifyMinutaParticipants } = require('../utils/participantNotify');
 const { deleteAudioFileIfExists, resolveAudioFile, streamAudioFile } = require('../utils/minuteAudio');
+const { canManageMeetingMinuteById, isSuperadminUser } = require('../utils/meetingMinuteAccess');
+const { reconcileMinuteFollowUp } = require('../utils/minuteFollowUpSync');
 
 function safeJson(s, fallback) {
   try {
@@ -11,24 +13,24 @@ function safeJson(s, fallback) {
   }
 }
 
-function resolvePermissionLevel(user) {
-  if (!user) return 'user';
-  if (user.permission_level) return user.permission_level;
-  if (user.role === 'superadmin') return 'superadmin';
-  if (user.role === 'administrator') return 'administrator';
-  if (user.role === 'manager') return 'manager';
-  return 'user';
-}
-
-function isSuperadminUser(user) {
-  return resolvePermissionLevel(user) === 'superadmin';
-}
-
 const defaultTopics = () => [
   { titulo: '', descripcion: '', comentarios: '' },
   { titulo: '', descripcion: '', comentarios: '' },
   { titulo: '', descripcion: '', comentarios: '' },
 ];
+
+function normalizeBulletList(raw, fallback = []) {
+  if (Array.isArray(raw)) {
+    return raw.map((s) => String(s ?? '').trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw
+      .split('\n')
+      .map((s) => s.replace(/^[-•*]\s*/, '').trim())
+      .filter(Boolean);
+  }
+  return Array.isArray(fallback) ? fallback : [];
+}
 
 function normalizePayload(body) {
   const {
@@ -42,6 +44,16 @@ function normalizePayload(body) {
     meeting_id,
     transcript_text,
     audio_path,
+    tema_principal,
+    desarrollo,
+    acuerdos,
+    next_meeting_planned = 'no',
+    next_meeting_fecha = '',
+    next_meeting_hora = '',
+    next_meeting_hora_fin = '',
+    next_meeting_lugar = '',
+    next_meeting_location_type = 'sala_juntas',
+    next_meeting_scheduled_id,
   } = body;
   if (!fecha || String(fecha).trim() === '') {
     return { error: 'La fecha es obligatoria.' };
@@ -78,6 +90,55 @@ function normalizePayload(body) {
     meeting_id: meetingId,
     transcript_text: String(transcript_text ?? '').trim(),
     audio_path: audio_path != null && String(audio_path).trim() !== '' ? String(audio_path).trim() : null,
+    tema_principal: normalizeBulletList(tema_principal),
+    desarrollo: normalizeBulletList(desarrollo),
+    acuerdos: normalizeBulletList(acuerdos),
+    ...normalizeNextMeetingFields({
+      next_meeting_planned,
+      next_meeting_fecha,
+      next_meeting_hora,
+      next_meeting_hora_fin,
+      next_meeting_lugar,
+      next_meeting_location_type,
+      next_meeting_scheduled_id,
+    }),
+  };
+}
+
+function normalizeNextMeetingFields(raw) {
+  const planned = String(raw.next_meeting_planned ?? '').trim() === 'yes' ? 'yes' : 'no';
+  if (planned === 'no') {
+    return {
+      next_meeting_planned: 'no',
+      next_meeting_fecha: '',
+      next_meeting_hora: '',
+      next_meeting_hora_fin: '',
+      next_meeting_lugar: '',
+      next_meeting_location_type: 'sala_juntas',
+      next_meeting_scheduled_id: null,
+    };
+  }
+
+  const locationType = raw.next_meeting_location_type === 'virtual' ? 'virtual' : 'sala_juntas';
+  let lugar = String(raw.next_meeting_lugar ?? '').trim();
+  if (!lugar) {
+    lugar = locationType === 'virtual' ? 'Reunión virtual' : 'Sala de juntas corporativo';
+  }
+
+  let scheduledId = null;
+  if (raw.next_meeting_scheduled_id != null && raw.next_meeting_scheduled_id !== '') {
+    const n = Number(raw.next_meeting_scheduled_id);
+    if (!Number.isNaN(n) && n > 0) scheduledId = n;
+  }
+
+  return {
+    next_meeting_planned: 'yes',
+    next_meeting_fecha: String(raw.next_meeting_fecha ?? '').trim(),
+    next_meeting_hora: String(raw.next_meeting_hora ?? '').trim(),
+    next_meeting_hora_fin: String(raw.next_meeting_hora_fin ?? '').trim(),
+    next_meeting_lugar: lugar,
+    next_meeting_location_type: locationType,
+    next_meeting_scheduled_id: scheduledId,
   };
 }
 
@@ -103,6 +164,16 @@ function mapRow(r) {
     audio_url: r.audio_path
       ? `/api/uploads/${String(r.audio_path).replace(/^\/+/, '').replace(/\\/g, '/')}`
       : null,
+    tema_principal: safeJson(r.tema_principal_json, []),
+    desarrollo: safeJson(r.desarrollo_json, []),
+    acuerdos: safeJson(r.acuerdos_json, []),
+    next_meeting_planned: r.next_meeting_planned || 'no',
+    next_meeting_fecha: r.next_meeting_fecha || '',
+    next_meeting_hora: r.next_meeting_hora || '',
+    next_meeting_hora_fin: r.next_meeting_hora_fin || '',
+    next_meeting_lugar: r.next_meeting_lugar || '',
+    next_meeting_location_type: r.next_meeting_location_type || 'sala_juntas',
+    next_meeting_scheduled_id: r.next_meeting_scheduled_id ?? null,
   };
 }
 
@@ -124,6 +195,30 @@ const listMinutes = (req, res) => {
   }
 };
 
+const getMinuteByMeeting = (req, res) => {
+  try {
+    const meetingId = Number(req.params.meetingId);
+    if (!meetingId) return res.status(400).json({ message: 'Reunión inválida.' });
+    const db = getDb();
+    const row = db
+      .prepare(
+        `SELECT m.*, u.name AS creator_name, u.apellido AS creator_apellido
+         FROM meeting_minutes m
+         LEFT JOIN users u ON m.created_by = u.id
+         WHERE m.meeting_id = ?
+         ORDER BY m.id DESC
+         LIMIT 1`
+      )
+      .get(meetingId);
+    if (!row) return res.status(404).json({ message: 'Sin minuta para esta reunión.' });
+    const reconciled = reconcileMinuteFollowUp(db, row);
+    res.json(mapRow(reconciled));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al obtener la minuta.' });
+  }
+};
+
 const getMinute = (req, res) => {
   try {
     const db = getDb();
@@ -135,9 +230,9 @@ const getMinute = (req, res) => {
          WHERE m.id = ?`
       )
       .get(req.params.id);
-    const out = mapRow(row);
-    if (!out) return res.status(404).json({ message: 'Minuta no encontrada.' });
-    res.json(out);
+    if (!row) return res.status(404).json({ message: 'Minuta no encontrada.' });
+    const reconciled = reconcileMinuteFollowUp(db, row);
+    res.json(mapRow(reconciled));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al obtener la minuta.' });
@@ -152,11 +247,19 @@ const createMinute = (req, res) => {
     if (n.error) return res.status(400).json({ message: n.error });
 
     const db = getDb();
+    if (n.meeting_id && !canManageMeetingMinuteById(db, req.user, n.meeting_id)) {
+      return res.status(403).json({
+        message: 'Solo el organizador de la reunión o un superadministrador puede crear la minuta.',
+      });
+    }
     const info = db
       .prepare(
         `INSERT INTO meeting_minutes
-         (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by, meeting_id, transcript_text, audio_path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by, meeting_id, transcript_text, audio_path,
+          tema_principal_json, desarrollo_json, acuerdos_json,
+          next_meeting_planned, next_meeting_fecha, next_meeting_hora, next_meeting_hora_fin,
+          next_meeting_lugar, next_meeting_location_type, next_meeting_scheduled_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         n.lugar,
@@ -169,7 +272,17 @@ const createMinute = (req, res) => {
         created_by,
         n.meeting_id,
         n.transcript_text,
-        n.audio_path
+        n.audio_path,
+        JSON.stringify(n.tema_principal),
+        JSON.stringify(n.desarrollo),
+        JSON.stringify(n.acuerdos),
+        n.next_meeting_planned,
+        n.next_meeting_fecha,
+        n.next_meeting_hora,
+        n.next_meeting_hora_fin,
+        n.next_meeting_lugar,
+        n.next_meeting_location_type,
+        n.next_meeting_scheduled_id,
       );
     const minuteId = info.lastInsertRowid;
     try {
@@ -198,6 +311,13 @@ const updateMinute = (req, res) => {
     const exists = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
     if (!exists) return res.status(404).json({ message: 'Minuta no encontrada.' });
 
+    const meetingId = n.meeting_id ?? exists.meeting_id;
+    if (meetingId && !canManageMeetingMinuteById(db, req.user, meetingId)) {
+      return res.status(403).json({
+        message: 'Solo el organizador de la reunión o un superadministrador puede editar la minuta.',
+      });
+    }
+
     const audioPathProvided = Object.prototype.hasOwnProperty.call(req.body, 'audio_path');
     const audioPathToSave = audioPathProvided ? n.audio_path : exists.audio_path;
 
@@ -209,6 +329,9 @@ const updateMinute = (req, res) => {
       `UPDATE meeting_minutes SET
         lugar = ?, fecha = ?, hora_inicio = ?, hora_cierre = ?, tema = ?,
         attendees_json = ?, topics_json = ?, meeting_id = ?, transcript_text = ?, audio_path = ?,
+        tema_principal_json = ?, desarrollo_json = ?, acuerdos_json = ?,
+        next_meeting_planned = ?, next_meeting_fecha = ?, next_meeting_hora = ?, next_meeting_hora_fin = ?,
+        next_meeting_lugar = ?, next_meeting_location_type = ?, next_meeting_scheduled_id = ?,
         updated_at = datetime('now')
        WHERE id = ?`
     ).run(
@@ -222,6 +345,16 @@ const updateMinute = (req, res) => {
       n.meeting_id,
       n.transcript_text,
       audioPathToSave,
+      JSON.stringify(n.tema_principal),
+      JSON.stringify(n.desarrollo),
+      JSON.stringify(n.acuerdos),
+      n.next_meeting_planned,
+      n.next_meeting_fecha,
+      n.next_meeting_hora,
+      n.next_meeting_hora_fin,
+      n.next_meeting_lugar,
+      n.next_meeting_location_type,
+      n.next_meeting_scheduled_id,
       req.params.id
     );
     try {
@@ -286,6 +419,7 @@ const streamMinuteAudio = (req, res) => {
 
 module.exports = {
   listMinutes,
+  getMinuteByMeeting,
   getMinute,
   createMinute,
   updateMinute,

@@ -18,12 +18,14 @@ import {
 import { useCatalog } from '../../hooks/useCatalog';
 import { useMeetingVoiceRecorder } from '../../hooks/useMeetingVoiceRecorder';
 import MeetingVoiceMinuteModal from '../MeetingVoiceMinuteModal';
+import MeetingManualMinuteModal from '../MeetingManualMinuteModal';
+import MeetingMinuteActaPanel from '../MeetingMinuteActaPanel';
 import MeetingVoiceCaptureOverlay from '../voice/MeetingVoiceCaptureOverlay';
 import MeetingSayaCaptureCard from '../voice/MeetingSayaCaptureCard';
 import SayaBrandMark from '../voice/SayaBrandMark';
 import { localDateYMD } from '../../utils/localDate';
 import BosaGoldButton from '../BosaGoldButton';
-import { isSuperadminUser } from '../../utils/permissions';
+import { isSuperadminUser, canManageMeetingMinute } from '../../utils/permissions';
 
 function userFullName(u) {
   return `${u?.name || ''} ${u?.apellido || ''}`.trim();
@@ -220,6 +222,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   const [rsvpDraft, setRsvpDraft] = useState({ status: '', comment: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
   const [rsvpError, setRsvpError] = useState('');
+  const [meetingMinuteRecord, setMeetingMinuteRecord] = useState(null);
+  const [manualMinuteOpen, setManualMinuteOpen] = useState(false);
 
   useEffect(() => {
     fetchMeetings();
@@ -242,6 +246,33 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     });
     setRsvpError('');
   }, [selectedMeeting?.id, selectedMeeting?.rsvps, user?.id]);
+
+  const reloadMeetingMinute = async (meetingId) => {
+    if (!meetingId) {
+      setMeetingMinuteRecord(null);
+      return;
+    }
+    try {
+      const { data } = await axios.get(`/api/minutes/by-meeting/${meetingId}`);
+      setMeetingMinuteRecord(data);
+    } catch {
+      setMeetingMinuteRecord(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedMeeting?.id) {
+      setMeetingMinuteRecord(null);
+      return;
+    }
+    reloadMeetingMinute(selectedMeeting.id);
+  }, [selectedMeeting?.id]);
+
+  useEffect(() => {
+    if (manualMinuteOpen && selectedMeeting?.id) {
+      reloadMeetingMinute(selectedMeeting.id);
+    }
+  }, [manualMinuteOpen, selectedMeeting?.id]);
 
   const refreshMeetingsAndSelection = async (meetingId) => {
     try {
@@ -281,6 +312,9 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     try {
       const { data } = await axios.get('/api/meetings');
       setMeetings(Array.isArray(data) ? data : []);
+      if (selectedMeeting?.id) {
+        await reloadMeetingMinute(selectedMeeting.id);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -407,6 +441,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     m &&
     user &&
     (canEditMeeting(m) || meetingInvolvesUser(m, user.id));
+
+  const canManageMinute = (m) => canManageMeetingMinute(user, m);
 
   const uploadVoiceAndGenerateMinute = async (meetingId, blob, browserTranscript, captureMode) => {
     const fd = new FormData();
@@ -1325,8 +1361,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
         </div>
       )}
 
-      {/* Modal Resumen de Reunión */}
-      {selectedMeeting && (() => {
+      {/* Modal Resumen de Reunión (oculto mientras se edita la minuta) */}
+      {selectedMeeting && !manualMinuteOpen && (() => {
         const start = new Date(selectedMeeting.start_time);
         const end = new Date(selectedMeeting.end_time);
         const organizer = dbUsers.find((u) => Number(u.id) === Number(selectedMeeting.created_by));
@@ -1408,7 +1444,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
             </div>
 
             <div className="meeting-sheet__body">
-            <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
+            <div className="meeting-sheet__scroll">
               <p className="meeting-sheet__section-label">Detalles</p>
               <div className="meeting-sheet__group">
                 <div className="meeting-sheet__cell">
@@ -1549,6 +1585,15 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               )}
 
               {canAccessMeeting(selectedMeeting) && (
+                <MeetingMinuteActaPanel
+                  minute={meetingMinuteRecord}
+                  canManage={canManageMinute(selectedMeeting)}
+                  onCreate={() => setManualMinuteOpen(true)}
+                  onEdit={() => setManualMinuteOpen(true)}
+                />
+              )}
+
+              {canAccessMeeting(selectedMeeting) && canManageMinute(selectedMeeting) && (
                 <div className="saya-capture-card meeting-sheet__group overflow-hidden">
                   <div className="saya-capture-card__head">
                     <SayaBrandMark variant="compact" />
@@ -1662,7 +1707,23 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
         onStopAndProcess={handleVoiceStopAndProcess}
       />
 
-      <MeetingVoiceMinuteModal
+      {canManageMinute(selectedMeeting) && (
+        <MeetingManualMinuteModal
+          open={manualMinuteOpen}
+          meeting={selectedMeeting}
+          dbUsers={dbUsers}
+          existingMinute={meetingMinuteRecord}
+          onClose={() => setManualMinuteOpen(false)}
+          onMeetingScheduled={fetchMeetings}
+          onSaved={async () => {
+            if (selectedMeeting?.id) await reloadMeetingMinute(selectedMeeting.id);
+            onMinuteSaved?.();
+          }}
+        />
+      )}
+
+      {canManageMinute(selectedMeeting) && (
+        <MeetingVoiceMinuteModal
         open={voiceMinuteOpen}
         onClose={() => {
           setVoiceMinuteOpen(false);
@@ -1688,6 +1749,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
           onMinuteSaved?.();
         }}
       />
+      )}
     </div>
   );
 }
