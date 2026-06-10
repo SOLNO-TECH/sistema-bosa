@@ -1,6 +1,11 @@
 const { getDb } = require('../database/init');
 const { notifyMinutaParticipants } = require('../utils/participantNotify');
 const { deleteAudioFileIfExists, resolveAudioFile, streamAudioFile } = require('../utils/minuteAudio');
+const {
+  ensureMinuteAudioNotExpired,
+  applySayaAudioRetentionSql,
+  TEMP_AUDIO_HOURS,
+} = require('../utils/minuteAudioExpiry');
 const { canManageMeetingMinuteById, isSuperadminUser } = require('../utils/meetingMinuteAccess');
 const { reconcileMinuteFollowUp } = require('../utils/minuteFollowUpSync');
 
@@ -186,8 +191,21 @@ function normalizeNextMeetingFields(raw) {
   };
 }
 
+function applySayaAudioRetention(db, minuteId, audioPath, saveSource) {
+  if (saveSource !== 'saya_voice' || !audioPath) return;
+  const { expiresExpr } = applySayaAudioRetentionSql();
+  db.prepare(
+    `UPDATE meeting_minutes SET
+      audio_expires_at = ${expiresExpr},
+      audio_permanent = 0,
+      updated_at = datetime('now')
+     WHERE id = ?`,
+  ).run(minuteId);
+}
+
 function mapRow(r) {
   if (!r) return null;
+  const hasAudio = Boolean(r.audio_path);
   return {
     id: r.id,
     lugar: r.lugar,
@@ -205,7 +223,11 @@ function mapRow(r) {
     meeting_id: r.meeting_id ?? null,
     transcript_text: r.transcript_text || '',
     audio_path: r.audio_path || null,
-    audio_url: r.audio_path
+    audio_expires_at: r.audio_expires_at || null,
+    audio_permanent: Number(r.audio_permanent) === 1,
+    audio_available: hasAudio,
+    audio_retention_hours: hasAudio && Number(r.audio_permanent) !== 1 ? TEMP_AUDIO_HOURS : null,
+    audio_url: hasAudio
       ? `/api/uploads/${String(r.audio_path).replace(/^\/+/, '').replace(/\\/g, '/')}`
       : null,
     tema_principal: safeJson(r.tema_principal_json, []),
@@ -232,7 +254,7 @@ const listMinutes = (req, res) => {
          ORDER BY datetime(m.created_at) DESC`
       )
       .all();
-    res.json(rows.map(mapRow));
+    res.json(rows.map((row) => mapRow(ensureMinuteAudioNotExpired(db, row))));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al listar minutas.' });
@@ -256,7 +278,7 @@ const getMinuteByMeeting = (req, res) => {
       .get(meetingId);
     if (!row) return res.status(404).json({ message: 'Sin minuta para esta reunión.' });
     const reconciled = reconcileMinuteFollowUp(db, row);
-    res.json(mapRow(reconciled));
+    res.json(mapRow(ensureMinuteAudioNotExpired(db, reconciled)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al obtener la minuta.' });
@@ -276,7 +298,7 @@ const getMinute = (req, res) => {
       .get(req.params.id);
     if (!row) return res.status(404).json({ message: 'Minuta no encontrada.' });
     const reconciled = reconcileMinuteFollowUp(db, row);
-    res.json(mapRow(reconciled));
+    res.json(mapRow(ensureMinuteAudioNotExpired(db, reconciled)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al obtener la minuta.' });
@@ -330,6 +352,7 @@ const createMinute = (req, res) => {
         n.next_meeting_scheduled_id,
       );
     const minuteId = info.lastInsertRowid;
+    applySayaAudioRetention(db, minuteId, n.audio_path, n.save_source);
     try {
       const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(minuteId);
       const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(created_by);
@@ -341,7 +364,8 @@ const createMinute = (req, res) => {
         related_id: Number(minuteId),
       });
     } catch (_) { /* noop */ }
-    res.status(201).json({ id: minuteId, message: 'Minuta creada.' });
+    const saved = mapRow(ensureMinuteAudioNotExpired(db, db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(minuteId)));
+    res.status(201).json({ id: minuteId, message: 'Minuta creada.', minute: saved });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al crear la minuta.' });
@@ -404,6 +428,8 @@ const updateMinute = (req, res) => {
       n.next_meeting_scheduled_id,
       req.params.id
     );
+    applySayaAudioRetention(db, req.params.id, audioPathToSave, n.save_source);
+
     try {
       const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
       const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user?.id);
@@ -415,7 +441,10 @@ const updateMinute = (req, res) => {
         related_id: Number(req.params.id),
       });
     } catch (_) { /* noop */ }
-    res.json({ message: 'Minuta actualizada.' });
+    const saved = mapRow(
+      ensureMinuteAudioNotExpired(db, db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id)),
+    );
+    res.json({ message: 'Minuta actualizada.', minute: saved });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al actualizar la minuta.' });
@@ -452,11 +481,16 @@ const deleteMinute = (req, res) => {
 const streamMinuteAudio = (req, res) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT id, audio_path FROM meeting_minutes WHERE id = ?').get(req.params.id);
-    if (!row?.audio_path) {
-      return res.status(404).json({ message: 'Esta minuta no tiene grabación de audio.' });
+    const row = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
+    const checked = ensureMinuteAudioNotExpired(db, row);
+    if (!checked?.audio_path) {
+      return res.status(404).json({
+        message: checked?.audio_expires_at
+          ? 'La grabación expiró (disponible 24 h sin Plan Pro).'
+          : 'Esta minuta no tiene grabación de audio.',
+      });
     }
-    const fullPath = resolveAudioFile(row.audio_path);
+    const fullPath = resolveAudioFile(checked.audio_path);
     streamAudioFile(req, res, fullPath);
   } catch (err) {
     console.error(err);

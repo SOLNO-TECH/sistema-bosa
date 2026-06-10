@@ -2,6 +2,7 @@ const { getDb } = require('../database/init');
 const bcrypt = require('bcryptjs');
 const { sendWelcomeEmail } = require('../services/emailService');
 const { roleSlugExists, roleRequiresDepartment } = require('../utils/roleUtils');
+const { createPurgeUserTransaction } = require('../utils/purgeUserData');
 
 const getUsers = (req, res) => {
   try {
@@ -102,11 +103,40 @@ const updateUser = (req, res) => {
 
 const deleteUser = (req, res) => {
   try {
-    const { id } = req.params;
+    const targetId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'ID de usuario inválido' });
+    }
+
+    const actorId = Number(req.user?.id);
+    if (actorId === targetId) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta desde aquí.' });
+    }
+
     const db = getDb();
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
-    res.json({ message: 'Usuario eliminado exitosamente' });
+    const target = db.prepare('SELECT id, role FROM users WHERE id = ?').get(targetId);
+    if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    if (target.role === 'superadmin') {
+      const superadminCount = db.prepare(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'superadmin'",
+      ).get().count;
+      if (superadminCount <= 1) {
+        return res.status(400).json({ error: 'No puedes eliminar el último superadministrador.' });
+      }
+    }
+
+    const purgeUser = createPurgeUserTransaction(db);
+    purgeUser(targetId);
+
+    res.json({
+      message: 'Usuario eliminado exitosamente junto con su información vinculada.',
+    });
   } catch (err) {
+    console.error('deleteUser:', err);
+    if (err?.message === 'Usuario no encontrado') {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 };

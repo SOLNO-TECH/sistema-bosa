@@ -8,6 +8,7 @@ import MeetingMinuteAudioPlayer from '../MeetingMinuteAudioPlayer';
 import MinutaListenModal from '../MinutaListenModal';
 import BosaGoldButton from '../BosaGoldButton';
 import { MinutaPdfProLock, MinutaProLockedBlocks } from '../MinutaProSections';
+import { minuteHasPlayableAudio } from '../../utils/minuteContent';
 
 const MOBILE_MQ = '(max-width: 767px)';
 
@@ -69,12 +70,8 @@ function isMinuteFromMeeting(record) {
   return Number.isFinite(meetingId) && meetingId > 0;
 }
 
-function minuteHasRecording(record) {
-  return Boolean(record?.audio_url || record?.audio_path);
-}
-
 function canListenMinute(record) {
-  return isMinuteFromMeeting(record) && minuteHasRecording(record);
+  return isMinuteFromMeeting(record) && minuteHasPlayableAudio(record);
 }
 
 const emptyAttendee = () => ({ nombre: '', cargo: '', asistencia: 'Presente' });
@@ -358,12 +355,12 @@ export default function MinutasModule() {
     if (!isMinuteFromMeeting(record)) return;
     try {
       let full = record;
-      if (!minuteHasRecording(record) || !record.audio_url) {
+      if (!minuteHasPlayableAudio(record) || !record.audio_url) {
         const { data } = await axios.get(`/api/minutes/${record.id}`);
         full = data;
       }
-      if (!minuteHasRecording(full)) {
-        alert('Esta minuta de reunión no tiene grabación de audio guardada.');
+      if (!minuteHasPlayableAudio(full)) {
+        alert('Esta minuta no tiene audio disponible (puede haber expirado tras 24 h sin Pro).');
         return;
       }
       setListenRecord(full);

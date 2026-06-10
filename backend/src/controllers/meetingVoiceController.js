@@ -182,13 +182,9 @@ const generateMinuteFromVoice = async (req, res) => {
     const draft = buildMinuteDraftFromTranscript(meeting, usersById, transcript, structured);
     const formattedTranscript = structured.formattedText || transcript;
 
-    const minuteId = persistSayaRecording(db, {
-      meetingId,
-      draft,
-      transcript: formattedTranscript,
-      audioPath,
-      userId: req.user?.id,
-    });
+    const existingMinute = db
+      .prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ? ORDER BY id DESC LIMIT 1')
+      .get(meetingId);
 
     res.json({
       draft,
@@ -199,7 +195,8 @@ const generateMinuteFromVoice = async (req, res) => {
       transcriptionSource,
       capture_mode: captureMode,
       meeting_id: meetingId,
-      existing_minute_id: minuteId,
+      existing_minute_id: existingMinute?.id ?? null,
+      audio_persisted: false,
       audio_path: audioPath,
       audio_url: audioUrl,
       audio_size: audioSize,
@@ -229,7 +226,71 @@ const getVoiceStatus = (req, res) => {
   });
 };
 
+/**
+ * POST /api/meetings/:id/save-voice-audio
+ * Persiste audio + transcripción Saya (caducidad 24 h sin Pro).
+ */
+const saveVoiceAudio = (req, res) => {
+  try {
+    const meetingId = Number(req.params.id);
+    if (!meetingId) return res.status(400).json({ message: 'ID de reunión inválido.' });
+
+    const db = getDb();
+    const meeting = parseMeetingRow(db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId));
+    if (!meeting) return res.status(404).json({ message: 'Reunión no encontrada.' });
+    if (!canManageMeetingMinute(req.user, meeting)) {
+      return res.status(403).json({
+        message: 'Solo el organizador de la reunión o un superadministrador puede guardar el audio.',
+      });
+    }
+
+    const audioPath = String(req.body?.audio_path || '').trim() || null;
+    const transcript = String(req.body?.transcript || req.body?.transcript_text || '').trim();
+    const draft = req.body?.draft || req.body || {};
+
+    if (!audioPath && !transcript) {
+      return res.status(400).json({ message: 'No hay audio ni transcripción para guardar.' });
+    }
+
+    const minuteId = persistSayaRecording(db, {
+      meetingId,
+      draft,
+      transcript,
+      audioPath,
+      userId: req.user?.id,
+    });
+
+    if (!minuteId) return res.status(500).json({ message: 'No se pudo guardar el audio.' });
+
+    const { applySayaAudioRetentionSql, ensureMinuteAudioNotExpired, TEMP_AUDIO_HOURS } = require('../utils/minuteAudioExpiry');
+    const { expiresExpr } = applySayaAudioRetentionSql();
+    db.prepare(
+      `UPDATE meeting_minutes SET
+        audio_expires_at = ${expiresExpr},
+        audio_permanent = 0,
+        updated_at = datetime('now')
+       WHERE id = ?`,
+    ).run(minuteId);
+
+    const row = ensureMinuteAudioNotExpired(db, db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(minuteId));
+    const audioUrl = row.audio_path ? `/api/uploads/${String(row.audio_path).replace(/^\/+/, '').replace(/\\/g, '/')}` : null;
+
+    res.json({
+      message: `Audio guardado. Disponible ${TEMP_AUDIO_HOURS} horas (Plan Pro: permanente).`,
+      minute_id: minuteId,
+      audio_path: row.audio_path,
+      audio_url: audioUrl,
+      audio_expires_at: row.audio_expires_at,
+      audio_retention_hours: TEMP_AUDIO_HOURS,
+    });
+  } catch (err) {
+    console.error('[saveVoiceAudio]', err);
+    res.status(500).json({ message: err.message || 'Error al guardar el audio.' });
+  }
+};
+
 module.exports = {
   generateMinuteFromVoice,
   getVoiceStatus,
+  saveVoiceAudio,
 };

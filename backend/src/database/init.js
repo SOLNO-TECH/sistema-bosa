@@ -309,6 +309,7 @@ function initDatabase() {
   migrateCatalogOnce(db);
   migrateMeetingMinutesVoiceOnce(db);
   migrateMeetingMinutesAudioOnce(db);
+  migrateMeetingMinutesAudioExpiryOnce(db);
   migrateVoiceLearningOnce(db);
   migrateAvisosTargetingOnce(db);
   migrateMeetingMinutesSynerteamOnce(db);
@@ -550,6 +551,34 @@ function migrateMeetingMinutesAudioOnce(db) {
     console.log('[DB] meeting_minutes: audio_path listo');
   } catch (err) {
     console.warn('[DB] meeting_minutes audio migration:', err.message);
+  }
+}
+
+/** Caducidad del audio Saya sin Pro (24 h). */
+function migrateMeetingMinutesAudioExpiryOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meeting_minutes_audio_expiry_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meeting_minutes)').all();
+    const names = cols.map((c) => c.name);
+    if (!names.includes('audio_expires_at')) {
+      db.prepare(`ALTER TABLE meeting_minutes ADD COLUMN audio_expires_at TEXT`).run();
+    }
+    if (!names.includes('audio_permanent')) {
+      db.prepare(`ALTER TABLE meeting_minutes ADD COLUMN audio_permanent INTEGER NOT NULL DEFAULT 0`).run();
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meeting_minutes_audio_expiry_v1')").run();
+    console.log('[DB] meeting_minutes: audio_expires_at listo');
+  } catch (err) {
+    console.warn('[DB] meeting_minutes audio expiry migration:', err.message);
   }
 }
 

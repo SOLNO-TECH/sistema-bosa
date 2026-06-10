@@ -71,7 +71,7 @@ export default function UsersModule() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar permanentemente este usuario?')) return;
+    if (!confirm('¿Eliminar permanentemente este usuario? Se borrarán también sus tickets, tareas, reuniones, minutas, mensajes de foro, avisos y notificaciones vinculados. Los datos de otros usuarios no se modificarán.')) return;
     try {
       const target = users.find(u => u.id === id);
       await axios.delete(`/api/users/${id}`);

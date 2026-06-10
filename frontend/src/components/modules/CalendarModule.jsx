@@ -22,7 +22,9 @@ import MeetingManualMinuteModal from '../MeetingManualMinuteModal';
 import MeetingMinuteActaPanel from '../MeetingMinuteActaPanel';
 import MeetingVoiceCaptureOverlay from '../voice/MeetingVoiceCaptureOverlay';
 import MeetingSayaCaptureCard from '../voice/MeetingSayaCaptureCard';
+import MeetingMinuteAudioPlayer from '../MeetingMinuteAudioPlayer';
 import SayaBrandMark from '../voice/SayaBrandMark';
+import { minuteHasPlayableAudio, formatAudioExpiryHint } from '../../utils/minuteContent';
 import { localDateYMD } from '../../utils/localDate';
 import BosaGoldButton from '../BosaGoldButton';
 import { isSuperadminUser, canManageMeetingMinute } from '../../utils/permissions';
@@ -218,6 +220,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   const [voiceRecordingAudioPath, setVoiceRecordingAudioPath] = useState(null);
   const [voiceRecordingAudioUrl, setVoiceRecordingAudioUrl] = useState(null);
   const [voiceRecordingBlob, setVoiceRecordingBlob] = useState(null);
+  const [voiceAudioSaving, setVoiceAudioSaving] = useState(false);
+  const [voiceAudioSaved, setVoiceAudioSaved] = useState(false);
   const [whisperConfigured, setWhisperConfigured] = useState(null);
   const [rsvpDraft, setRsvpDraft] = useState({ status: '', comment: '' });
   const [rsvpSaving, setRsvpSaving] = useState(false);
@@ -490,6 +494,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
 
     setVoiceProcessing(true);
     try {
+      setVoiceAudioSaved(false);
       setVoiceRecordingBlob(blob);
       const mode = selectedMeeting.location_type === 'virtual' ? 'virtual' : 'sala_juntas';
       const data = await uploadVoiceAndGenerateMinute(selectedMeeting.id, blob, browserTranscript, mode);
@@ -511,6 +516,30 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       setVoiceCaptureError(err.response?.data?.message || err.message || 'No se pudo generar la minuta.');
     } finally {
       setVoiceProcessing(false);
+    }
+  };
+
+  const handleSaveVoiceAudio = async () => {
+    if (!selectedMeeting?.id || !voiceMinuteDraft) return;
+    if (!voiceRecordingAudioPath && !voiceTranscript.trim()) {
+      alert('No hay audio ni transcripción para guardar.');
+      return;
+    }
+    setVoiceAudioSaving(true);
+    try {
+      const { data } = await axios.post(`/api/meetings/${selectedMeeting.id}/save-voice-audio`, {
+        audio_path: voiceRecordingAudioPath,
+        transcript: voiceTranscript,
+        draft: voiceMinuteDraft,
+      });
+      setVoiceAudioSaved(true);
+      setVoiceExistingMinuteId(data.minute_id ?? voiceExistingMinuteId);
+      await reloadMeetingMinute(selectedMeeting.id);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || 'No se pudo guardar el audio.';
+      alert(msg);
+    } finally {
+      setVoiceAudioSaving(false);
     }
   };
 
@@ -1605,9 +1634,23 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                       processing={voiceProcessing}
                       onStart={() => {
                         setVoiceCaptureError('');
+                        setVoiceAudioSaved(false);
                         setVoiceCaptureOpen(true);
                       }}
                     />
+                    {minuteHasPlayableAudio(meetingMinuteRecord) ? (
+                      <div className="saya-capture-card__saved-audio">
+                        <p className="saya-capture-card__saved-label">Audio guardado de la reunión</p>
+                        {formatAudioExpiryHint(meetingMinuteRecord) ? (
+                          <p className="saya-capture-card__saved-expiry">{formatAudioExpiryHint(meetingMinuteRecord)}</p>
+                        ) : null}
+                        <MeetingMinuteAudioPlayer
+                          minuteId={meetingMinuteRecord.id}
+                          audioUrl={meetingMinuteRecord.audio_url}
+                          variant="plain"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -1734,6 +1777,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
             setVoiceRecordingAudioPath(null);
             setVoiceRecordingAudioUrl(null);
             setVoiceRecordingBlob(null);
+            setVoiceAudioSaved(false);
             if (selectedMeeting?.id) await reloadMeetingMinute(selectedMeeting.id);
           }}
           draft={voiceMinuteDraft}
@@ -1744,6 +1788,10 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
           recordingAudioUrl={voiceRecordingAudioUrl}
           recordingAudioBlob={voiceRecordingBlob}
           showRecordingSection
+          onSaveAudio={handleSaveVoiceAudio}
+          savingAudio={voiceAudioSaving}
+          audioSaved={voiceAudioSaved}
+          canSaveAudio={Boolean(voiceRecordingAudioPath || voiceTranscript.trim())}
         />
       )}
     </div>

@@ -158,6 +158,35 @@ export function emptyLegacyTopics() {
  * Payload al guardar desde minuta Saya (sin Pro): solo metadatos, audio y transcripción.
  * El análisis IA no se persiste; el backend refuerza esto con save_source.
  */
+/** Audio Saya guardado y aún disponible (no expirado). */
+export function minuteHasPlayableAudio(minute) {
+  return Boolean(minute?.audio_available && (minute?.audio_url || minute?.audio_path));
+}
+
+export function formatAudioExpiryHint(minute) {
+  if (!minuteHasPlayableAudio(minute)) return null;
+  if (minute.audio_permanent) return null;
+  if (minute.audio_expires_at) {
+    try {
+      const exp = new Date(String(minute.audio_expires_at).replace(' ', 'T'));
+      if (!Number.isNaN(exp.getTime())) {
+        return `Disponible hasta ${exp.toLocaleString('es-MX', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })} · se elimina automáticamente (Plan Pro: permanente)`;
+      }
+    } catch (_) {
+      /* noop */
+    }
+  }
+  if (minute.audio_retention_hours) {
+    return `Se elimina en ${minute.audio_retention_hours} horas (Plan Pro: permanente)`;
+  }
+  return null;
+}
+
 export function buildSayaVoiceMinutePayload(form, { meetingId, transcript, recordingAudioPath } = {}) {
   const payload = {
     lugar: form.lugar,

@@ -59,6 +59,10 @@ app.use(express.json({ limit: '2mb' }));
 initDatabase();
 initPushService();
 
+const { getDb } = require('./database/init');
+const { startMinuteAudioExpiryJanitor } = require('./utils/minuteAudioExpiry');
+startMinuteAudioExpiryJanitor(getDb);
+
 for (const dir of [
   path.join(__dirname, '../data/uploads'),
   path.join(__dirname, '../data/uploads/voice'),

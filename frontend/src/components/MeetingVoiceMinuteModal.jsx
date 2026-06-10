@@ -96,7 +96,7 @@ function MinutePreview({
         <section className="voice-minute-card">
           <div className="voice-minute-audio-head">
             <p className="voice-minute-audio-head__label">Audio de la reunión</p>
-            <p className="voice-minute-audio-head__sub">Escucha la grabación completa</p>
+            <p className="voice-minute-audio-head__sub">Vista previa de la grabación (guárdala con el botón inferior)</p>
           </div>
           <div className="voice-minute-audio-body">
             {audioUrl || audioBlob?.size || minuteId ? (
@@ -116,12 +116,15 @@ function MinutePreview({
       ) : null}
 
       {showTranscript ? (
-        <details className="voice-minute-transcript" open>
-          <summary>Transcripción detectada</summary>
-          <p className="voice-minute-transcript__hint">
-            Texto capturado en vivo durante la reunión para confirmar que Saya escuchó correctamente.
-          </p>
+        <details className="voice-minute-transcript">
+          <summary>
+            <span>Transcripción detectada</span>
+            <span className="voice-minute-transcript__chevron" aria-hidden />
+          </summary>
           <div className="voice-minute-transcript__body">
+            <p className="voice-minute-transcript__hint">
+              Texto capturado en vivo durante la reunión.
+            </p>
             {hasSegments ? (
               <div className="space-y-3">
                 {transcriptSegments.map((seg, idx) => (
@@ -152,6 +155,10 @@ export default function MeetingVoiceMinuteModal({
   recordingAudioUrl = null,
   recordingAudioBlob = null,
   showRecordingSection = false,
+  onSaveAudio,
+  savingAudio = false,
+  audioSaved = false,
+  canSaveAudio = true,
 }) {
   const [form, setForm] = useState(null);
 
@@ -182,7 +189,9 @@ export default function MeetingVoiceMinuteModal({
                 <span className="voice-minute-sheet__brand-tag">· Minuta con Saya</span>
               </div>
               <p id="voice-minute-title" className="meeting-sheet__hero-subtitle voice-minute-sheet__intro">
-                Audio y transcripción ya quedaron guardados. El acta con análisis IA es Pro.
+                {audioSaved
+                  ? 'Audio guardado. Podrás escucharlo junto al botón Grabar reunión (24 h sin Pro).'
+                  : 'Revisa la grabación y pulsa Guardar audio minuta. El acta con análisis IA es Pro.'}
               </p>
             </div>
             <button type="button" onClick={onClose} className="meeting-sheet__close" aria-label="Cerrar">
@@ -206,6 +215,11 @@ export default function MeetingVoiceMinuteModal({
         </div>
 
         <footer className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+          {audioSaved ? (
+            <p className="voice-minute-save-ok" role="status">
+              Audio guardado correctamente. Disponible 24 horas.
+            </p>
+          ) : null}
           <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
             <button
               type="button"
@@ -224,6 +238,28 @@ export default function MeetingVoiceMinuteModal({
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
               Cerrar
+            </button>
+            <button
+              type="button"
+              onClick={onSaveAudio}
+              disabled={savingAudio || audioSaved || !canSaveAudio}
+              className="voice-minute-footer__btn voice-minute-footer__btn--primary"
+            >
+              <svg
+                className="voice-minute-footer__icon voice-minute-footer__icon--save"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              {savingAudio ? 'Guardando…' : audioSaved ? 'Audio guardado' : 'Guardar audio minuta'}
             </button>
             <MinutaSaveProLock label={saveLabel} />
           </div>

@@ -3,6 +3,7 @@ const { getMeetings, createMeeting, updateMeeting, deleteMeeting, upsertMeetingR
 const {
   generateMinuteFromVoice,
   getVoiceStatus,
+  saveVoiceAudio,
 } = require('../controllers/meetingVoiceController');
 const { uploadMeetingVoice } = require('../middleware/audioUpload');
 const { authenticate } = require('../middleware/auth');
@@ -16,6 +17,7 @@ router.post(
   uploadMeetingVoice.single('audio'),
   generateMinuteFromVoice,
 );
+router.post('/:id/save-voice-audio', authenticate, saveVoiceAudio);
 router.patch('/:id', authenticate, updateMeeting);
 router.patch('/:id/rsvp', authenticate, upsertMeetingRsvp);
 router.delete('/:id', authenticate, deleteMeeting);
