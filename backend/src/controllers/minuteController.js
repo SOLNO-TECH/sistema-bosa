@@ -79,6 +79,8 @@ function normalizePayload(body) {
     if (!Number.isNaN(n) && n > 0) meetingId = n;
   }
 
+  const save_source = String(body.save_source ?? '').trim();
+
   return {
     lugar: String(lugar).trim(),
     fecha: String(fecha).trim(),
@@ -93,6 +95,7 @@ function normalizePayload(body) {
     tema_principal: normalizeBulletList(tema_principal),
     desarrollo: normalizeBulletList(desarrollo),
     acuerdos: normalizeBulletList(acuerdos),
+    save_source,
     ...normalizeNextMeetingFields({
       next_meeting_planned,
       next_meeting_fecha,
@@ -102,6 +105,47 @@ function normalizePayload(body) {
       next_meeting_location_type,
       next_meeting_scheduled_id,
     }),
+  };
+}
+
+/** Minuta Saya sin Pro: no guardar ni sobrescribir análisis IA en el acta manual. */
+function applySayaVoiceSavePolicy(n, existsRow = null) {
+  if (n.save_source !== 'saya_voice') return n;
+
+  const emptyActa = {
+    tema_principal: [],
+    desarrollo: [],
+    acuerdos: [],
+    topics: defaultTopics(),
+  };
+
+  if (!existsRow) {
+    return {
+      ...n,
+      ...emptyActa,
+      next_meeting_planned: 'no',
+      next_meeting_fecha: '',
+      next_meeting_hora: '',
+      next_meeting_hora_fin: '',
+      next_meeting_lugar: '',
+      next_meeting_location_type: 'sala_juntas',
+      next_meeting_scheduled_id: null,
+    };
+  }
+
+  return {
+    ...n,
+    tema_principal: safeJson(existsRow.tema_principal_json, []),
+    desarrollo: safeJson(existsRow.desarrollo_json, []),
+    acuerdos: safeJson(existsRow.acuerdos_json, []),
+    topics: safeJson(existsRow.topics_json, defaultTopics()),
+    next_meeting_planned: existsRow.next_meeting_planned === 'yes' ? 'yes' : 'no',
+    next_meeting_fecha: existsRow.next_meeting_fecha || '',
+    next_meeting_hora: existsRow.next_meeting_hora || '',
+    next_meeting_hora_fin: existsRow.next_meeting_hora_fin || '',
+    next_meeting_lugar: existsRow.next_meeting_lugar || '',
+    next_meeting_location_type: existsRow.next_meeting_location_type === 'virtual' ? 'virtual' : 'sala_juntas',
+    next_meeting_scheduled_id: existsRow.next_meeting_scheduled_id ?? null,
   };
 }
 
@@ -243,8 +287,9 @@ const createMinute = (req, res) => {
   try {
     const created_by = req.user?.id;
     if (!created_by) return res.status(401).json({ message: 'No autenticado.' });
-    const n = normalizePayload(req.body);
+    let n = normalizePayload(req.body);
     if (n.error) return res.status(400).json({ message: n.error });
+    n = applySayaVoiceSavePolicy(n);
 
     const db = getDb();
     if (n.meeting_id && !canManageMeetingMinuteById(db, req.user, n.meeting_id)) {
@@ -305,11 +350,13 @@ const createMinute = (req, res) => {
 
 const updateMinute = (req, res) => {
   try {
-    const n = normalizePayload(req.body);
-    if (n.error) return res.status(400).json({ message: n.error });
     const db = getDb();
     const exists = db.prepare('SELECT * FROM meeting_minutes WHERE id = ?').get(req.params.id);
     if (!exists) return res.status(404).json({ message: 'Minuta no encontrada.' });
+
+    let n = normalizePayload(req.body);
+    if (n.error) return res.status(400).json({ message: n.error });
+    n = applySayaVoiceSavePolicy(n, exists);
 
     const meetingId = n.meeting_id ?? exists.meeting_id;
     if (meetingId && !canManageMeetingMinuteById(db, req.user, meetingId)) {

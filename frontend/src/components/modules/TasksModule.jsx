@@ -55,6 +55,25 @@ function canParticipateOnTask(authUser, row) {
   return false;
 }
 
+/** Creador de la tarea o del ticket vinculado (o superadmin). */
+function isTaskOrTicketCreator(authUser, row) {
+  if (!authUser || !row) return false;
+  if (isSuperadminUser(authUser)) return true;
+  if (Number(row.created_by) === Number(authUser.id)) return true;
+  if (row.ticket_created_by != null && Number(row.ticket_created_by) === Number(authUser.id)) return true;
+  return false;
+}
+
+function canViewTaskDetail(authUser, row) {
+  return canParticipateOnTask(authUser, row);
+}
+
+/** Asignado sin ser creador: solo lectura al abrir la tarea. */
+function isAssigneeViewOnly(authUser, row) {
+  if (!authUser || !row) return false;
+  return Number(row.assigned_to) === Number(authUser.id) && !isTaskOrTicketCreator(authUser, row);
+}
+
 function canDeleteTaskAttachment(authUser, task, file) {
   if (!authUser || !task) return false;
   if (file?.can_delete === true) return true;
@@ -266,6 +285,7 @@ function TaskMobileCard({
   canManage,
   canDelete,
   canStatus,
+  canOpenDetail,
   onOpenTicket,
   onOpenDetail,
   onStatusChange,
@@ -281,7 +301,17 @@ function TaskMobileCard({
     <article className="tasks-module__card">
       <div className="tasks-module__card-main">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="tasks-module__card-title flex-1 min-w-0">{task.title}</h3>
+          {canOpenDetail && onOpenDetail ? (
+            <button
+              type="button"
+              onClick={() => onOpenDetail(task)}
+              className="tasks-module__card-title flex-1 min-w-0 text-left hover:text-gold transition-colors"
+            >
+              {task.title}
+            </button>
+          ) : (
+            <h3 className="tasks-module__card-title flex-1 min-w-0">{task.title}</h3>
+          )}
           <span
             className="tasks-module__pill shrink-0"
             style={{ background: `${st.color}22`, color: st.color }}
@@ -423,7 +453,6 @@ function TaskRowActions({ task, linked, canEvidence, canManage, canDelete, onOpe
 function TasksListTable({
   tasks,
   user,
-  canDelete,
   onOpenTicket,
   onOpenDetail,
   onStatusChange,
@@ -446,15 +475,24 @@ function TasksListTable({
         <tbody>
           {tasks.map((t) => {
             const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-            const canManage = canManageTaskRow(user, t);
-            const isAssignee = Number(t.assigned_to) === Number(user?.id);
-            const canStatus = canManage || isAssignee;
-            const canEvidence = canParticipateOnTask(user, t);
+            const canOwn = isTaskOrTicketCreator(user, t);
+            const canStatus = canOwn;
+            const canOpenDetail = canViewTaskDetail(user, t);
             const linked = hasTicket(t);
             return (
               <tr key={t.id}>
                 <td>
-                  <p className="tasks-module__table-title">{t.title}</p>
+                  {canOpenDetail && onOpenDetail ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenDetail(t)}
+                      className="tasks-module__table-title text-left hover:text-gold transition-colors"
+                    >
+                      {t.title}
+                    </button>
+                  ) : (
+                    <p className="tasks-module__table-title">{t.title}</p>
+                  )}
                   {t.description ? (
                     <p className="tasks-module__table-desc">{t.description}</p>
                   ) : null}
@@ -494,9 +532,9 @@ function TasksListTable({
                   <TaskRowActions
                     task={t}
                     linked={linked}
-                    canEvidence={canEvidence}
-                    canManage={canManage}
-                    canDelete={canDelete}
+                    canEvidence={canOwn}
+                    canManage={canOwn}
+                    canDelete={canOwn}
                     onOpenDetail={onOpenDetail}
                     onOpenTicket={onOpenTicket}
                     onEdit={onEdit}
@@ -538,7 +576,9 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
     fetchDetail();
   }, [taskId]);
 
-  const canParticipate = task ? canParticipateOnTask(user, task) : false;
+  const canParticipate = task
+    ? canParticipateOnTask(user, task) && !isAssigneeViewOnly(user, task)
+    : false;
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !task) return;
@@ -835,7 +875,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
   const [tasks, setTasks] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState(getInitialView);
+  const [view, setView] = useState('list');
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -856,7 +896,6 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
   const canCreate = canCreateStandaloneTask(user);
   const isAdmin = isAdminUser(user);
-  const canDeleteTask = isSuperadminUser(user);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -1010,6 +1049,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
   };
 
   const openEditTask = (t) => {
+    if (!isTaskOrTicketCreator(user, t)) return;
     setEditForm({
       id: t.id,
       title: t.title || '',
@@ -1089,12 +1129,22 @@ export default function TasksModule({ onOpenTicket } = {}) {
 
   const rangeLabel = `${new Date(minTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(maxTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`;
 
-  const renderStatusControls = (t, canStatus, canManage, canDelete) => {
+  const renderStatusControls = (t, canStatus, canDelete) => {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-    const canEvidence = canParticipateOnTask(user, t);
+    const canOwn = isTaskOrTicketCreator(user, t);
+    const canOpenDetail = canViewTaskDetail(user, t);
     return (
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {canEvidence && (
+        {canOpenDetail && !canOwn && (
+          <button
+            type="button"
+            onClick={() => openTaskDetail(t)}
+            className="tasks-module__action-secondary px-3 py-2 text-[13px]"
+          >
+            Ver tarea
+          </button>
+        )}
+        {canOwn && (
           <button
             type="button"
             onClick={() => openTaskDetail(t)}
@@ -1329,10 +1379,9 @@ export default function TasksModule({ onOpenTicket } = {}) {
           <TasksListTable
             tasks={filteredTasks}
             user={user}
-            canDelete={canDeleteTask}
             onOpenTicket={onOpenTicket}
             onOpenDetail={(t) => {
-              if (canParticipateOnTask(user, t)) openTaskDetail(t);
+              if (canViewTaskDetail(user, t)) openTaskDetail(t);
             }}
             onStatusChange={updateStatus}
             onDelete={deleteTask}
@@ -1340,21 +1389,21 @@ export default function TasksModule({ onOpenTicket } = {}) {
           />
           <div className="tasks-module__list md:hidden">
             {filteredTasks.map((t) => {
-              const canManage = canManageTaskRow(user, t);
-              const isAssignee = Number(t.assigned_to) === Number(user?.id);
-              const canStatus = canManage || isAssignee;
+              const canOwn = isTaskOrTicketCreator(user, t);
+              const canOpenDetail = canViewTaskDetail(user, t);
               return (
                 <TaskMobileCard
                   key={t.id}
                   task={t}
-                  canManage={canManage}
-                  canDelete={canDeleteTask}
-                  canStatus={canStatus}
+                  canManage={canOwn}
+                  canDelete={canOwn}
+                  canStatus={canOwn}
+                  canOpenDetail={canOpenDetail}
                   onOpenTicket={onOpenTicket}
-                  onOpenDetail={canParticipateOnTask(user, t) ? openTaskDetail : undefined}
+                  onOpenDetail={canOpenDetail ? openTaskDetail : undefined}
                   onStatusChange={updateStatus}
                   onDelete={deleteTask}
-                  onEdit={canManage ? openEditTask : undefined}
+                  onEdit={canOwn ? openEditTask : undefined}
                 />
               );
             })}
@@ -1388,16 +1437,25 @@ export default function TasksModule({ onOpenTicket } = {}) {
             {filteredTasks.map((t, idx) => {
               const { left, width } = barLayout(t.start_date, t.end_date);
               const color = BAR_COLORS[idx % BAR_COLORS.length];
-              const canManage = canManageTaskRow(user, t);
-              const isAssignee = Number(t.assigned_to) === Number(user?.id);
-              const canStatus = canManage || isAssignee;
+              const canOwn = isTaskOrTicketCreator(user, t);
+              const canOpenDetail = canViewTaskDetail(user, t);
               return (
                 <div
                   key={t.id}
                   className="flex flex-col transition-colors hover:bg-gold/[0.03] sm:grid sm:grid-cols-[minmax(280px,320px)_1fr] sm:items-stretch"
                 >
                   <div className="border-b border-slate-100 bg-white p-4 sm:border-b-0 sm:border-r sm:bg-slate-50/30">
-                    <p className="text-[14px] font-semibold leading-snug text-slate-900">{t.title}</p>
+                    {canOpenDetail ? (
+                      <button
+                        type="button"
+                        onClick={() => openTaskDetail(t)}
+                        className="text-left text-[14px] font-semibold leading-snug text-slate-900 hover:text-gold transition-colors"
+                      >
+                        {t.title}
+                      </button>
+                    ) : (
+                      <p className="text-[14px] font-semibold leading-snug text-slate-900">{t.title}</p>
+                    )}
                     <div className="mt-2">
                       <TaskOriginBlock task={t} onOpenTicket={onOpenTicket} compact />
                     </div>
@@ -1406,7 +1464,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                       <AssigneeBlock task={t} size="sm" />
                     </div>
                     <TaskMetaChips task={t} />
-                    {renderStatusControls(t, canStatus, canManage, canDeleteTask)}
+                    {renderStatusControls(t, canOwn, canOwn)}
                   </div>
                   <div className="flex min-h-[72px] flex-col justify-center p-4">
                     <div className="relative h-10 overflow-hidden rounded-[10px] bg-slate-100 ring-1 ring-slate-200/80">
@@ -1441,14 +1499,14 @@ export default function TasksModule({ onOpenTicket } = {}) {
         />
       )}
 
-      {editOpen && editForm && (
+      {editOpen && editForm && createPortal(
         <div
           className="meeting-sheet-overlay z-[120] animate-fade-in"
           onClick={() => !editSaving && setEditOpen(false)}
           role="presentation"
         >
           <div
-            className="meeting-sheet meeting-sheet--form animate-slide-up"
+            className="meeting-sheet meeting-sheet--form animate-slide-up flex min-h-0 flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -1476,6 +1534,13 @@ export default function TasksModule({ onOpenTicket } = {}) {
               </div>
             </div>
 
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitEditTask();
+              }}
+            >
             <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
               <p className="meeting-sheet__section-label">Detalles</p>
               <div className="meeting-sheet__group">
@@ -1572,20 +1637,21 @@ export default function TasksModule({ onOpenTicket } = {}) {
                   Cancelar
                 </button>
                 <button
-                  type="button"
+                  type="submit"
                   disabled={editSaving}
-                  onClick={submitEditTask}
                   className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:opacity-50"
                 >
                   {editSaving ? 'Guardando…' : 'Guardar cambios'}
                 </button>
               </div>
             </div>
+            </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {createOpen && (
+      {createOpen && createPortal(
         <div
           className="meeting-sheet-overlay z-[120] animate-fade-in"
           onClick={() => !creating && setCreateOpen(false)}
@@ -1623,7 +1689,13 @@ export default function TasksModule({ onOpenTicket } = {}) {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitCreateTask();
+              }}
+            >
             <div className="meeting-sheet__scroll meeting-sheet__scroll--form">
               <p className="meeting-sheet__section-label">Detalles</p>
               <div className="meeting-sheet__group">
@@ -1712,7 +1784,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
               </div>
             </div>
 
-            <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+            <div className="meeting-sheet__footer shrink-0">
               <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
                 <button
                   type="button"
@@ -1734,9 +1806,8 @@ export default function TasksModule({ onOpenTicket } = {}) {
                   Cancelar
                 </button>
                 <button
-                  type="button"
+                  type="submit"
                   disabled={creating}
-                  onClick={submitCreateTask}
                   className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {creating ? (
@@ -1770,9 +1841,10 @@ export default function TasksModule({ onOpenTicket } = {}) {
                 </button>
               </div>
             </div>
-            </div>
+            </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -141,6 +141,150 @@ export function MinutaProLockedBlocks({ className = '', includeTopics = true }) 
   );
 }
 
+function ProBulletLinesPlaceholder({ count = 4 }) {
+  return (
+    <div className="space-y-2.5 py-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <p
+          key={i}
+          className={`saya-pro-lock__placeholder-line${i % 2 === 1 ? ' saya-pro-lock__placeholder-line--mid' : ''}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ProProsePlaceholder({ lines = 5 }) {
+  return (
+    <div className="space-y-2.5 py-1">
+      {Array.from({ length: lines }).map((_, i) => (
+        <p
+          key={i}
+          className={`saya-pro-lock__placeholder-line${
+            i === lines - 1 ? ' saya-pro-lock__placeholder-line--short' : i % 2 === 1 ? ' saya-pro-lock__placeholder-line--mid' : ''
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ProEditBulletsPlaceholder({ rows = 4 }) {
+  return (
+    <div className="meeting-sheet__group mb-3">
+      <div className="meeting-sheet__cell meeting-sheet__cell--field space-y-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="saya-pro-lock__placeholder-input" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProEditProsePlaceholder() {
+  return (
+    <div className="meeting-sheet__group mb-3">
+      <div className="meeting-sheet__cell meeting-sheet__cell--field">
+        <div className="saya-pro-lock__placeholder-textarea" />
+      </div>
+    </div>
+  );
+}
+
+/** Vista minuta Saya: tema principal, desarrollo y acuerdos bloqueados (Pro). */
+export function MinutaSynerteamProLockedPreview({ className = '' }) {
+  return (
+    <div className={`space-y-4${className ? ` ${className}` : ''}`}>
+      <SayaProLock
+        compact
+        title="Tema principal"
+        subtitle="Puntos centrales detectados automáticamente por Saya AI."
+      >
+        <section className="voice-minute-section">
+          <h4 className="voice-minute-section__title mb-2">Tema principal</h4>
+          <div className="meeting-sheet__cell meeting-sheet__cell--field rounded-[14px] bg-white p-4">
+            <ProBulletLinesPlaceholder />
+          </div>
+        </section>
+      </SayaProLock>
+
+      <SayaProLock
+        compact
+        title="Desarrollo de la reunión"
+        subtitle="Resumen y participación generados por Saya AI."
+      >
+        <section className="voice-minute-section">
+          <h4 className="voice-minute-section__title mb-2">Desarrollo de la reunión</h4>
+          <div className="meeting-sheet__cell meeting-sheet__cell--field rounded-[14px] bg-white p-4">
+            <ProProsePlaceholder />
+          </div>
+        </section>
+      </SayaProLock>
+
+      <SayaProLock
+        compact
+        title="Acuerdos"
+        subtitle="Compromisos y responsables detectados por Saya AI."
+      >
+        <section className="voice-minute-section">
+          <h4 className="voice-minute-section__title mb-2">Acuerdos</h4>
+          <div className="meeting-sheet__cell meeting-sheet__cell--field rounded-[14px] bg-white p-4">
+            <ProBulletLinesPlaceholder count={3} />
+          </div>
+        </section>
+      </SayaProLock>
+    </div>
+  );
+}
+
+/** Editar campos Saya: tema principal, desarrollo y acuerdos bloqueados (Pro). */
+export function MinutaSynerteamProLockedEdit({ className = '' }) {
+  return (
+    <div className={`space-y-4${className ? ` ${className}` : ''}`}>
+      <SayaProLock compact title="Tema principal" subtitle="Edición disponible en Saya AI Pro.">
+        <ProEditBulletsPlaceholder />
+      </SayaProLock>
+
+      <SayaProLock compact title="Desarrollo de la reunión" subtitle="Edición disponible en Saya AI Pro.">
+        <ProEditProsePlaceholder />
+      </SayaProLock>
+
+      <SayaProLock compact title="Acuerdos" subtitle="Edición disponible en Saya AI Pro.">
+        <ProEditBulletsPlaceholder rows={3} />
+      </SayaProLock>
+    </div>
+  );
+}
+
+/** Botón guardar/crear minuta bloqueado (Pro), estilo primario del modal Saya. */
+export function MinutaSaveProLock({ label = 'Guardar minuta', className = '' }) {
+  return (
+    <span
+      className={`minuta-pro-save-btn voice-minute-footer__btn voice-minute-footer__btn--primary gap-1.5${className ? ` ${className}` : ''}`}
+      role="status"
+      title={`${label} — disponible en Saya AI Pro`}
+      aria-label={`${label}, disponible en Saya AI Pro`}
+    >
+      <svg
+        className="voice-minute-footer__icon voice-minute-footer__icon--save"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+        <path d="M15 4v3h3" />
+        <path d="M9 14l2 2 4-4.5" />
+      </svg>
+      <span>{label}</span>
+      <span className="minuta-pro-pdf-btn__badge">Pro</span>
+    </span>
+  );
+}
+
 /** Botón PDF bloqueado (Pro), mismo tamaño que acciones de tarjeta. */
 export function MinutaPdfProLock({ className = '' }) {
   return (

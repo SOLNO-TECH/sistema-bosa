@@ -289,6 +289,15 @@ const updateTicket = (req, res) => {
   }
 };
 
+function isSuperadminUser(user) {
+  if (!user) return false;
+  const level = user.permission_level
+    || (user.role === 'superadmin' ? 'superadmin'
+      : user.role === 'administrator' ? 'administrator'
+        : user.role === 'manager' ? 'manager' : 'user');
+  return level === 'superadmin';
+}
+
 const updateTicketStatus = (req, res) => {
   try {
     const { id } = req.params;
@@ -298,9 +307,13 @@ const updateTicketStatus = (req, res) => {
     const db = getDb();
 
     if (!status) return res.status(400).json({ error: 'Falta el campo status' });
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
 
-    const ticket = db.prepare('SELECT status FROM tickets WHERE id = ?').get(id);
+    const ticket = db.prepare('SELECT status, created_by FROM tickets WHERE id = ?').get(id);
     if (!ticket) return res.status(404).json({ error: `Ticket ${id} no encontrado` });
+    if (!isSuperadminUser(req.user) && Number(ticket.created_by) !== Number(user_id)) {
+      return res.status(403).json({ error: 'Solo quien creó el ticket puede cambiar su estado.' });
+    }
     const oldStatus = ticket.status;
 
     db.prepare(`UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);

@@ -32,6 +32,20 @@ function canDelegarTarea(authUser, ticket) {
   return canManageDeptAsManager(authUser, ticket?.category);
 }
 
+function canManageTicketStatus(authUser, ticket) {
+  if (!authUser || !ticket) return false;
+  if (isSuperadminUser(authUser)) return true;
+  return Number(ticket.created_by) === Number(authUser.id);
+}
+
+function isTaskOrTicketCreator(authUser, task, ticket) {
+  if (!authUser || !task) return false;
+  if (isSuperadminUser(authUser)) return true;
+  if (Number(task.created_by) === Number(authUser.id)) return true;
+  if (ticket && Number(ticket.created_by) === Number(authUser.id)) return true;
+  return false;
+}
+
 function AssignTaskIcon() {
   return (
     <span className="tasks-module__action-icon-wrap tasks-module__action-icon-wrap--assign" aria-hidden>
@@ -89,7 +103,6 @@ export default function TicketsModule({
   const [newTicketFiles, setNewTicketFiles] = useState([]);
   const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [creatingTicketTask, setCreatingTicketTask] = useState(false);
-  const canDeleteTask = isSuperadminUser(user);
   const [isEditingTicket, setIsEditingTicket] = useState(false);
   const [ticketEditForm, setTicketEditForm] = useState(null);
 
@@ -454,16 +467,20 @@ export default function TicketsModule({
                     <p className="font-label text-[9px] tracking-widest text-gray-300 uppercase">Sin tickets</p>
                   </div>
                 )}
-                {colTickets.map(ticket => (
-                  <TicketCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    onClick={t => { setActiveTab('info'); fetchTicketDetails(t.id); }}
-                    onChangeStatus={changeStatus}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                  />
-                ))}
+                {colTickets.map(ticket => {
+                  const canChangeStatus = canManageTicketStatus(user, ticket);
+                  return (
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      onClick={t => { setActiveTab('info'); fetchTicketDetails(t.id); }}
+                      canChangeStatus={canChangeStatus}
+                      onChangeStatus={canChangeStatus ? changeStatus : undefined}
+                      onDragStart={canChangeStatus ? handleDragStart : undefined}
+                      onDragEnd={canChangeStatus ? handleDragEnd : undefined}
+                    />
+                  );
+                })}
               </AnimatedColumn>
             </div>
           );
@@ -968,9 +985,7 @@ export default function TicketsModule({
                         ) : (
                           ticketTasks.map((task) => {
                             const assignee = [task.assignee_name, task.assignee_apellido].filter(Boolean).join(' ') || '—';
-                            const canManage = canDelegarTarea(user, selectedTicket);
-                            const isAssignee = Number(task.assigned_to) === Number(user?.id);
-                            const canStatus = canManage || isAssignee;
+                            const canOwn = isTaskOrTicketCreator(user, task, selectedTicket);
                             return (
                               <div key={task.id} className="meeting-sheet__task-card">
                                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -999,7 +1014,7 @@ export default function TicketsModule({
                                     </div>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-2">
-                                    {canStatus ? (
+                                    {canOwn ? (
                                       <select
                                         value={task.status}
                                         onChange={(e) => handleTicketTaskStatus(task.id, e.target.value)}
@@ -1013,7 +1028,7 @@ export default function TicketsModule({
                                     ) : (
                                       <span className="text-[13px] font-semibold text-slate-500">{task.status}</span>
                                     )}
-                                    {canDeleteTask && (
+                                    {canOwn && (
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteTicketTask(task.id)}
@@ -1277,7 +1292,7 @@ function AnimatedColumn({ children, className, ...props }) {
   return <div ref={ref} className={className} {...props}>{children}</div>;
 }
 
-function TicketCard({ ticket, onClick, onChangeStatus, onDragStart, onDragEnd }) {
+function TicketCard({ ticket, onClick, canChangeStatus = false, onChangeStatus, onDragStart, onDragEnd }) {
   const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date() && ticket.status !== 'closed';
 
   // Acciones de estado disponibles (sin incluir el actual)
@@ -1290,11 +1305,11 @@ function TicketCard({ ticket, onClick, onChangeStatus, onDragStart, onDragEnd })
 
   return (
     <div
-      draggable
+      draggable={canChangeStatus}
       onDragStart={e => onDragStart && onDragStart(e, ticket)}
       onDragEnd={onDragEnd}
       onClick={() => onClick(ticket)}
-      className={`bg-white rounded-sm border transition-all duration-150 cursor-pointer lg:cursor-grab lg:active:cursor-grabbing group hover:shadow-md hover:-translate-y-px select-none ${
+      className={`bg-white rounded-sm border transition-all duration-150 cursor-pointer ${canChangeStatus ? 'lg:cursor-grab lg:active:cursor-grabbing' : ''} group hover:shadow-md hover:-translate-y-px select-none ${
         isOverdue ? 'border-red-200' : 'border-gray-200 hover:border-gold/50'
       }`}
     >

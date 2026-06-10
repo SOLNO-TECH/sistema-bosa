@@ -23,6 +23,58 @@ function loadUsersMap(db) {
   return map;
 }
 
+const EMPTY_TOPICS_JSON = JSON.stringify([
+  { titulo: '', descripcion: '', comentarios: '' },
+  { titulo: '', descripcion: '', comentarios: '' },
+  { titulo: '', descripcion: '', comentarios: '' },
+]);
+
+/**
+ * Guarda audio y transcripción sin acta IA (Pro).
+ * Si ya hay minuta manual, no sobrescribe tema principal / desarrollo / acuerdos.
+ */
+function persistSayaRecording(db, { meetingId, draft, transcript, audioPath, userId }) {
+  const transcriptText = String(transcript || '').trim();
+  const existing = db
+    .prepare('SELECT * FROM meeting_minutes WHERE meeting_id = ? ORDER BY id DESC LIMIT 1')
+    .get(meetingId);
+
+  if (existing) {
+    db.prepare(
+      `UPDATE meeting_minutes SET
+        transcript_text = ?,
+        audio_path = ?,
+        updated_at = datetime('now')
+       WHERE id = ?`,
+    ).run(transcriptText, audioPath || existing.audio_path, existing.id);
+    return existing.id;
+  }
+
+  if (!userId) return null;
+
+  const info = db
+    .prepare(
+      `INSERT INTO meeting_minutes
+       (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by, meeting_id,
+        transcript_text, audio_path, tema_principal_json, desarrollo_json, acuerdos_json, next_meeting_planned)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', '[]', 'no')`,
+    )
+    .run(
+      String(draft.lugar || '').trim(),
+      draft.fecha,
+      String(draft.hora_inicio || '').trim(),
+      String(draft.hora_cierre || '').trim(),
+      String(draft.tema || '').trim(),
+      JSON.stringify(draft.attendees || []),
+      EMPTY_TOPICS_JSON,
+      userId,
+      meetingId,
+      transcriptText,
+      audioPath,
+    );
+  return info.lastInsertRowid;
+}
+
 /**
  * POST /api/meetings/:id/generate-minute-from-voice
  * multipart: audio (file), transcript (optional text fallback)
@@ -128,27 +180,26 @@ const generateMinuteFromVoice = async (req, res) => {
       captureMode === 'virtual' ? 'virtual' : 'sala_juntas',
     );
     const draft = buildMinuteDraftFromTranscript(meeting, usersById, transcript, structured);
+    const formattedTranscript = structured.formattedText || transcript;
 
-    const existing = db
-      .prepare('SELECT id FROM meeting_minutes WHERE meeting_id = ? ORDER BY id DESC LIMIT 1')
-      .get(meetingId);
-
-    if (audioPath && existing?.id) {
-      db.prepare(
-        `UPDATE meeting_minutes SET audio_path = ?, updated_at = datetime('now') WHERE id = ?`,
-      ).run(audioPath, existing.id);
-    }
+    const minuteId = persistSayaRecording(db, {
+      meetingId,
+      draft,
+      transcript: formattedTranscript,
+      audioPath,
+      userId: req.user?.id,
+    });
 
     res.json({
       draft,
       minute_brief: draft.minute_brief || null,
-      transcript: structured.formattedText || transcript,
+      transcript: formattedTranscript,
       transcript_segments: structured.segments,
       speaker_count: structured.speakerCount,
       transcriptionSource,
       capture_mode: captureMode,
       meeting_id: meetingId,
-      existing_minute_id: existing?.id ?? null,
+      existing_minute_id: minuteId,
       audio_path: audioPath,
       audio_url: audioUrl,
       audio_size: audioSize,

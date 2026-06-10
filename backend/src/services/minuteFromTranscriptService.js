@@ -246,52 +246,36 @@ function buildInterventions(segments) {
     }));
 }
 
-function buildTopicsForPdf({ executiveSummary, keyPoints, agreements, actionItems, interventions, meeting }) {
-  const keyPointsText = formatBulletList(
-    keyPoints,
-    'No se detectaron puntos específicos; revisa la transcripción.',
-  );
-  const agreementsText = formatBulletList(
-    agreements,
-    'Sin acuerdos detectados automáticamente. Revisa la transcripción o agrégalos manualmente.',
-  );
-  const actionLines = actionItems.map((item) => {
-    const who = item.assignee_hint ? ` (Responsable: ${item.assignee_hint})` : '';
-    return `${item.text}${who}`;
-  });
-  const actionsText = formatBulletList(
-    actionLines,
-    'Sin compromisos detectados automáticamente.',
-  );
+/** Mismo formato que la minuta manual (Synerteam): tema principal, desarrollo, acuerdos. */
+function buildSynerteamFields({ executiveSummary, keyPoints, agreements, actionItems, interventions }) {
+  const tema_principal = keyPoints.slice(0, 6).map(capitalizeFirst);
 
-  const interventionComment =
-    interventions.length > 1
-      ? interventions
-          .slice(0, 6)
-          .map((i) => `• ${i.speaker}: ${i.text.slice(0, 120)}${i.text.length > 120 ? '…' : ''}`)
-          .join('\n')
-      : meeting.location_type === 'sala_juntas'
-        ? 'Tip: en sala, pide a cada persona decir su nombre antes de hablar (ej. "María López: …").'
-        : '';
+  const desarrolloParts = [];
+  if (executiveSummary) desarrolloParts.push(capitalizeFirst(executiveSummary));
+  if (interventions.length > 1) {
+    desarrolloParts.push('Participación por integrante:');
+    for (const seg of interventions.slice(0, 10)) {
+      desarrolloParts.push(`${seg.speaker}: ${seg.text}`);
+    }
+  }
+  const desarrollo = desarrolloParts.join('\n\n');
 
-  return [
-    {
-      titulo: 'Resumen y puntos tratados',
-      descripcion: [executiveSummary, '', 'Puntos tratados:', keyPointsText].filter(Boolean).join('\n'),
-      comentarios: interventionComment,
-    },
-    {
-      titulo: 'Acuerdos',
-      descripcion: agreementsText,
-      comentarios: agreements.length ? `${agreements.length} acuerdo(s) detectado(s) en la grabación.` : '',
-    },
-    {
-      titulo: 'Compromisos y seguimiento',
-      descripcion: actionsText,
-      comentarios: actionItems.length ? `${actionItems.length} compromiso(s) o pendiente(s) detectado(s).` : '',
-    },
+  const acuerdos = [
+    ...agreements.map(capitalizeFirst),
+    ...actionItems.map((item) => {
+      const hint = item.assignee_hint ? ` — Responsable: ${item.assignee_hint}` : '';
+      return `${capitalizeFirst(item.text)}${hint}`;
+    }),
   ];
+
+  return { tema_principal, desarrollo, acuerdos };
 }
+
+const EMPTY_TOPICS = [
+  { titulo: '', descripcion: '', comentarios: '' },
+  { titulo: '', descripcion: '', comentarios: '' },
+  { titulo: '', descripcion: '', comentarios: '' },
+];
 
 /**
  * @param {object} meeting — reunión parseada (attendees array)
@@ -330,13 +314,12 @@ function buildMinuteDraftFromTranscript(meeting, usersById, transcript, structur
     },
   };
 
-  const topics = buildTopicsForPdf({
+  const synerteam = buildSynerteamFields({
     executiveSummary,
     keyPoints,
     agreements,
     actionItems,
     interventions,
-    meeting,
   });
 
   return {
@@ -347,7 +330,10 @@ function buildMinuteDraftFromTranscript(meeting, usersById, transcript, structur
     hora_cierre: isoToTimePart(meeting.end_time),
     tema: meeting.title || '',
     attendees: buildAttendeesFromMeeting(meeting, usersById),
-    topics,
+    tema_principal: synerteam.tema_principal,
+    desarrollo: synerteam.desarrollo,
+    acuerdos: synerteam.acuerdos,
+    topics: EMPTY_TOPICS,
     transcript_text: text,
     transcript_segments: segments,
     speaker_count: speakerCount,

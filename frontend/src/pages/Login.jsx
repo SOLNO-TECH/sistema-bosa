@@ -114,42 +114,18 @@ export default function Login() {
               Plataforma integral para la administración de operaciones hoteleras y residenciales.
             </p>
 
-            {/* Pilares */}
-            <div className="grid grid-cols-3 gap-3 mt-7">
-              {[
-                {
-                  label: 'Hotel',
-                  icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
-                    </svg>
-                  )
-                },
-                {
-                  label: 'Condominios',
-                  icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125V21m8.25-3v-6.375m0 0l-1.5-1.125M22.5 18l-1.5-1.125M12 2.25l-10.5 7.875m10.5-7.875l10.5 7.875M12 2.25l-1.5 1.125M12 2.25l1.5 1.125M3 18v-6.375M3 18l1.5-1.125" />
-                    </svg>
-                  )
-                },
-                {
-                  label: 'Operaciones',
-                  icon: (
-                    <svg className="w-5 h-5 mx-auto mb-2 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )
-                }
-              ].map((item) => (
-                <div key={item.label}
-                  className="rounded-sm px-2 py-3 text-center flex flex-col items-center justify-center transition-all duration-300 hover:bg-white/10"
-                  style={{ background: 'rgba(5,13,26,0.28)', backdropFilter: 'blur(8px)', border: '1px solid rgba(203,172,128,0.28)' }}>
-                  {item.icon}
-                  <p className="font-label text-[9px] tracking-widest uppercase" style={{ color: 'rgba(226,236,248,0.88)' }}>{item.label}</p>
-                </div>
-              ))}
+            <div className="mt-7">
+              <div
+                className="inline-flex flex-col items-center justify-center rounded-sm px-6 py-3 transition-all duration-300 hover:bg-white/10"
+                style={{ background: 'rgba(5,13,26,0.28)', backdropFilter: 'blur(8px)', border: '1px solid rgba(203,172,128,0.28)' }}
+              >
+                <svg className="mb-2 h-5 w-5 text-gold/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" />
+                </svg>
+                <p className="font-label text-[9px] tracking-widest uppercase" style={{ color: 'rgba(226,236,248,0.88)' }}>
+                  Corporativo
+                </p>
+              </div>
             </div>
           </div>
 

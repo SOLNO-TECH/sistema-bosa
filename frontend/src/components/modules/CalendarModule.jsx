@@ -503,6 +503,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       const serverAudioUrl = data.audio_url || null;
       const serverAudioOk = Number(data.audio_size) > 64;
       setVoiceRecordingAudioUrl(serverAudioOk && serverAudioUrl ? serverAudioUrl : null);
+      await reloadMeetingMinute(selectedMeeting.id);
       setVoiceMinuteOpen(true);
       if (data.whisperConfigured != null) setWhisperConfigured(!!data.whisperConfigured);
     } catch (err) {
@@ -1724,31 +1725,26 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
 
       {canManageMinute(selectedMeeting) && (
         <MeetingVoiceMinuteModal
-        open={voiceMinuteOpen}
-        onClose={() => {
-          setVoiceMinuteOpen(false);
-          setVoiceMinuteDraft(null);
-          setVoiceMinuteBrief(null);
-          setVoiceTranscriptSegments([]);
-          setVoiceRecordingAudioPath(null);
-          setVoiceRecordingAudioUrl(null);
-          setVoiceRecordingBlob(null);
-        }}
-        draft={voiceMinuteDraft}
-        minuteBrief={voiceMinuteBrief}
-        transcript={voiceTranscript}
-        transcriptSegments={voiceTranscriptSegments}
-        meetingId={selectedMeeting?.id}
-        existingMinuteId={voiceExistingMinuteId}
-        recordingAudioPath={voiceRecordingAudioPath}
-        recordingAudioUrl={voiceRecordingAudioUrl}
-        recordingAudioBlob={voiceRecordingBlob}
-        showRecordingSection
-        onSaved={() => {
-          fetchMeetings();
-          onMinuteSaved?.();
-        }}
-      />
+          open={voiceMinuteOpen}
+          onClose={async () => {
+            setVoiceMinuteOpen(false);
+            setVoiceMinuteDraft(null);
+            setVoiceMinuteBrief(null);
+            setVoiceTranscriptSegments([]);
+            setVoiceRecordingAudioPath(null);
+            setVoiceRecordingAudioUrl(null);
+            setVoiceRecordingBlob(null);
+            if (selectedMeeting?.id) await reloadMeetingMinute(selectedMeeting.id);
+          }}
+          draft={voiceMinuteDraft}
+          transcript={voiceTranscript}
+          transcriptSegments={voiceTranscriptSegments}
+          linkedMinute={meetingMinuteRecord}
+          existingMinuteId={voiceExistingMinuteId}
+          recordingAudioUrl={voiceRecordingAudioUrl}
+          recordingAudioBlob={voiceRecordingBlob}
+          showRecordingSection
+        />
       )}
     </div>
   );

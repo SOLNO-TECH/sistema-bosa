@@ -7,22 +7,18 @@ import {
   addMinutesToTime,
 } from '../utils/meetingSchedule';
 import BosaGoldButton from './BosaGoldButton';
-
-const BULLET_ROWS = 6;
+import {
+  bulletsFromRecord,
+  cleanBullets,
+  desarrolloFromRecord,
+  desarrolloToPayload,
+  ensureSynerteamFormat,
+  synerteamToLegacyTopics,
+  BULLET_ROWS,
+} from '../utils/minuteContent';
 
 function emptyBullets(count = BULLET_ROWS) {
   return Array.from({ length: count }, () => '');
-}
-
-function bulletsFromRecord(list) {
-  const items = Array.isArray(list) ? list.filter(Boolean) : [];
-  const rows = [...items];
-  while (rows.length < BULLET_ROWS) rows.push('');
-  return rows;
-}
-
-function cleanBullets(rows) {
-  return rows.map((s) => String(s).trim()).filter(Boolean);
 }
 
 function userFullName(u) {
@@ -93,7 +89,7 @@ function buildFormFromMeeting(meeting, dbUsers) {
     tema: meeting?.title || '',
     attendees,
     tema_principal: emptyBullets(),
-    desarrollo: emptyBullets(),
+    desarrollo: '',
     acuerdos: emptyBullets(),
     next_meeting_planned: 'no',
     next_meeting_fecha: '',
@@ -114,7 +110,7 @@ function buildFormFromMinute(data) {
     tema: data.tema || '',
     attendees: Array.isArray(data.attendees) ? data.attendees : [],
     tema_principal: bulletsFromRecord(data.tema_principal),
-    desarrollo: bulletsFromRecord(data.desarrollo),
+    desarrollo: desarrolloFromRecord(data.desarrollo),
     acuerdos: bulletsFromRecord(data.acuerdos),
     next_meeting_planned:
       data.next_meeting_planned === 'yes' || String(data.next_meeting_fecha ?? '').trim() ? 'yes' : 'no',
@@ -127,6 +123,24 @@ function buildFormFromMinute(data) {
       || meetingPlaceLabelForType(data.next_meeting_location_type === 'virtual' ? 'virtual' : 'sala_juntas'),
     next_meeting_scheduled_id: data.next_meeting_scheduled_id ?? null,
   };
+}
+
+function ProseSection({ title, hint, value, onChange, placeholder }) {
+  return (
+    <div className="meeting-sheet__group mb-3">
+      <div className="meeting-sheet__cell meeting-sheet__cell--field">
+        <label className="meeting-sheet__cell-label">{title}</label>
+        {hint ? <p className="meeting-sheet__hint mb-3">{hint}</p> : null}
+        <textarea
+          className="meeting-sheet__textarea meeting-sheet__textarea--prose min-h-[14rem] resize-y text-[14px] leading-relaxed"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={10}
+        />
+      </div>
+    </div>
+  );
 }
 
 function BulletSection({ title, hint, rows, onChange, onAdd }) {
@@ -293,7 +307,7 @@ export default function MeetingManualMinuteModal({
         attendees: form.attendees,
         meeting_id: meeting?.id,
         tema_principal: cleanBullets(form.tema_principal),
-        desarrollo: cleanBullets(form.desarrollo),
+        desarrollo: desarrolloToPayload(form.desarrollo),
         acuerdos: cleanBullets(form.acuerdos),
         next_meeting_planned: form.next_meeting_planned,
         next_meeting_fecha: form.next_meeting_planned === 'yes' ? form.next_meeting_fecha : '',
@@ -302,11 +316,7 @@ export default function MeetingManualMinuteModal({
         next_meeting_lugar: form.next_meeting_planned === 'yes' ? form.next_meeting_lugar : '',
         next_meeting_location_type: form.next_meeting_planned === 'yes' ? form.next_meeting_location_type : 'sala_juntas',
         next_meeting_scheduled_id: form.next_meeting_planned === 'yes' ? form.next_meeting_scheduled_id : null,
-        topics: [
-          { titulo: 'Tema principal', descripcion: cleanBullets(form.tema_principal).join('\n'), comentarios: '' },
-          { titulo: 'Desarrollo', descripcion: cleanBullets(form.desarrollo).join('\n'), comentarios: '' },
-          { titulo: 'Acuerdos', descripcion: cleanBullets(form.acuerdos).join('\n'), comentarios: '' },
-        ],
+        topics: synerteamToLegacyTopics(form.tema_principal, form.desarrollo, form.acuerdos),
       };
 
       if (isEdit) {
@@ -368,7 +378,7 @@ export default function MeetingManualMinuteModal({
               <div className="meeting-sheet__cell">
                 <p className="meeting-sheet__cell-label">Título</p>
                 <input
-                  className="meeting-sheet__input font-semibold"
+                  className="meeting-sheet__input meeting-sheet__input--title"
                   value={form.tema}
                   onChange={(e) => setForm((f) => ({ ...f, tema: e.target.value }))}
                   placeholder="Minuta · nombre del proyecto o reunión"
@@ -407,12 +417,12 @@ export default function MeetingManualMinuteModal({
               onAdd={() => addBullet('tema_principal')}
             />
 
-            <BulletSection
+            <ProseSection
               title="Desarrollo de la reunión"
-              hint="Resumen de lo tratado, acuerdos parciales y comentarios clave."
-              rows={form.desarrollo}
-              onChange={(idx, value) => setBullets('desarrollo', idx, value)}
-              onAdd={() => addBullet('desarrollo')}
+              hint="Escribe el resumen como un documento. Puedes usar varios párrafos sin límite de renglones."
+              value={form.desarrollo}
+              onChange={(value) => setForm((f) => ({ ...f, desarrollo: value }))}
+              placeholder="Describe lo tratado en la reunión, acuerdos parciales y comentarios clave…"
             />
 
             <BulletSection

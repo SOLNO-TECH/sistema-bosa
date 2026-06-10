@@ -136,6 +136,16 @@ function canManageTaskRow(user, row) {
   return canManageTaskByDept(user, taskEffectiveDept(row));
 }
 
+/** Solo quien creó la tarea o el ticket vinculado (o superadmin). */
+function isTaskOrTicketCreator(user, row, ticket) {
+  if (!user || !row) return false;
+  if (isSuperadminUser(user)) return true;
+  if (Number(row.created_by) === Number(user.id)) return true;
+  const ticketCreator = ticket?.created_by ?? row.ticket_created_by;
+  if (ticketCreator != null && Number(ticketCreator) === Number(user.id)) return true;
+  return false;
+}
+
 function getTaskContext(db, task) {
   if (task?.ticket_id) {
     const ticket = getTicket(db, task.ticket_id);
@@ -212,6 +222,7 @@ function loadTaskRow(db, id) {
   return db.prepare(`
     SELECT tt.*,
       t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
+      t.created_by as ticket_created_by,
       u1.name as assignee_name, u1.apellido as assignee_apellido,
       u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
       u1.avatar_url as assignee_avatar_url,
@@ -259,6 +270,7 @@ const listTasks = (req, res) => {
     const rows = db.prepare(`
       SELECT tt.*,
         t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
+        t.created_by as ticket_created_by,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
         u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
         u1.avatar_url as assignee_avatar_url,
@@ -287,11 +299,13 @@ const listTasksByTicket = (req, res) => {
     }
     const rows = db.prepare(`
       SELECT tt.*,
+        tk.created_by as ticket_created_by,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
         u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
         u1.avatar_url as assignee_avatar_url,
         u2.name as creator_name
       FROM ticket_tasks tt
+      LEFT JOIN tickets tk ON tt.ticket_id = tk.id
       LEFT JOIN users u1 ON tt.assigned_to = u1.id
       LEFT JOIN users u2 ON tt.created_by = u2.id
       WHERE tt.ticket_id = ?
@@ -510,54 +524,44 @@ const updateTask = (req, res) => {
     const { ticket, department } = ctx;
     if (ctx.linkedToTicket && !ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
-    const isManager = ctx.linkedToTicket
-      ? canManageDeptTicketAssignments(req.user, ticket)
-      : canManageTaskByDept(req.user, department);
-    const isAssignee = Number(task.assigned_to) === Number(user_id);
+    const canOwn = isTaskOrTicketCreator(req.user, task, ticket);
+    if (!canOwn) {
+      return res.status(403).json({ error: 'Solo quien creó el ticket o la tarea puede modificarla.' });
+    }
+
     const patch = req.body || {};
     const prevAssigneeId = Number(task.assigned_to);
-
-    if (isManager) {
-      const allowed = ['title', 'description', 'assigned_to', 'start_date', 'end_date', 'status'];
-      const updates = [];
-      const values = [];
-      for (const k of allowed) {
-        if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
-        if (k === 'assigned_to') {
-          const assigneeCheck = validateAssigneeInDept(db, patch[k], department);
-          if (assigneeCheck.error) return res.status(400).json({ error: assigneeCheck.error });
+    const allowed = ['title', 'description', 'assigned_to', 'start_date', 'end_date', 'status'];
+    const updates = [];
+    const values = [];
+    for (const k of allowed) {
+      if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+      if (k === 'assigned_to') {
+        const assigneeCheck = validateAssigneeInDept(db, patch[k], department);
+        if (assigneeCheck.error) return res.status(400).json({ error: assigneeCheck.error });
+      }
+      if (k === 'status') {
+        const st = patch.status;
+        if (!['pending', 'in_progress', 'done', 'cancelled'].includes(st)) {
+          return res.status(400).json({ error: 'Estado no válido' });
         }
-        updates.push(`${k} = ?`);
-        values.push(patch[k]);
       }
-      if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
-      if (Object.prototype.hasOwnProperty.call(patch, 'start_date') || Object.prototype.hasOwnProperty.call(patch, 'end_date')) {
-        const cur = db.prepare('SELECT start_date, end_date FROM ticket_tasks WHERE id = ?').get(id);
-        const ns = Object.prototype.hasOwnProperty.call(patch, 'start_date') ? String(patch.start_date).slice(0, 10) : cur.start_date;
-        const ne = Object.prototype.hasOwnProperty.call(patch, 'end_date') ? String(patch.end_date).slice(0, 10) : cur.end_date;
-        if (ns > ne) return res.status(400).json({ error: 'La fecha de fin debe ser igual o posterior al inicio' });
-      }
-      values.push(id);
-      db.prepare(`UPDATE ticket_tasks SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).run(...values);
-    } else if (isAssignee) {
-      const keys = Object.keys(patch);
-      if (keys.some((k) => k !== 'status')) {
-        return res.status(403).json({ error: 'Solo puedes actualizar el estado de tu tarea' });
-      }
-      if (!Object.prototype.hasOwnProperty.call(patch, 'status')) {
-        return res.status(400).json({ error: 'Indica el estado' });
-      }
-      const st = patch.status;
-      if (!['pending', 'in_progress', 'done', 'cancelled'].includes(st)) {
-        return res.status(400).json({ error: 'Estado no válido' });
-      }
-      db.prepare(`UPDATE ticket_tasks SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(st, id);
-    } else {
-      return res.status(403).json({ error: 'Sin permiso' });
+      updates.push(`${k} = ?`);
+      values.push(patch[k]);
     }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
+    if (Object.prototype.hasOwnProperty.call(patch, 'start_date') || Object.prototype.hasOwnProperty.call(patch, 'end_date')) {
+      const cur = db.prepare('SELECT start_date, end_date FROM ticket_tasks WHERE id = ?').get(id);
+      const ns = Object.prototype.hasOwnProperty.call(patch, 'start_date') ? String(patch.start_date).slice(0, 10) : cur.start_date;
+      const ne = Object.prototype.hasOwnProperty.call(patch, 'end_date') ? String(patch.end_date).slice(0, 10) : cur.end_date;
+      if (ns > ne) return res.status(400).json({ error: 'La fecha de fin debe ser igual o posterior al inicio' });
+    }
+    values.push(id);
+    db.prepare(`UPDATE ticket_tasks SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).run(...values);
 
     const row = db.prepare(`
       SELECT tt.*, t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
+        t.created_by as ticket_created_by,
         u1.name as assignee_name, u1.apellido as assignee_apellido, u2.name as creator_name
       FROM ticket_tasks tt
       LEFT JOIN tickets t ON tt.ticket_id = t.id
@@ -568,7 +572,6 @@ const updateTask = (req, res) => {
 
     try {
       if (
-        isManager &&
         Object.prototype.hasOwnProperty.call(patch, 'assigned_to') &&
         Number(patch.assigned_to) !== prevAssigneeId
       ) {
@@ -611,10 +614,11 @@ const deleteTask = (req, res) => {
     const db = getDb();
     const task = db.prepare('SELECT * FROM ticket_tasks WHERE id = ?').get(id);
     if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
-    if (!isSuperadminUser(req.user)) {
-      return res.status(403).json({ error: 'Solo un superadministrador puede eliminar tareas operativas.' });
-    }
     const ctx = getTaskContext(db, task);
+    const { ticket } = ctx;
+    if (!isTaskOrTicketCreator(req.user, task, ticket)) {
+      return res.status(403).json({ error: 'Solo quien creó el ticket o la tarea puede eliminarla.' });
+    }
     try {
       if (ctx.linkedToTicket && task.ticket_id) {
         const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(user_id);

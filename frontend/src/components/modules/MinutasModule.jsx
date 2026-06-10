@@ -685,7 +685,7 @@ export default function MinutasModule() {
                     <div className="meeting-sheet__cell meeting-sheet__cell--field">
                       <label className="meeting-sheet__cell-label">Tema de la reunión</label>
                       <input
-                        className="meeting-sheet__input font-semibold"
+                        className="meeting-sheet__input meeting-sheet__input--title"
                         value={form.tema}
                         onChange={(e) => setForm((f) => ({ ...f, tema: e.target.value }))}
                         placeholder="Asunto o título general"
