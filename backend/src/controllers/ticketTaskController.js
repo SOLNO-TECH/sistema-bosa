@@ -3,7 +3,7 @@ const { getDb } = require('../database/init');
 const { notifyUser } = require('../services/notificationService');
 const { sendTaskNotification } = require('../services/emailService');
 const { notifyTicketStakeholders } = require('../utils/participantNotify');
-const { canManageDeptTicketAssignments } = require('../utils/ticketPermissions');
+const { canManageDeptTicketAssignments, canAssignTicketTramo } = require('../utils/ticketPermissions');
 
 function actorDisplayName(db, userId) {
   const u = db.prepare('SELECT name, apellido FROM users WHERE id = ?').get(userId);
@@ -119,6 +119,26 @@ function findRecentDuplicateTask(db, fields) {
   `).get(dept, titleNorm, Number(assigned_to), s, e, Number(created_by), `-${windowSeconds}`);
 }
 
+/** Un mismo usuario solo puede tener una tarea por ticket. */
+function findAssigneeTaskOnTicket(db, ticketId, assigneeId, excludeTaskId = null) {
+  if (ticketId == null || ticketId === '' || assigneeId == null || assigneeId === '') return null;
+  const tid = Number(ticketId);
+  const aid = Number(assigneeId);
+  if (Number.isNaN(tid) || Number.isNaN(aid)) return null;
+  if (excludeTaskId != null && excludeTaskId !== '') {
+    return db.prepare(`
+      SELECT id FROM ticket_tasks
+      WHERE ticket_id = ? AND assigned_to = ? AND id != ?
+      LIMIT 1
+    `).get(tid, aid, Number(excludeTaskId));
+  }
+  return db.prepare(`
+    SELECT id FROM ticket_tasks
+    WHERE ticket_id = ? AND assigned_to = ?
+    LIMIT 1
+  `).get(tid, aid);
+}
+
 function canManageTaskByDept(user, department) {
   if (!user) return false;
   const level = user.permission_level
@@ -144,6 +164,44 @@ function isTaskOrTicketCreator(user, row, ticket) {
   const ticketCreator = ticket?.created_by ?? row.ticket_created_by;
   if (ticketCreator != null && Number(ticketCreator) === Number(user.id)) return true;
   return false;
+}
+
+function isTicketCoordinator(user, ticket) {
+  if (!user || !ticket) return false;
+  if (ticket.assigned_to == null || ticket.assigned_to === '') return false;
+  return Number(ticket.assigned_to) === Number(user.id);
+}
+
+function canUpdateTaskFields(user, task, ticket, patch) {
+  if (isTaskOrTicketCreator(user, task, ticket)) return true;
+  if (!isTicketCoordinator(user, ticket)) return false;
+  const keys = Object.keys(patch || {}).filter((k) =>
+    ['title', 'description', 'assigned_to', 'start_date', 'end_date', 'status'].includes(k),
+  );
+  return keys.length === 1 && keys[0] === 'status';
+}
+
+function notifyTaskCompletionRequest(db, task, ticket, actorId) {
+  const actorName = actorDisplayName(db, actorId);
+  const ticketLabel = ticket?.title ? ` del ticket "${ticket.title}"` : '';
+  const payload = {
+    type: 'task',
+    title: 'Trabajo listo para revisión',
+    message: `${actorName} reportó que terminó la tarea "${task.title}"${ticketLabel}. Revisa la evidencia y confirma.`,
+    module: 'tasks',
+    related_id: Number(task.id),
+    link_id: task.ticket_id != null ? Number(task.ticket_id) : Number(task.id),
+  };
+
+  const coordinatorId = ticket?.assigned_to;
+  if (coordinatorId && Number(coordinatorId) !== Number(actorId)) {
+    notifyUser(Number(coordinatorId), payload);
+    return;
+  }
+
+  if (task.created_by && Number(task.created_by) !== Number(actorId)) {
+    notifyUser(Number(task.created_by), payload);
+  }
 }
 
 function getTaskContext(db, task) {
@@ -222,15 +280,17 @@ function loadTaskRow(db, id) {
   return db.prepare(`
     SELECT tt.*,
       t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
-      t.created_by as ticket_created_by,
+      t.created_by as ticket_created_by, t.assigned_to as ticket_assigned_to,
       u1.name as assignee_name, u1.apellido as assignee_apellido,
       u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
       u1.avatar_url as assignee_avatar_url,
-      u2.name as creator_name
+      u2.name as creator_name,
+      u3.name as completion_requester_name, u3.apellido as completion_requester_apellido
     FROM ticket_tasks tt
     LEFT JOIN tickets t ON tt.ticket_id = t.id
     LEFT JOIN users u1 ON tt.assigned_to = u1.id
     LEFT JOIN users u2 ON tt.created_by = u2.id
+    LEFT JOIN users u3 ON tt.completion_requested_by = u3.id
     WHERE tt.id = ?
   `).get(id);
 }
@@ -270,7 +330,7 @@ const listTasks = (req, res) => {
     const rows = db.prepare(`
       SELECT tt.*,
         t.title as ticket_title, t.category as ticket_category, t.status as ticket_status,
-        t.created_by as ticket_created_by,
+        t.created_by as ticket_created_by, t.assigned_to as ticket_assigned_to,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
         u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
         u1.avatar_url as assignee_avatar_url,
@@ -299,7 +359,7 @@ const listTasksByTicket = (req, res) => {
     }
     const rows = db.prepare(`
       SELECT tt.*,
-        tk.created_by as ticket_created_by,
+        tk.created_by as ticket_created_by, tk.assigned_to as ticket_assigned_to,
         u1.name as assignee_name, u1.apellido as assignee_apellido,
         u1.departamento as assignee_departamento, u1.puesto as assignee_puesto,
         u1.avatar_url as assignee_avatar_url,
@@ -427,9 +487,9 @@ const createTask = (req, res) => {
     const db = getDb();
     const ticket = getTicket(db, ticketId);
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
-    if (!canManageDeptTicketAssignments(req.user, ticket)) {
+    if (!canAssignTicketTramo(req.user, ticket)) {
       return res.status(403).json({
-        error: 'Solo un usuario con rol Gerente del mismo departamento o un administrador puede crear tareas operativas.',
+        error: 'Solo el coordinador asignado a este ticket puede asignar tramos de trabajo.',
       });
     }
 
@@ -440,6 +500,14 @@ const createTask = (req, res) => {
     const s = String(start_date).slice(0, 10);
     const e = String(end_date).slice(0, 10);
     if (s > e) return res.status(400).json({ error: 'La fecha de fin debe ser igual o posterior al inicio' });
+
+    const existingAssignee = findAssigneeTaskOnTicket(db, ticketId, assignee.id);
+    if (existingAssignee) {
+      return res.status(409).json({
+        error: 'Ese usuario ya tiene una tarea asignada en este ticket.',
+        existing_task_id: existingAssignee.id,
+      });
+    }
 
     const dup = findRecentDuplicateTask(db, {
       created_by: user_id,
@@ -524,12 +592,22 @@ const updateTask = (req, res) => {
     const { ticket, department } = ctx;
     if (ctx.linkedToTicket && !ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
-    const canOwn = isTaskOrTicketCreator(req.user, task, ticket);
+    const canOwn = canUpdateTaskFields(req.user, task, ticket, req.body || {});
     if (!canOwn) {
-      return res.status(403).json({ error: 'Solo quien creó el ticket o la tarea puede modificarla.' });
+      return res.status(403).json({ error: 'Sin permiso para modificar esta tarea.' });
     }
 
     const patch = req.body || {};
+    const isCreator = isTaskOrTicketCreator(req.user, task, ticket);
+    if (!isCreator) {
+      const nonStatus = Object.keys(patch).filter(
+        (k) => ['title', 'description', 'assigned_to', 'start_date', 'end_date'].includes(k),
+      );
+      if (nonStatus.length > 0) {
+        return res.status(403).json({ error: 'Como coordinador solo puedes cambiar el estatus de la tarea.' });
+      }
+    }
+
     const prevAssigneeId = Number(task.assigned_to);
     const allowed = ['title', 'description', 'assigned_to', 'start_date', 'end_date', 'status'];
     const updates = [];
@@ -537,8 +615,20 @@ const updateTask = (req, res) => {
     for (const k of allowed) {
       if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
       if (k === 'assigned_to') {
+        if (!isTaskOrTicketCreator(req.user, task, ticket)) {
+          return res.status(403).json({ error: 'Solo quien creó el ticket o la tarea puede reasignarla.' });
+        }
         const assigneeCheck = validateAssigneeInDept(db, patch[k], department);
         if (assigneeCheck.error) return res.status(400).json({ error: assigneeCheck.error });
+        if (ctx.linkedToTicket && task.ticket_id) {
+          const existingAssignee = findAssigneeTaskOnTicket(db, task.ticket_id, patch[k], id);
+          if (existingAssignee) {
+            return res.status(409).json({
+              error: 'Ese usuario ya tiene una tarea asignada en este ticket.',
+              existing_task_id: existingAssignee.id,
+            });
+          }
+        }
       }
       if (k === 'status') {
         const st = patch.status;
@@ -550,6 +640,9 @@ const updateTask = (req, res) => {
       values.push(patch[k]);
     }
     if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
+    if (Object.prototype.hasOwnProperty.call(patch, 'status') && patch.status === 'done') {
+      updates.push('completion_requested_at = NULL', 'completion_requested_by = NULL');
+    }
     if (Object.prototype.hasOwnProperty.call(patch, 'start_date') || Object.prototype.hasOwnProperty.call(patch, 'end_date')) {
       const cur = db.prepare('SELECT start_date, end_date FROM ticket_tasks WHERE id = ?').get(id);
       const ns = Object.prototype.hasOwnProperty.call(patch, 'start_date') ? String(patch.start_date).slice(0, 10) : cur.start_date;
@@ -571,6 +664,21 @@ const updateTask = (req, res) => {
     `).get(id);
 
     try {
+      if (
+        Object.prototype.hasOwnProperty.call(patch, 'status') &&
+        patch.status === 'done' &&
+        task.assigned_to &&
+        Number(task.assigned_to) !== Number(user_id)
+      ) {
+        notifyUser(Number(task.assigned_to), {
+          type: 'task',
+          title: 'Tarea aprobada',
+          message: `El coordinador confirmó que la tarea "${row?.title || task.title}" está hecha.`,
+          module: 'tasks',
+          related_id: Number(id),
+          link_id: task.ticket_id != null ? Number(task.ticket_id) : Number(id),
+        });
+      }
       if (
         Object.prototype.hasOwnProperty.call(patch, 'assigned_to') &&
         Number(patch.assigned_to) !== prevAssigneeId
@@ -652,7 +760,7 @@ const getTaskDetail = (req, res) => {
       return res.status(403).json({ error: 'Sin permiso para ver esta tarea' });
     }
     const comments = db.prepare(`
-      SELECT c.*, u.name as user_name
+      SELECT c.*, u.name as user_name, u.apellido as user_apellido, u.avatar_url as user_avatar_url
       FROM task_comments c
       LEFT JOIN users u ON c.user_id = u.id
       WHERE c.task_id = ?
@@ -745,6 +853,57 @@ const uploadTaskAttachment = (req, res) => {
   }
 };
 
+const requestTaskCompletion = (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user?.id;
+    if (!user_id) return res.status(401).json({ error: 'No autenticado' });
+
+    const db = getDb();
+    const task = loadTaskRow(db, id);
+    if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!canSeeTaskRow(req.user, task)) {
+      return res.status(403).json({ error: 'Sin permiso para ver esta tarea' });
+    }
+    if (Number(task.assigned_to) !== Number(user_id)) {
+      return res.status(403).json({ error: 'Solo el responsable asignado puede reportar que terminó el trabajo.' });
+    }
+    if (task.status === 'done' || task.status === 'cancelled') {
+      return res.status(400).json({ error: 'Esta tarea ya está cerrada.' });
+    }
+    if (task.completion_requested_at) {
+      const full = loadTaskRow(db, id);
+      return res.json({
+        ...(full || task),
+        message: 'Ya enviaste esta tarea a revisión del coordinador.',
+        already_requested: true,
+      });
+    }
+
+    db.prepare(`
+      UPDATE ticket_tasks
+      SET completion_requested_at = datetime('now'),
+          completion_requested_by = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(user_id, id);
+
+    const ctx = getTaskContext(db, task);
+    try {
+      notifyTaskCompletionRequest(db, task, ctx.ticket, user_id);
+    } catch (_) { /* noop */ }
+
+    const row = loadTaskRow(db, id);
+    res.json({
+      ...(row || task),
+      message: 'Trabajo enviado a revisión del coordinador.',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al solicitar revisión' });
+  }
+};
+
 const deleteTaskAttachment = (req, res) => {
   try {
     const { id, attachmentId } = req.params;
@@ -782,6 +941,7 @@ module.exports = {
   deleteTask,
   getTaskDetail,
   addTaskComment,
+  requestTaskCompletion,
   uploadTaskAttachment,
   deleteTaskAttachment,
 };

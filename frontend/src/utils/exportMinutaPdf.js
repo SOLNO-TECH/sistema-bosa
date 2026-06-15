@@ -171,6 +171,7 @@ export function buildMinutaPdfDoc(record) {
     },
     body: [
       ['LUGAR', data.lugar || '—'],
+      ...(data.department ? [['DEPARTAMENTO', data.department]] : []),
       ['FECHA', formatFechaHuman(data.fecha)],
       ['HORARIO', horario],
     ],

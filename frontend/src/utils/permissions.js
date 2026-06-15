@@ -42,3 +42,15 @@ export function canManageMeetingMinute(user, meeting) {
   if (isSuperadminUser(user)) return true;
   return Number(meeting.created_by) === Number(user.id);
 }
+
+/** Editar minuta en el módulo Minutas (reunión vinculada o minuta suelta). */
+export function canManageMinuteRecord(user, minute, meeting = null) {
+  if (!user || !minute) return false;
+  if (isSuperadminUser(user)) return true;
+  const mid = Number(minute.meeting_id);
+  if (Number.isFinite(mid) && mid > 0) {
+    if (!meeting) return false;
+    return Number(meeting.created_by) === Number(user.id);
+  }
+  return true;
+}

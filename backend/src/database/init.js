@@ -306,6 +306,7 @@ function initDatabase() {
 
   migrateTicketTasksStandaloneOnce(db);
   migrateTaskCollaborationOnce(db);
+  migrateTaskCompletionRequestOnce(db);
   migrateCatalogOnce(db);
   migrateMeetingMinutesVoiceOnce(db);
   migrateMeetingMinutesAudioOnce(db);
@@ -314,6 +315,12 @@ function initDatabase() {
   migrateAvisosTargetingOnce(db);
   migrateMeetingMinutesSynerteamOnce(db);
   migrateMeetingMinutesNextFollowupOnce(db);
+  migrateKnowledgeLinksOnce(db);
+  migrateKnowledgeLinksCustomizationOnce(db);
+  migrateKnowledgeLinksThemeOnce(db);
+  migrateKnowledgeLinksMediaOnce(db);
+  migrateMeetingsLocationDeptOnce(db);
+  migrateMeetingsCreatedAtOnce(db);
 
   try {
     db.exec(`
@@ -335,6 +342,9 @@ function initDatabase() {
 
   repairDatabaseState(db);
   seedDefaultUsers(db);
+
+  const { cleanupOrphanedMeetingMinutes } = require('../utils/purgeUserData');
+  cleanupOrphanedMeetingMinutes(db);
 }
 
 /** Permite tareas operativas sin ticket (ticket_id nullable + columna department). */
@@ -447,6 +457,33 @@ function migrateTaskCollaborationOnce(db) {
     db.prepare("INSERT INTO schema_migrations (name) VALUES ('task_collaboration_v1')").run();
   } catch (err) {
     console.warn('[DB] task_collaboration migration:', err.message);
+  }
+}
+
+/** Solicitud de revisión cuando el responsable termina su tramo. */
+function migrateTaskCompletionRequestOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'task_completion_request_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(ticket_tasks)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('completion_requested_at')) {
+      db.prepare('ALTER TABLE ticket_tasks ADD COLUMN completion_requested_at TEXT').run();
+    }
+    if (!names.has('completion_requested_by')) {
+      db.prepare('ALTER TABLE ticket_tasks ADD COLUMN completion_requested_by INTEGER').run();
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('task_completion_request_v1')").run();
+  } catch (err) {
+    console.warn('[DB] task_completion_request migration:', err.message);
   }
 }
 
@@ -579,6 +616,336 @@ function migrateMeetingMinutesAudioExpiryOnce(db) {
     console.log('[DB] meeting_minutes: audio_expires_at listo');
   } catch (err) {
     console.warn('[DB] meeting_minutes audio expiry migration:', err.message);
+  }
+}
+
+/** Accesos directos del módulo Knowledge. */
+function migrateKnowledgeLinksOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'knowledge_links_v1'").get();
+    if (done) return;
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS knowledge_links (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug         TEXT    NOT NULL UNIQUE,
+        title        TEXT    NOT NULL,
+        subtitle     TEXT    NOT NULL DEFAULT '',
+        href         TEXT,
+        available    INTEGER NOT NULL DEFAULT 1,
+        coming_soon  INTEGER NOT NULL DEFAULT 0,
+        theme        TEXT    NOT NULL DEFAULT 'navy' CHECK(theme IN ('navy', 'gold', 'muted')),
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_links_sort ON knowledge_links(sort_order, id);
+    `);
+
+    const defaults = [
+      {
+        slug: 'proyectos-synology',
+        title: 'Proyectos BOSA',
+        subtitle: 'Synology QuickConnect · archivos de proyecto',
+        href: 'https://quickconnect.to/PROYECTOSBOSAmx',
+        available: 1,
+        coming_soon: 0,
+        theme: 'navy',
+        sort_order: 1,
+      },
+      {
+        slug: 'compartida-synology',
+        title: 'Unidad compartida',
+        subtitle: 'Synology QuickConnect · carpeta corporativa',
+        href: 'https://quickconnect.to/compartidabosamx',
+        available: 1,
+        coming_soon: 0,
+        theme: 'gold',
+        sort_order: 2,
+      },
+      {
+        slug: 'manual-bosa-hub',
+        title: 'Manual de uso',
+        subtitle: 'Video guía BOSA Hub',
+        href: null,
+        available: 0,
+        coming_soon: 1,
+        theme: 'muted',
+        sort_order: 3,
+      },
+    ];
+
+    const insert = db.prepare(`
+      INSERT INTO knowledge_links (slug, title, subtitle, href, available, coming_soon, theme, sort_order)
+      VALUES (@slug, @title, @subtitle, @href, @available, @coming_soon, @theme, @sort_order)
+      ON CONFLICT(slug) DO NOTHING
+    `);
+    for (const item of defaults) insert.run(item);
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_v1')").run();
+    console.log('[DB] knowledge_links listo');
+  } catch (err) {
+    console.warn('[DB] knowledge_links migration:', err.message);
+  }
+}
+
+/** Iconos y colores personalizables en Knowledge. */
+function migrateKnowledgeLinksCustomizationOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'knowledge_links_custom_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(knowledge_links)').all();
+    const names = cols.map((c) => c.name);
+    const addCol = (sql) => {
+      try {
+        db.prepare(sql).run();
+      } catch (_) { /* ya existe */ }
+    };
+
+    if (!names.includes('icon')) addCol(`ALTER TABLE knowledge_links ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder'`);
+    if (!names.includes('bg_color')) addCol(`ALTER TABLE knowledge_links ADD COLUMN bg_color TEXT NOT NULL DEFAULT '#071221'`);
+    if (!names.includes('bg_color_end')) addCol(`ALTER TABLE knowledge_links ADD COLUMN bg_color_end TEXT NOT NULL DEFAULT '#0a1930'`);
+    if (!names.includes('text_color')) addCol(`ALTER TABLE knowledge_links ADD COLUMN text_color TEXT NOT NULL DEFAULT '#f0f4fa'`);
+    if (!names.includes('subtext_color')) addCol(`ALTER TABLE knowledge_links ADD COLUMN subtext_color TEXT NOT NULL DEFAULT 'rgba(240,244,250,0.72)'`);
+    if (!names.includes('icon_color')) addCol(`ALTER TABLE knowledge_links ADD COLUMN icon_color TEXT NOT NULL DEFAULT 'rgba(255,255,255,0.22)'`);
+    if (!names.includes('badge_bg')) addCol(`ALTER TABLE knowledge_links ADD COLUMN badge_bg TEXT NOT NULL DEFAULT 'rgba(255,255,255,0.14)'`);
+    if (!names.includes('badge_text')) addCol(`ALTER TABLE knowledge_links ADD COLUMN badge_text TEXT NOT NULL DEFAULT 'rgba(255,255,255,0.85)'`);
+
+    db.prepare(
+      `UPDATE knowledge_links SET
+        icon = 'folder',
+        bg_color = '#071221', bg_color_end = '#0a1930',
+        text_color = '#f0f4fa', subtext_color = 'rgba(240,244,250,0.72)',
+        icon_color = 'rgba(255,255,255,0.22)',
+        badge_bg = 'rgba(255,255,255,0.14)', badge_text = 'rgba(255,255,255,0.85)'
+       WHERE slug = 'proyectos-synology'`,
+    ).run();
+    db.prepare(
+      `UPDATE knowledge_links SET
+        icon = 'cloud',
+        bg_color = '#8a7355', bg_color_end = '#cbac80',
+        text_color = '#071221', subtext_color = 'rgba(7,18,33,0.72)',
+        icon_color = 'rgba(7,18,33,0.18)',
+        badge_bg = 'rgba(7,18,33,0.12)', badge_text = '#071221'
+       WHERE slug = 'compartida-synology'`,
+    ).run();
+    db.prepare(
+      `UPDATE knowledge_links SET
+        icon = 'video',
+        bg_color = '#334155', bg_color_end = '#64748b',
+        text_color = '#f8fafc', subtext_color = 'rgba(248,250,252,0.75)',
+        icon_color = 'rgba(255,255,255,0.2)',
+        badge_bg = 'rgba(255,255,255,0.12)', badge_text = 'rgba(255,255,255,0.9)'
+       WHERE slug = 'manual-bosa-hub'`,
+    ).run();
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_custom_v1')").run();
+    console.log('[DB] knowledge_links: iconos y colores listos');
+  } catch (err) {
+    console.warn('[DB] knowledge_links customization migration:', err.message);
+  }
+}
+
+/** Quita CHECK restrictivo de theme (solo navy/gold/muted) para paletas nuevas. */
+function migrateKnowledgeLinksThemeOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'knowledge_links_theme_v2'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(knowledge_links)').all();
+    if (!cols.length) {
+      db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_theme_v2')").run();
+      return;
+    }
+
+    const themeCol = cols.find((c) => c.name === 'theme');
+    const createSql = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_links'",
+    ).get()?.sql || '';
+    const hasRestrictiveCheck = /CHECK\s*\(\s*theme\s+IN\s*\(\s*'navy'\s*,\s*'gold'\s*,\s*'muted'\s*\)\s*\)/i.test(createSql);
+
+    if (!hasRestrictiveCheck && themeCol) {
+      db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_theme_v2')").run();
+      return;
+    }
+
+    db.exec(`
+      CREATE TABLE knowledge_links_theme_new (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug         TEXT    NOT NULL UNIQUE,
+        title        TEXT    NOT NULL,
+        subtitle     TEXT    NOT NULL DEFAULT '',
+        href         TEXT,
+        available    INTEGER NOT NULL DEFAULT 1,
+        coming_soon  INTEGER NOT NULL DEFAULT 0,
+        theme        TEXT    NOT NULL DEFAULT 'navy',
+        icon         TEXT    NOT NULL DEFAULT 'folder',
+        bg_color     TEXT    NOT NULL DEFAULT '#071221',
+        bg_color_end TEXT    NOT NULL DEFAULT '#0a1930',
+        text_color   TEXT    NOT NULL DEFAULT '#f0f4fa',
+        subtext_color TEXT   NOT NULL DEFAULT 'rgba(240,244,250,0.72)',
+        icon_color   TEXT    NOT NULL DEFAULT 'rgba(255,255,255,0.22)',
+        badge_bg     TEXT    NOT NULL DEFAULT 'rgba(255,255,255,0.14)',
+        badge_text   TEXT    NOT NULL DEFAULT 'rgba(255,255,255,0.85)',
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        is_active    INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+    `);
+
+    db.exec(`
+      INSERT INTO knowledge_links_theme_new (
+        id, slug, title, subtitle, href, available, coming_soon, theme, icon,
+        bg_color, bg_color_end, text_color, subtext_color, icon_color, badge_bg, badge_text,
+        sort_order, is_active, created_by, created_at
+      )
+      SELECT
+        id, slug, title, subtitle, href, available, coming_soon, theme,
+        COALESCE(icon, 'folder'),
+        COALESCE(bg_color, '#071221'),
+        COALESCE(bg_color_end, '#0a1930'),
+        COALESCE(text_color, '#f0f4fa'),
+        COALESCE(subtext_color, 'rgba(240,244,250,0.72)'),
+        COALESCE(icon_color, 'rgba(255,255,255,0.22)'),
+        COALESCE(badge_bg, 'rgba(255,255,255,0.14)'),
+        COALESCE(badge_text, 'rgba(255,255,255,0.85)'),
+        sort_order, is_active, created_by, created_at
+      FROM knowledge_links
+    `);
+
+    db.exec('DROP TABLE knowledge_links');
+    db.exec('ALTER TABLE knowledge_links_theme_new RENAME TO knowledge_links');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_knowledge_links_sort ON knowledge_links(sort_order, id)');
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_theme_v2')").run();
+    console.log('[DB] knowledge_links: theme sin restricción CHECK');
+  } catch (err) {
+    console.warn('[DB] knowledge_links theme migration:', err.message);
+  }
+}
+
+/** Archivos y multimedia en Knowledge (además de enlaces externos). */
+function migrateKnowledgeLinksMediaOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'knowledge_links_media_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(knowledge_links)').all();
+    const names = cols.map((c) => c.name);
+    const addCol = (sql) => {
+      try {
+        db.prepare(sql).run();
+      } catch (_) { /* ya existe */ }
+    };
+
+    if (!names.includes('content_type')) {
+      addCol(`ALTER TABLE knowledge_links ADD COLUMN content_type TEXT NOT NULL DEFAULT 'link'`);
+    }
+    if (!names.includes('media_path')) addCol('ALTER TABLE knowledge_links ADD COLUMN media_path TEXT');
+    if (!names.includes('media_filename')) addCol('ALTER TABLE knowledge_links ADD COLUMN media_filename TEXT');
+    if (!names.includes('media_mimetype')) addCol('ALTER TABLE knowledge_links ADD COLUMN media_mimetype TEXT');
+
+    db.prepare(
+      `UPDATE knowledge_links SET content_type = 'link' WHERE content_type IS NULL OR TRIM(content_type) = ''`,
+    ).run();
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('knowledge_links_media_v1')").run();
+    console.log('[DB] knowledge_links: multimedia listo');
+  } catch (err) {
+    console.warn('[DB] knowledge_links media migration:', err.message);
+  }
+}
+
+/** Modalidad "Otro" y departamento vinculado en reuniones y minutas. */
+function migrateMeetingsLocationDeptOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meetings_location_dept_v1'").get();
+    if (done) return;
+
+    const meetingCols = db.prepare('PRAGMA table_info(meetings)').all().map((c) => c.name);
+    const minuteCols = db.prepare('PRAGMA table_info(meeting_minutes)').all().map((c) => c.name);
+    const addMeetingCol = (sql) => {
+      try {
+        db.prepare(sql).run();
+      } catch (_) { /* ya existe */ }
+    };
+
+    if (!meetingCols.includes('location_custom')) {
+      addMeetingCol('ALTER TABLE meetings ADD COLUMN location_custom TEXT');
+    }
+    if (!meetingCols.includes('department')) {
+      addMeetingCol('ALTER TABLE meetings ADD COLUMN department TEXT');
+    }
+    if (!minuteCols.includes('department')) {
+      try {
+        db.prepare('ALTER TABLE meeting_minutes ADD COLUMN department TEXT').run();
+      } catch (_) { /* noop */ }
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meetings_location_dept_v1')").run();
+    console.log('[DB] meetings: location_custom y department listos');
+  } catch (err) {
+    console.warn('[DB] meetings location/dept migration:', err.message);
+  }
+}
+
+/** Marca de tiempo de creación en reuniones (feed de actividad). */
+function migrateMeetingsCreatedAtOnce(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const done = db.prepare("SELECT 1 FROM schema_migrations WHERE name = 'meetings_created_at_v1'").get();
+    if (done) return;
+
+    const cols = db.prepare('PRAGMA table_info(meetings)').all().map((c) => c.name);
+    if (!cols.includes('created_at')) {
+      db.prepare(`ALTER TABLE meetings ADD COLUMN created_at TEXT`).run();
+      db.prepare(`UPDATE meetings SET created_at = start_time WHERE created_at IS NULL OR created_at = ''`).run();
+    }
+
+    db.prepare("INSERT INTO schema_migrations (name) VALUES ('meetings_created_at_v1')").run();
+    console.log('[DB] meetings: created_at listo');
+  } catch (err) {
+    console.warn('[DB] meetings created_at migration:', err.message);
   }
 }
 

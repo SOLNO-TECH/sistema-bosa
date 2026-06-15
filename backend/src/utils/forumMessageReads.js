@@ -11,6 +11,24 @@ function markForumMessagesRead(db, groupId, viewerId) {
   ).run(viewerId, groupId, viewerId);
 }
 
+function countUnreadForumMessages(db, groupId, viewerId) {
+  const row = db
+    .prepare(
+      `
+    SELECT COUNT(*) AS c
+    FROM workgroup_messages m
+    WHERE m.workgroup_id = ?
+      AND m.user_id != ?
+      AND NOT EXISTS (
+        SELECT 1 FROM forum_message_reads r
+        WHERE r.message_id = m.id AND r.user_id = ?
+      )
+  `
+    )
+    .get(groupId, viewerId, viewerId);
+  return Number(row?.c || 0);
+}
+
 function fetchReadsForMessages(db, messageIds) {
   if (!messageIds.length) return {};
   const placeholders = messageIds.map(() => '?').join(',');
@@ -65,5 +83,6 @@ function enrichMessagesWithReadReceipts(db, group, messages) {
 
 module.exports = {
   markForumMessagesRead,
+  countUnreadForumMessages,
   enrichMessagesWithReadReceipts,
 };

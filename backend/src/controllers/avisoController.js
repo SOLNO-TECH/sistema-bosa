@@ -17,7 +17,7 @@ const getAvisos = (req, res) => {
 
     const avisos = db
       .prepare(
-        'SELECT a.*, u.name as creator_name FROM avisos a LEFT JOIN users u ON a.created_by = u.id ORDER BY a.id DESC'
+        'SELECT a.*, u.name as creator_name, u.apellido as creator_apellido, u.avatar_url as creator_avatar_url, u.puesto as creator_puesto FROM avisos a LEFT JOIN users u ON a.created_by = u.id ORDER BY a.id DESC'
       )
       .all()
       .filter((aviso) => userCanSeeAviso(db, userId, aviso))

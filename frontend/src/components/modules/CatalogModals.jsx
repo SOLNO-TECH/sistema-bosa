@@ -1,32 +1,132 @@
 import { createPortal } from 'react-dom';
 
-const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy-950 placeholder:text-slate-400 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 transition-colors';
-
 const PERMISSION_LEVEL_OPTIONS = [
   { value: 'administrator', label: 'Administrador (acceso amplio)' },
   { value: 'manager', label: 'Gerente (coordina su departamento)' },
   { value: 'user', label: 'Usuario básico (acceso limitado)' },
 ];
 
+function CatalogSheetFooter({ saving, onClose, submitLabel }) {
+  return (
+    <div className="meeting-sheet__footer voice-minute-sheet__footer shrink-0">
+      <div className="meeting-sheet__footer-actions voice-minute-sheet__footer-actions">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onClose}
+          className="voice-minute-footer__btn voice-minute-footer__btn--secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg
+            className="voice-minute-footer__icon voice-minute-footer__icon--close"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="voice-minute-footer__btn voice-minute-footer__btn--primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? (
+            <>
+              <span
+                className="h-[18px] w-[18px] shrink-0 animate-spin rounded-full border-2 border-navy-950/25 border-t-navy-950"
+                aria-hidden
+              />
+              Guardando…
+            </>
+          ) : (
+            <>
+              <span className="bosa-gold-btn__icon-wrap bosa-gold-btn__icon-wrap--save" aria-hidden>
+                <svg
+                  className="bosa-gold-btn__icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                  <path d="M15 4v3h3" />
+                  <path d="M9 14l2 2 4-4.5" />
+                </svg>
+              </span>
+              {submitLabel}
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DepartmentModal({ open, name, saving, onClose, onChange, onSubmit }) {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[106] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4" onClick={() => !saving && onClose()}>
-      <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-navy-950 px-5 py-4">
-          <h3 className="text-lg font-display text-white">Nuevo departamento</h3>
-          <p className="text-xs text-white/60 mt-1">Aparecerá en usuarios, tickets, tareas y avisos.</p>
-        </div>
-        <form onSubmit={onSubmit} className="p-5 space-y-4">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre *</span>
-            <input required value={name} onChange={(e) => onChange(e.target.value)} className={inputClass} placeholder="Ej. Logística" />
-          </label>
-          <div className="flex gap-2 justify-end">
-            <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2 text-xs font-bold uppercase text-navy-700">Cancelar</button>
-            <button type="submit" disabled={saving} className="btn-gold text-[10px] py-2.5 px-5 uppercase font-bold">{saving ? 'Guardando…' : 'Crear'}</button>
+    <div
+      className="meeting-sheet-overlay z-[120] animate-fade-in"
+      onClick={() => !saving && onClose()}
+      role="presentation"
+    >
+      <div
+        className="meeting-sheet meeting-sheet--form meeting-sheet--wide animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dept-modal-title"
+      >
+        <div className="meeting-sheet__hero shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <span className="meeting-sheet__pill meeting-sheet__pill--gold">Catálogo</span>
+              <h3 id="dept-modal-title" className="meeting-sheet__hero-title mt-2">
+                Nuevo departamento
+              </h3>
+              <p className="meeting-sheet__hero-subtitle">
+                Aparecerá en usuarios, tickets, tareas y avisos del sistema.
+              </p>
+            </div>
+            <button type="button" onClick={onClose} disabled={saving} className="meeting-sheet__close" aria-label="Cerrar">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
+        </div>
+
+        <form className="meeting-sheet__form flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={onSubmit}>
+          <div className="meeting-sheet__body flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="meeting-sheet__scroll meeting-sheet__scroll--form flex-1 min-h-0">
+              <p className="meeting-sheet__section-label">Datos del departamento</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label" htmlFor="catalog-dept-name">
+                    Nombre
+                  </label>
+                  <input
+                    id="catalog-dept-name"
+                    required
+                    value={name}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="meeting-sheet__input font-semibold"
+                    placeholder="Ej. Logística"
+                  />
+                  <p className="meeting-sheet__cell-note">
+                    Usa el nombre oficial del área para mantener consistencia en reportes y filtros.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <CatalogSheetFooter saving={saving} onClose={onClose} submitLabel="Crear departamento" />
         </form>
       </div>
     </div>,
@@ -37,39 +137,79 @@ export function DepartmentModal({ open, name, saving, onClose, onChange, onSubmi
 export function RoleModal({ open, form, saving, onClose, onChange, onSubmit }) {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[106] flex items-center justify-center bg-navy-950/85 backdrop-blur-md p-4" onClick={() => !saving && onClose()}>
-      <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-navy-950 px-5 py-4">
-          <h3 className="text-lg font-display text-white">Nuevo rol</h3>
-          <p className="text-xs text-white/60 mt-1">Define permisos base; los usuarios existentes no se modifican.</p>
-        </div>
-        <form onSubmit={onSubmit} className="p-5 space-y-4">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nombre del rol *</span>
-            <input
-              required
-              value={form.label}
-              onChange={(e) => onChange({ ...form, label: e.target.value })}
-              className={inputClass}
-              placeholder="Ej. Coordinador de obra"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Nivel de permiso *</span>
-            <select
-              value={form.permission_level}
-              onChange={(e) => onChange({ ...form, permission_level: e.target.value })}
-              className={`${inputClass} h-[46px] cursor-pointer`}
-            >
-              {PERMISSION_LEVEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-          <div className="flex gap-2 justify-end">
-            <button type="button" disabled={saving} onClick={onClose} className="px-4 py-2 text-xs font-bold uppercase text-navy-700">Cancelar</button>
-            <button type="submit" disabled={saving} className="btn-gold text-[10px] py-2.5 px-5 uppercase font-bold">{saving ? 'Guardando…' : 'Crear rol'}</button>
+    <div
+      className="meeting-sheet-overlay z-[120] animate-fade-in"
+      onClick={() => !saving && onClose()}
+      role="presentation"
+    >
+      <div
+        className="meeting-sheet meeting-sheet--form meeting-sheet--wide animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="role-modal-title"
+      >
+        <div className="meeting-sheet__hero shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <span className="meeting-sheet__pill meeting-sheet__pill--gold">Catálogo</span>
+              <h3 id="role-modal-title" className="meeting-sheet__hero-title mt-2">
+                Nuevo rol
+              </h3>
+              <p className="meeting-sheet__hero-subtitle">
+                Define permisos base para asignar a nuevos usuarios. Los existentes no se modifican.
+              </p>
+            </div>
+            <button type="button" onClick={onClose} disabled={saving} className="meeting-sheet__close" aria-label="Cerrar">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
+        </div>
+
+        <form className="meeting-sheet__form flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={onSubmit}>
+          <div className="meeting-sheet__body flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="meeting-sheet__scroll meeting-sheet__scroll--form flex-1 min-h-0">
+              <p className="meeting-sheet__section-label">Datos del rol</p>
+              <div className="meeting-sheet__group">
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label" htmlFor="catalog-role-name">
+                    Nombre del rol
+                  </label>
+                  <input
+                    id="catalog-role-name"
+                    required
+                    value={form.label}
+                    onChange={(e) => onChange({ ...form, label: e.target.value })}
+                    className="meeting-sheet__input font-semibold"
+                    placeholder="Ej. Coordinador de obra"
+                  />
+                </div>
+                <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                  <label className="meeting-sheet__cell-label" htmlFor="catalog-role-level">
+                    Nivel de permiso
+                  </label>
+                  <select
+                    id="catalog-role-level"
+                    value={form.permission_level}
+                    onChange={(e) => onChange({ ...form, permission_level: e.target.value })}
+                    className="meeting-sheet__select"
+                  >
+                    {PERMISSION_LEVEL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="meeting-sheet__cell-note">
+                    El nivel define el alcance general del rol dentro de BOSA Hub.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <CatalogSheetFooter saving={saving} onClose={onClose} submitLabel="Crear rol" />
         </form>
       </div>
     </div>,

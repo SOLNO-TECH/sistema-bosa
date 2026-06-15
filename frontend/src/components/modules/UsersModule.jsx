@@ -6,6 +6,7 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { roleLabelFromCatalog, roleBadgeClass } from '../../utils/catalog';
 import { DepartmentModal, RoleModal } from './CatalogModals';
 import BosaGoldButton from '../BosaGoldButton';
+import UserAvatar from '../UserAvatar';
 
 export default function UsersModule() {
   const { departments, roles, refresh: refreshCatalog } = useCatalog();
@@ -173,20 +174,28 @@ export default function UsersModule() {
             className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 placeholder-gray-400 transition-all bg-gray-50 hover:bg-white shadow-inner"
           />
         </div>
-        <div className="flex gap-3 w-full md:w-auto flex-wrap">
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
           <button
             type="button"
             onClick={() => setIsDeptModalOpen(true)}
-            className="px-3 py-2.5 rounded-lg border border-gold/40 bg-gold/10 text-[10px] font-bold uppercase tracking-wide text-navy-950 hover:bg-gold/20 transition-all"
+            className="users-module__corp-btn flex-1 md:flex-none"
+            aria-label="Nuevo departamento"
           >
-            + Departamento
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M6 21V9l6-3 6 3v12M10 12h4" />
+            </svg>
+            Departamento
           </button>
           <button
             type="button"
             onClick={() => setIsRoleModalOpen(true)}
-            className="px-3 py-2.5 rounded-lg border border-navy-200 bg-navy-50 text-[10px] font-bold uppercase tracking-wide text-navy-900 hover:bg-navy-100 transition-all"
+            className="users-module__corp-btn flex-1 md:flex-none"
+            aria-label="Nuevo rol"
           >
-            + Rol
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l8 4v5c0 5.25-3.5 9.15-8 10-4.5-.85-8-4.75-8-10V7l8-4z" />
+            </svg>
+            Rol
           </button>
           <select 
             value={filterRole}
@@ -236,8 +245,19 @@ export default function UsersModule() {
                 }).map(u => (
                   <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-bold text-navy-950">{u.name} {u.apellido}</p>
-                      <p className="text-navy-500 text-xs mt-0.5">{u.email}</p>
+                      <div className="users-module__user-cell">
+                        <UserAvatar
+                          name={u.name}
+                          apellido={u.apellido}
+                          avatarUrl={u.avatar_url}
+                          size="lg"
+                          className="users-module__avatar"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-navy-950 truncate">{u.name} {u.apellido}</p>
+                          <p className="text-navy-500 text-xs mt-0.5 truncate">{u.email}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4"><p className="text-navy-700 font-medium">{u.telefono || '—'}</p></td>
                     <td className="px-6 py-4">
@@ -285,9 +305,13 @@ export default function UsersModule() {
             <div key={u.id} className="p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-navy-900 text-white flex items-center justify-center text-sm font-bold border-2 border-gold/30 flex-shrink-0">
-                    {u.name?.charAt(0)}
-                  </div>
+                  <UserAvatar
+                    name={u.name}
+                    apellido={u.apellido}
+                    avatarUrl={u.avatar_url}
+                    size="lg"
+                    className="users-module__avatar shrink-0"
+                  />
                   <div className="min-w-0">
                     <p className="font-bold text-navy-950 truncate">{u.name} {u.apellido}</p>
                     <p className="text-navy-500 text-xs truncate">{u.email}</p>

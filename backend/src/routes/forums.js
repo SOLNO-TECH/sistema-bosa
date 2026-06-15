@@ -11,6 +11,7 @@ const {
 const { notifyForumGroup } = require('../utils/participantNotify');
 const {
   markForumMessagesRead,
+  countUnreadForumMessages,
   enrichMessagesWithReadReceipts,
 } = require('../utils/forumMessageReads');
 const multer = require('multer');
@@ -57,6 +58,7 @@ router.get('/', (req, res) => {
         ...g,
         has_access: true,
         pending_join_request: false,
+        unread_count: countUnreadForumMessages(db, g.id, userId),
       }));
     res.json(payload);
   } catch (error) {
@@ -319,7 +321,7 @@ router.get('/:id/messages', (req, res) => {
     markForumMessagesRead(db, req.params.id, req.user.id);
 
     const messages = db.prepare(`
-      SELECT m.*, u.name as user_name, u.role as user_role
+      SELECT m.*, u.name as user_name, u.apellido as user_apellido, u.avatar_url as user_avatar_url, u.role as user_role
       FROM workgroup_messages m
       JOIN users u ON m.user_id = u.id
       WHERE m.workgroup_id = ?
@@ -362,7 +364,7 @@ router.post('/:id/messages', upload.single('file'), (req, res) => {
     const info = stmt.run(req.params.id, user_id, content || '', file_url, file_name);
 
     const newMessage = db.prepare(`
-      SELECT m.*, u.name as user_name, u.role as user_role
+      SELECT m.*, u.name as user_name, u.apellido as user_apellido, u.avatar_url as user_avatar_url, u.role as user_role
       FROM workgroup_messages m
       JOIN users u ON m.user_id = u.id
       WHERE m.id = ?
@@ -445,7 +447,7 @@ router.patch('/:id/messages/:messageId', (req, res) => {
     const updated = db
       .prepare(
         `
-      SELECT m.*, u.name as user_name, u.role as user_role
+      SELECT m.*, u.name as user_name, u.apellido as user_apellido, u.avatar_url as user_avatar_url, u.role as user_role
       FROM workgroup_messages m
       JOIN users u ON m.user_id = u.id
       WHERE m.id = ?

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import { useCatalog } from '../../hooks/useCatalog';
+import UserAvatar from '../UserAvatar';
 
 const MOBILE_MQ = '(max-width: 767px)';
 const FORUM_MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -373,6 +374,7 @@ function ForumGroupFormFields({ form, setForm, isEdit, departments, allUsers, to
 
 function ForumMessageBubble({
   message: m,
+  allUsers = [],
   isMe,
   canEdit,
   canOpenMenu,
@@ -389,17 +391,24 @@ function ForumMessageBubble({
   const { text, refs } = parseForumMessageContent(m.content);
   const timeStr = new Date(m.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const edited = Boolean(m.edited_at);
+  const authorId = Number(m.user_id);
+  const authorFromDb = Number.isFinite(authorId) ? allUsers.find((u) => Number(u.id) === authorId) : null;
+  const authorName = authorFromDb?.name || m.user_name || '';
+  const authorApellido = authorFromDb?.apellido || m.user_apellido || '';
+  const authorAvatarUrl = authorFromDb?.avatar_url || m.user_avatar_url || '';
 
   return (
     <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex gap-2 lg:gap-3 max-w-[85%] lg:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-        {!isMe && (
-          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-xs flex-shrink-0">
-            {m.user_name.charAt(0)}
-          </div>
-        )}
+        <UserAvatar
+          name={authorName}
+          apellido={authorApellido}
+          avatarUrl={authorAvatarUrl}
+          size="xs"
+          className="foro-msg-avatar shrink-0"
+        />
         <div className={`flex flex-col min-w-0 ${isMe ? 'items-end' : 'items-start'}`}>
-          {!isMe && <span className="text-[10px] font-bold text-navy-500 mb-1 ml-1">{m.user_name}</span>}
+          <span className="text-[10px] font-bold text-navy-500 mb-1 ml-1 mr-1">{authorName}</span>
           <div className={`foro-msg-bubble group relative ${isMe ? 'foro-msg-bubble--me' : 'foro-msg-bubble--them'}`}>
             {isMe && canOpenMenu && !isMobile && (
               <button
@@ -534,6 +543,21 @@ function ForumMessageBubble({
   );
 }
 
+function ForumUnreadBadge({ count }) {
+  const n = Number(count);
+  if (!n || n <= 0) return null;
+  return (
+    <span
+      className="flex-shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center"
+      aria-label={`${n} mensaje${n === 1 ? '' : 's'} sin leer`}
+    >
+      <span className="text-[9px] font-bold leading-none tabular-nums">
+        {n > 99 ? '99+' : n}
+      </span>
+    </span>
+  );
+}
+
 export default function ForoModule() {
   const { user } = useAuth();
   const { departments } = useCatalog();
@@ -633,6 +657,8 @@ export default function ForoModule() {
     fetchGroups();
     axios.get('/api/tickets').then(r => setAvailableTickets(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     axios.get('/api/meetings').then(r => setAvailableMeetings(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    const interval = setInterval(fetchGroups, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Refrescar lista cuando se abre el selector
@@ -826,6 +852,9 @@ export default function ForoModule() {
     try {
       const res = await axios.get(`/api/forums/${selectedGroup.id}/messages`);
       setMessages(res.data);
+      setGroups((prev) =>
+        prev.map((g) => (g.id === selectedGroup.id ? { ...g, unread_count: 0 } : g)),
+      );
     } catch (err) {
       console.error(err);
     }
@@ -1006,19 +1035,27 @@ export default function ForoModule() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center font-display font-bold text-lg ${
+                  <div className={`relative w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center font-display font-bold text-lg ${
                     selectedGroup?.id === g.id ? 'bg-white/10 text-gold' : 'bg-navy-50 text-navy-900'
                   }`}>
                     {g.name.charAt(0).toUpperCase()}
+                    {Number(g.unread_count) > 0 && selectedGroup?.id !== g.id ? (
+                      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
+                    ) : null}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className={`font-bold text-sm truncate ${selectedGroup?.id === g.id ? 'text-white' : 'text-navy-950'}`}>
                       <span className="truncate"># {g.name}</span>
                     </h3>
                     <p className={`text-xs truncate mt-0.5 ${selectedGroup?.id === g.id ? 'text-navy-200' : 'text-navy-500'}`}>
-                      {g.description || 'Sin descripción'}
+                      {Number(g.unread_count) > 0 && selectedGroup?.id !== g.id
+                        ? `${g.unread_count} mensaje${Number(g.unread_count) === 1 ? '' : 's'} sin leer`
+                        : (g.description || 'Sin descripción')}
                     </p>
                   </div>
+                  {Number(g.unread_count) > 0 && selectedGroup?.id !== g.id ? (
+                    <ForumUnreadBadge count={g.unread_count} />
+                  ) : null}
                 </div>
               </button>
             ))
@@ -1085,12 +1122,16 @@ export default function ForoModule() {
                           <div
                             key={u.id}
                             title={`${u.name || ''} ${u.apellido || ''}${u.puesto ? ' · ' + u.puesto : ''}`}
-                            className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
-                              i === 0 ? 'bg-gold/20 text-gold' : i === 1 ? 'bg-navy-100 text-navy-700' : 'bg-emerald-100 text-emerald-700'
-                            }`}
+                            className="transition-transform hover:scale-110 hover:z-10"
                             style={{ zIndex: visibleCount - i }}
                           >
-                            {(u.name || '?').charAt(0).toUpperCase()}
+                            <UserAvatar
+                              name={u.name}
+                              apellido={u.apellido}
+                              avatarUrl={u.avatar_url}
+                              size="xs"
+                              className="!h-8 !w-8 !text-[10px] border-2 border-white ring-0 shadow-sm"
+                            />
                           </div>
                         ))}
                         {remaining > 0 && (
@@ -1131,9 +1172,12 @@ export default function ForoModule() {
                                     type="button"
                                     className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gold/5 transition-colors text-left"
                                   >
-                                    <div className="w-9 h-9 rounded-full bg-navy-100 flex items-center justify-center text-xs font-bold text-navy-700 flex-shrink-0">
-                                      {(u.name || '?').charAt(0).toUpperCase()}
-                                    </div>
+                                    <UserAvatar
+                                      name={u.name}
+                                      apellido={u.apellido}
+                                      avatarUrl={u.avatar_url}
+                                      size="sm"
+                                    />
                                     <div className="flex-1 min-w-0">
                                       <p className="text-xs font-bold text-navy-950 truncate">
                                         {u.name} {u.apellido || ''}
@@ -1240,6 +1284,7 @@ export default function ForoModule() {
                     <ForumMessageBubble
                       key={m.id}
                       message={m}
+                      allUsers={allUsers}
                       isMe={isMe}
                       canOpenMenu={isMe}
                       canEdit={isMe && canEditForumMessage(m, user?.id)}

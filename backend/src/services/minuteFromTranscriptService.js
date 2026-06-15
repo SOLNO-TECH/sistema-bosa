@@ -213,10 +213,9 @@ function isoToTimePart(iso) {
   return String(part).slice(0, 5);
 }
 
-function locationLabel(type) {
-  if (type === 'virtual') return 'Reunión virtual';
-  return 'Sala de juntas';
-}
+const { meetingPlaceLabelForMinute } = require('../utils/meetingLocation');
+
+const { rsvpStatusToAsistencia, getRsvpStatusFromList } = require('../utils/meetingSchedule');
 
 function buildAttendeesFromMeeting(meeting, usersById) {
   const ids = Array.isArray(meeting.attendees) ? meeting.attendees : [];
@@ -226,7 +225,7 @@ function buildAttendeesFromMeeting(meeting, usersById) {
     .map((u) => ({
       nombre: [u.name, u.apellido].filter(Boolean).join(' ').trim(),
       cargo: [u.puesto, u.departamento].filter(Boolean).join(' · ') || '',
-      asistencia: 'Presente',
+      asistencia: rsvpStatusToAsistencia(getRsvpStatusFromList(meeting.rsvps, u.id)),
     }));
 
   while (rows.length < 6) {
@@ -324,7 +323,8 @@ function buildMinuteDraftFromTranscript(meeting, usersById, transcript, structur
 
   return {
     meeting_id: meeting.id,
-    lugar: locationLabel(meeting.location_type),
+    lugar: meetingPlaceLabelForMinute(meeting),
+    department: meeting.department || null,
     fecha: isoToDatePart(meeting.start_time),
     hora_inicio: isoToTimePart(meeting.start_time),
     hora_cierre: isoToTimePart(meeting.end_time),

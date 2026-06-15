@@ -8,6 +8,7 @@ const {
 } = require('../utils/minuteAudioExpiry');
 const { canManageMeetingMinuteById, isSuperadminUser } = require('../utils/meetingMinuteAccess');
 const { reconcileMinuteFollowUp } = require('../utils/minuteFollowUpSync');
+const { cleanupOrphanedMeetingMinutes } = require('../utils/purgeUserData');
 
 function safeJson(s, fallback) {
   try {
@@ -59,6 +60,7 @@ function normalizePayload(body) {
     next_meeting_lugar = '',
     next_meeting_location_type = 'sala_juntas',
     next_meeting_scheduled_id,
+    department = '',
   } = body;
   if (!fecha || String(fecha).trim() === '') {
     return { error: 'La fecha es obligatoria.' };
@@ -88,6 +90,7 @@ function normalizePayload(body) {
 
   return {
     lugar: String(lugar).trim(),
+    department: String(department || '').trim() || null,
     fecha: String(fecha).trim(),
     hora_inicio: String(hora_inicio).trim(),
     hora_cierre: String(hora_cierre).trim(),
@@ -203,12 +206,49 @@ function applySayaAudioRetention(db, minuteId, audioPath, saveSource) {
   ).run(minuteId);
 }
 
+function enrichMeetingAudio(db, mapped) {
+  if (!mapped) return mapped;
+  if (mapped.audio_available && mapped.audio_url) return mapped;
+
+  const meetingId = Number(mapped.meeting_id);
+  if (!Number.isFinite(meetingId) || meetingId <= 0) return mapped;
+
+  const audioRow = db
+    .prepare(
+      `SELECT m.*
+       FROM meeting_minutes m
+       WHERE m.meeting_id = ?
+         AND m.audio_path IS NOT NULL
+         AND TRIM(m.audio_path) != ''
+       ORDER BY m.id DESC
+       LIMIT 1`,
+    )
+    .get(meetingId);
+  if (!audioRow) return mapped;
+
+  const checked = ensureMinuteAudioNotExpired(db, audioRow);
+  if (!checked?.audio_path) return mapped;
+
+  return {
+    ...mapped,
+    meeting_audio_minute_id: checked.id,
+    meeting_audio_url: `/api/uploads/${String(checked.audio_path).replace(/^\/+/, '').replace(/\\/g, '/')}`,
+    meeting_audio_available: true,
+    meeting_audio_expires_at: checked.audio_expires_at || null,
+    meeting_audio_permanent: Number(checked.audio_permanent) === 1,
+  };
+}
+
 function mapRow(r) {
   if (!r) return null;
   const hasAudio = Boolean(r.audio_path);
   return {
     id: r.id,
     lugar: r.lugar,
+    department:
+      (r.department && String(r.department).trim()) ||
+      (r.meeting_department && String(r.meeting_department).trim()) ||
+      null,
     fecha: r.fecha,
     hora_inicio: r.hora_inicio,
     hora_cierre: r.hora_cierre,
@@ -240,17 +280,24 @@ function mapRow(r) {
     next_meeting_lugar: r.next_meeting_lugar || '',
     next_meeting_location_type: r.next_meeting_location_type || 'sala_juntas',
     next_meeting_scheduled_id: r.next_meeting_scheduled_id ?? null,
+    meeting_created_at: r.meeting_created_at || null,
+    meeting_start_time: r.meeting_start_time || null,
   };
 }
 
 const listMinutes = (req, res) => {
   try {
     const db = getDb();
+    cleanupOrphanedMeetingMinutes(db);
     const rows = db
       .prepare(
-        `SELECT m.*, u.name AS creator_name, u.apellido AS creator_apellido
+        `SELECT m.*, u.name AS creator_name, u.apellido AS creator_apellido,
+                mt.department AS meeting_department,
+                mt.created_at AS meeting_created_at,
+                mt.start_time AS meeting_start_time
          FROM meeting_minutes m
          LEFT JOIN users u ON m.created_by = u.id
+         LEFT JOIN meetings mt ON mt.id = m.meeting_id
          ORDER BY datetime(m.created_at) DESC`
       )
       .all();
@@ -278,7 +325,7 @@ const getMinuteByMeeting = (req, res) => {
       .get(meetingId);
     if (!row) return res.status(404).json({ message: 'Sin minuta para esta reunión.' });
     const reconciled = reconcileMinuteFollowUp(db, row);
-    res.json(mapRow(ensureMinuteAudioNotExpired(db, reconciled)));
+    res.json(enrichMeetingAudio(db, mapRow(ensureMinuteAudioNotExpired(db, reconciled))));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al obtener la minuta.' });
@@ -290,15 +337,18 @@ const getMinute = (req, res) => {
     const db = getDb();
     const row = db
       .prepare(
-        `SELECT m.*, u.name AS creator_name, u.apellido AS creator_apellido
+        `SELECT m.*, u.name AS creator_name, u.apellido AS creator_apellido,
+                mt.created_at AS meeting_created_at,
+                mt.start_time AS meeting_start_time
          FROM meeting_minutes m
          LEFT JOIN users u ON m.created_by = u.id
+         LEFT JOIN meetings mt ON mt.id = m.meeting_id
          WHERE m.id = ?`
       )
       .get(req.params.id);
     if (!row) return res.status(404).json({ message: 'Minuta no encontrada.' });
     const reconciled = reconcileMinuteFollowUp(db, row);
-    res.json(mapRow(ensureMinuteAudioNotExpired(db, reconciled)));
+    res.json(enrichMeetingAudio(db, mapRow(ensureMinuteAudioNotExpired(db, reconciled))));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error al obtener la minuta.' });
@@ -322,11 +372,11 @@ const createMinute = (req, res) => {
     const info = db
       .prepare(
         `INSERT INTO meeting_minutes
-         (lugar, fecha, hora_inicio, hora_cierre, tema, attendees_json, topics_json, created_by, meeting_id, transcript_text, audio_path,
+         (lugar, fecha, hora_inicio, hora_cierre, tema, department, attendees_json, topics_json, created_by, meeting_id, transcript_text, audio_path,
           tema_principal_json, desarrollo_json, acuerdos_json,
           next_meeting_planned, next_meeting_fecha, next_meeting_hora, next_meeting_hora_fin,
           next_meeting_lugar, next_meeting_location_type, next_meeting_scheduled_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         n.lugar,
@@ -334,6 +384,7 @@ const createMinute = (req, res) => {
         n.hora_inicio,
         n.hora_cierre,
         n.tema,
+        n.department,
         JSON.stringify(n.attendees),
         JSON.stringify(n.topics),
         created_by,
@@ -398,7 +449,7 @@ const updateMinute = (req, res) => {
 
     db.prepare(
       `UPDATE meeting_minutes SET
-        lugar = ?, fecha = ?, hora_inicio = ?, hora_cierre = ?, tema = ?,
+        lugar = ?, fecha = ?, hora_inicio = ?, hora_cierre = ?, tema = ?, department = ?,
         attendees_json = ?, topics_json = ?, meeting_id = ?, transcript_text = ?, audio_path = ?,
         tema_principal_json = ?, desarrollo_json = ?, acuerdos_json = ?,
         next_meeting_planned = ?, next_meeting_fecha = ?, next_meeting_hora = ?, next_meeting_hora_fin = ?,
@@ -411,6 +462,7 @@ const updateMinute = (req, res) => {
       n.hora_inicio,
       n.hora_cierre,
       n.tema,
+      n.department,
       JSON.stringify(n.attendees),
       JSON.stringify(n.topics),
       n.meeting_id,

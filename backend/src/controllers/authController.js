@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
 const { getDb } = require('../database/init');
 const { getPermissionLevel } = require('../utils/roleUtils');
 
@@ -92,12 +94,25 @@ function buildUserProfile(user) {
     name: user.name,
     apellido: user.apellido || '',
     email: user.email,
+    telefono: user.telefono || '',
     role: user.role,
     permission_level: getPermissionLevel(db, user.role),
     departamento: user.departamento || '',
     puesto: user.puesto || '',
     avatar_url: user.avatar_url || '',
   };
+}
+
+function deleteAvatarFileIfExists(avatarUrl) {
+  if (!avatarUrl || typeof avatarUrl !== 'string') return;
+  const raw = avatarUrl.replace(/^\/api\/uploads\//, '').replace(/^\/+/, '');
+  if (!raw || raw.includes('..')) return;
+  const filePath = path.join(__dirname, '../../data/uploads', raw);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (err) {
+    console.warn('[avatar] No se pudo borrar archivo:', err.message);
+  }
 }
 
 function me(req, res) {
@@ -113,16 +128,73 @@ function uploadAvatar(req, res) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Selecciona una imagen (JPG, PNG o WebP).' });
     const db = getDb();
+    const prev = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(req.user.id);
     const avatar_url = `/api/uploads/${req.file.filename}`;
     db.prepare('UPDATE users SET avatar_url = ?, updated_at = datetime(\'now\') WHERE id = ?').run(
       avatar_url,
       req.user.id
     );
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (prev?.avatar_url) deleteAvatarFileIfExists(prev.avatar_url);
+    const user = db.prepare(
+      `SELECT id, name, apellido, email, role, departamento, puesto, telefono, avatar_url, is_active, created_at
+       FROM users WHERE id = ?`,
+    ).get(req.user.id);
     return res.json({ message: 'Foto actualizada', user: buildUserProfile(user) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'No se pudo guardar la foto de perfil' });
+  }
+}
+
+function deleteAvatar(req, res) {
+  try {
+    const db = getDb();
+    const prev = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(req.user.id);
+    if (!prev) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+    deleteAvatarFileIfExists(prev.avatar_url);
+    db.prepare(`UPDATE users SET avatar_url = '', updated_at = datetime('now') WHERE id = ?`).run(req.user.id);
+
+    const user = db.prepare(
+      `SELECT id, name, apellido, email, role, departamento, puesto, telefono, avatar_url, is_active, created_at
+       FROM users WHERE id = ?`,
+    ).get(req.user.id);
+
+    return res.json({ message: 'Foto eliminada', user: buildUserProfile(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'No se pudo eliminar la foto de perfil' });
+  }
+}
+
+/** Actualiza el perfil del usuario autenticado (nombre, apellido, teléfono). */
+function updateMyProfile(req, res) {
+  try {
+    const name = String(req.body?.name ?? '').trim();
+    const apellido = String(req.body?.apellido ?? '').trim();
+    const telefono = String(req.body?.telefono ?? '').trim();
+
+    if (!name) return res.status(400).json({ error: 'El nombre es obligatorio.' });
+    if (name.length > 80) return res.status(400).json({ error: 'El nombre es demasiado largo.' });
+    if (apellido.length > 80) return res.status(400).json({ error: 'El apellido es demasiado largo.' });
+    if (telefono.length > 40) return res.status(400).json({ error: 'El teléfono es demasiado largo.' });
+
+    const db = getDb();
+    db.prepare(
+      `UPDATE users SET name = ?, apellido = ?, telefono = ?, updated_at = datetime('now') WHERE id = ?`,
+    ).run(name, apellido, telefono, req.user.id);
+
+    const user = db.prepare(
+      `SELECT id, name, apellido, email, role, departamento, puesto, telefono, avatar_url, is_active, created_at
+       FROM users WHERE id = ?`,
+    ).get(req.user.id);
+
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+    return res.json({ message: 'Perfil actualizado.', user: buildUserProfile(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'No se pudo actualizar el perfil.' });
   }
 }
 
@@ -168,4 +240,4 @@ function toggleUser(req, res) {
   return res.json({ message: `Usuario ${user.is_active ? 'desactivado' : 'activado'}.` });
 }
 
-module.exports = { login, refresh, me, uploadAvatar, getUsers, createUser, toggleUser };
+module.exports = { login, refresh, me, uploadAvatar, deleteAvatar, updateMyProfile, getUsers, createUser, toggleUser };

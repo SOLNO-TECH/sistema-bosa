@@ -107,6 +107,29 @@ function deleteMeetingWithChildren(db, meetingId) {
   db.prepare('DELETE FROM meetings WHERE id = ?').run(meetingId);
 }
 
+/** Minutas vinculadas a reuniones que ya no existen (p. ej. borradas antes del cascade). */
+function cleanupOrphanedMeetingMinutes(db) {
+  const orphans = db
+    .prepare(
+      `SELECT m.id
+       FROM meeting_minutes m
+       WHERE m.meeting_id IS NOT NULL
+         AND m.meeting_id > 0
+         AND NOT EXISTS (SELECT 1 FROM meetings mt WHERE mt.id = m.meeting_id)`,
+    )
+    .all();
+
+  for (const row of orphans) {
+    deleteMinuteWithAudio(db, row.id);
+  }
+
+  if (orphans.length > 0) {
+    console.log(`[DB] Minutas huérfanas eliminadas: ${orphans.length}`);
+  }
+
+  return orphans.length;
+}
+
 /**
  * Elimina un usuario y todo el contenido vinculado a él.
  * Los registros de otros usuarios se conservan; solo se quitan referencias mínimas
@@ -182,4 +205,6 @@ function createPurgeUserTransaction(db) {
 module.exports = {
   purgeUserData,
   createPurgeUserTransaction,
+  deleteMeetingWithChildren,
+  cleanupOrphanedMeetingMinutes,
 };

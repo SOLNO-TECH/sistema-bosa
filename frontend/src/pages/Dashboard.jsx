@@ -8,14 +8,17 @@ import TicketsModule from '../components/modules/TicketsModule';
 import TasksModule from '../components/modules/TasksModule';
 import AvisosModule from '../components/modules/AvisosModule';
 import CalendarModule from '../components/modules/CalendarModule';
+import MinutasModule from '../components/modules/MinutasModule';
+import CronogramaModule from '../components/modules/CronogramaModule';
 import ForoModule from '../components/modules/ForoModule';
 import KnowledgeModule from '../components/modules/KnowledgeModule';
-import CronogramaModule from '../components/modules/CronogramaModule';
+import DashboardActivityFeed from '../components/DashboardActivityFeed';
 import axios from 'axios';
 import NotificationsModule from '../components/modules/NotificationsModule';
 import NotificationHeaderPanel from '../components/NotificationHeaderPanel';
 import { SolnoSidebarCredit } from '../components/SolnoBrandMark';
 import AppVersionBadge from '../components/AppVersionBadge';
+import UserAvatar from '../components/UserAvatar';
 import ToastContainer from '../components/ToastContainer';
 import {
   showIncomingNotificationToast,
@@ -36,6 +39,7 @@ import {
   shouldShowNavNew,
 } from '../utils/navModuleNew';
 import { localDateYMD, parseYMD } from '../utils/localDate';
+import { isManualMinuteForListing } from '../utils/minuteContent';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -79,6 +83,11 @@ const IconKnowledge = () => (
 const IconCronograma = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h12M3 18h7.5M16.5 7.5v12m0 0l-2.25-2.25M16.5 19.5l2.25-2.25" />
+  </svg>
+);
+const IconMinutas = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
   </svg>
 );
 
@@ -294,7 +303,7 @@ export default function Dashboard() {
     if (data.module === 'avisos') setActive('avisos');
     else if (data.module === 'calendar') setActive('calendar');
     else if (data.module === 'foro') setActive('foro');
-    else if (data.module === 'minutas') setActive('calendar');
+    else if (data.module === 'minutas') setActive('minutas');
     else if (data.module === 'tasks') setActive('tasks');
     else setActive('notifications');
   };
@@ -337,6 +346,9 @@ export default function Dashboard() {
     if (itemId === 'notifications') {
       return active === 'notifications' ? 0 : unreadCount;
     }
+    if (itemId === 'foro') {
+      return active === 'foro' ? 0 : (navBadges.foro ?? 0);
+    }
     if (itemId === active && NAV_BADGE_MODULES.includes(itemId)) return 0;
     return navBadges[itemId] ?? 0;
   };
@@ -344,6 +356,24 @@ export default function Dashboard() {
   const goToModule = (moduleId) => {
     setActive(moduleId);
     setSidebar(false);
+  };
+
+  const handleOpenActivity = (item) => {
+    if (!item?.module) return;
+    if (item.module === 'tickets' && item.related_id) {
+      setPendingTicketOpen({ id: Number(item.related_id), tab: 'info' });
+      goToModule('tickets');
+      return;
+    }
+    if (item.module === 'tasks') {
+      goToModule('tasks');
+      return;
+    }
+    if (item.module === 'users' && user?.role !== 'superadmin') {
+      goToModule('overview');
+      return;
+    }
+    goToModule(item.module);
   };
 
   /** Al entrar a un módulo, quitar badge (ya “viste” ese apartado). */
@@ -414,12 +444,14 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const [uRes, mRes, tRes, aRes, taskRes] = await Promise.all([
+      const [uRes, mRes, tRes, aRes, taskRes, minRes, forumRes] = await Promise.all([
         axios.get('/api/users'),
         axios.get('/api/meetings'),
         axios.get('/api/tickets'),
         axios.get('/api/avisos'),
         axios.get('/api/ticket-tasks').catch(() => ({ data: [] })),
+        axios.get('/api/minutes').catch(() => ({ data: [] })),
+        axios.get('/api/forums').catch(() => ({ data: [] })),
       ]);
 
       const users = Array.isArray(uRes.data) ? uRes.data : [];
@@ -427,6 +459,8 @@ export default function Dashboard() {
       const tickets = Array.isArray(tRes.data) ? tRes.data : [];
       const avisos = Array.isArray(aRes.data) ? aRes.data : [];
       const ticketTasks = Array.isArray(taskRes.data) ? taskRes.data : [];
+      const minutes = Array.isArray(minRes.data) ? minRes.data : [];
+      const forums = Array.isArray(forumRes.data) ? forumRes.data : [];
       const uid = user?.id;
 
       const todayStr = localDateYMD();
@@ -488,11 +522,17 @@ export default function Dashboard() {
           (t) => t.updated_at || t.created_at,
           isMyOpenTask
         ),
+        foro: forums.reduce((sum, g) => sum + (Number(g.unread_count) || 0), 0),
         avisos: countUnseenSince(
           avisos,
           seen.avisos,
           (a) => a.created_at,
           isActiveAviso
+        ),
+        minutas: countUnseenSince(
+          minutes.filter(isManualMinuteForListing),
+          seen.minutas,
+          (m) => m.created_at || m.fecha
         ),
       });
 
@@ -516,6 +556,7 @@ export default function Dashboard() {
         items: [
           { id: 'overview', label: 'Resumen General', icon: <IconGrid /> },
           { id: 'calendar', label: 'Calendario', icon: <IconCalendar /> },
+          { id: 'minutas', label: 'Minutas', icon: <IconMinutas /> },
         ],
       },
       {
@@ -562,10 +603,14 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="flex-shrink-0 border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-navy-900">
-            <span className="font-display text-gold text-base font-bold">{user?.name?.charAt(0)}</span>
-          </div>
+        <div className="flex-shrink-0 border-b border-surface px-5 py-4 bg-gold/5 flex items-center gap-3.5">
+          <UserAvatar
+            name={user?.name}
+            apellido={user?.apellido}
+            avatarUrl={user?.avatar_url}
+            size="lg"
+            className="sidebar-user-avatar"
+          />
           <div className="flex flex-col min-w-0">
             <span className="text-slate-text text-[11px] font-bold truncate tracking-wide">{user?.name} {user?.apellido}</span>
             <span className="text-gold text-[9px] font-bold mt-1 uppercase tracking-widest">{ROLE_LABELS[user?.role] || user?.role || ''}</span>
@@ -623,15 +668,14 @@ export default function Dashboard() {
               : 'z-20 bg-white/90 backdrop-blur-md'
           }`}
         >
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+          <div className="flex items-center gap-4 min-w-0 flex-1 lg:flex-none">
+            <button onClick={() => setSidebar(true)} className="lg:hidden text-navy-600 hover:text-gold" aria-label="Abrir menú">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 7h14" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h8" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 17h14" />
+              </svg>
             </button>
-              <div className="flex items-center gap-4">
-                <h2 className="font-sans text-lg font-semibold tracking-tight text-navy-950 sm:text-xl">
-                  {allSections.flatMap(s => s.items).find(i => i.id === active)?.label ?? 'Resumen General'}
-                </h2>
-              </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center pl-2 border-l border-gray-200 relative">
@@ -697,6 +741,8 @@ export default function Dashboard() {
             <CronogramaModule />
           ) : active === 'calendar' ? (
             <CalendarModule />
+          ) : active === 'minutas' ? (
+            <MinutasModule />
           ) : active === 'settings' ? <ConfigModule /> : active === 'overview' ? (
             <div className="space-y-6">
               <div className="dashboard-welcome">
@@ -722,48 +768,56 @@ export default function Dashboard() {
                 <MetricCard title="Avisos" value={stats.avisos} sub="Comunicados enviados" icon={<IconFinance />} onClick={() => setActive('avisos')} />
               </div>
 
-              {/* ── Gráficas ── */}
+              {/* ── Gráficas + actividad reciente ── */}
               {(() => {
                 const chartData = CHART_DATA_KEYS.map(({ key, name, color }) => ({
                   name, color, value: stats[key] ?? 0,
                 }));
                 const total = chartData.reduce((s, d) => s + d.value, 0);
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="dashboard-overview-charts grid grid-cols-1 xl:grid-cols-3 gap-4 xl:items-stretch">
+
+                    <div className="dashboard-charts-panel xl:col-span-2">
 
                     {/* Gráfica de barras */}
-                    <div className="rounded-sm border border-gray-200 bg-white shadow-sm p-6">
-                      <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Resumen de Actividad</p>
-                      <p className="font-sans text-navy-500 text-xs mt-0.5 mb-6">Comparativa entre módulos principales</p>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={chartData} barSize={42} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                          <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
-                          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                            {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="dashboard-chart-card">
+                      <div className="dashboard-chart-card__head">
+                        <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Resumen de Actividad</p>
+                        <p className="font-sans text-navy-500 text-xs mt-0.5">Comparativa entre módulos principales</p>
+                      </div>
+                      <div className="dashboard-chart-card__body">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData} barSize={48} margin={{ top: 8, right: 8, left: -16, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                            <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
 
                     {/* Gráfica de pastel */}
-                    <div className="rounded-sm border border-gray-200 bg-white shadow-sm p-6">
-                      <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Distribución General</p>
-                      <p className="font-sans text-navy-500 text-xs mt-0.5 mb-4">Proporción entre módulos</p>
-                      <div className="flex items-center gap-6">
-                        <div style={{ width: 170, height: 220, flexShrink: 0 }}>
+                    <div className="dashboard-chart-card">
+                      <div className="dashboard-chart-card__head">
+                        <p className="font-sans font-bold text-navy-950 text-sm tracking-wide">Distribución General</p>
+                        <p className="font-sans text-navy-500 text-xs mt-0.5">Proporción entre módulos</p>
+                      </div>
+                      <div className="dashboard-chart-card__body dashboard-chart-card__body--pie">
+                        <div className="dashboard-chart-card__pie-wrap">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                              <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={76} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                              <Pie data={chartData} cx="50%" cy="50%" innerRadius="42%" outerRadius="68%" paddingAngle={3} dataKey="value" strokeWidth={0}>
                                 {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                               </Pie>
                               <Tooltip content={<PieTooltip />} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
-                        <div className="flex-1 space-y-4">
+                        <div className="dashboard-chart-card__legend flex-1 space-y-4">
                           {chartData.map((item) => {
                             const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
                             return (
@@ -791,6 +845,9 @@ export default function Dashboard() {
                       </div>
                     </div>
 
+                    </div>
+
+                    <DashboardActivityFeed onOpenItem={handleOpenActivity} />
                   </div>
                 );
               })()}

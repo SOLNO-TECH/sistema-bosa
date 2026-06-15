@@ -8,9 +8,16 @@ import AppVersionBadge from '../AppVersionBadge';
 import BosaGoldButton from '../BosaGoldButton';
 
 export default function ConfigModule() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, updateUser } = useAuth();
   const avatarInputRef = useRef(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarRemoving, setAvatarRemoving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    apellido: '',
+    telefono: '',
+  });
   const [activeTab, setActiveTab] = useState('profile');
   const [notis, setNotis] = useState({ emailAlerts: true, systemAlerts: true, newLogins: false, weeklyReports: true });
   const [prefs, setPrefs] = useState({ language: 'es', timezone: 'America/Mexico_City', dateFormat: 'DD/MM/YYYY' });
@@ -19,6 +26,15 @@ export default function ConfigModule() {
   const [pushOn, setPushOn] = useState(() => isEnabled());
 
   const handleToggle = (key) => setNotis({ ...notis, [key]: !notis[key] });
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileForm({
+      name: user.name || '',
+      apellido: user.apellido || '',
+      telefono: user.telefono || '',
+    });
+  }, [user?.id, user?.name, user?.apellido, user?.telefono]);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -35,13 +51,51 @@ export default function ConfigModule() {
     try {
       const fd = new FormData();
       fd.append('avatar', file);
-      await axios.post('/api/auth/me/avatar', fd);
-      await refreshUser?.();
+      const { data } = await axios.post('/api/auth/me/avatar', fd);
+      if (data?.user) updateUser(data.user);
+      else await refreshUser?.();
     } catch (err) {
       alert(err?.response?.data?.error || err?.response?.data?.message || 'No se pudo subir la foto');
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user?.avatar_url?.trim()) return;
+    if (!window.confirm('¿Quitar tu fotografía de perfil? Se mostrarán tus iniciales.')) return;
+    setAvatarRemoving(true);
+    try {
+      const { data } = await axios.delete('/api/auth/me/avatar');
+      if (data?.user) updateUser(data.user);
+      else await refreshUser?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || err?.response?.data?.message || 'No se pudo quitar la foto');
+    } finally {
+      setAvatarRemoving(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.name.trim()) {
+      alert('El nombre es obligatorio.');
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      const { data } = await axios.put('/api/auth/me', {
+        name: profileForm.name.trim(),
+        apellido: profileForm.apellido.trim(),
+        telefono: profileForm.telefono.trim(),
+      });
+      if (data?.user) updateUser(data.user);
+      else await refreshUser?.();
+      alert('Perfil actualizado correctamente.');
+    } catch (err) {
+      alert(err?.response?.data?.error || err?.response?.data?.message || 'No se pudo guardar el perfil.');
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -176,39 +230,90 @@ export default function ConfigModule() {
                       className="hidden"
                       onChange={handleAvatarUpload}
                     />
-                    <button
-                      type="button"
-                      disabled={avatarUploading}
-                      onClick={() => avatarInputRef.current?.click()}
-                      className="mt-2 px-4 py-1.5 rounded-lg border border-gray-300 text-navy-600 hover:border-gold hover:text-gold transition-all text-xs font-bold uppercase tracking-wide disabled:opacity-50"
-                    >
-                      {avatarUploading ? 'Subiendo…' : 'Cambiar fotografía'}
-                    </button>
-                    <p className="text-[10px] text-navy-400 mt-1">JPG o PNG, máx. 3 MB. Se verá en el cronograma y reuniones.</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={avatarUploading || avatarRemoving}
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="px-4 py-1.5 rounded-lg border border-gray-300 text-navy-600 hover:border-gold hover:text-gold transition-all text-xs font-bold uppercase tracking-wide disabled:opacity-50"
+                      >
+                        {avatarUploading ? 'Subiendo…' : 'Cambiar fotografía'}
+                      </button>
+                      {user?.avatar_url?.trim() ? (
+                        <button
+                          type="button"
+                          disabled={avatarUploading || avatarRemoving}
+                          onClick={handleAvatarRemove}
+                          className="px-4 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-all text-xs font-bold uppercase tracking-wide disabled:opacity-50"
+                        >
+                          {avatarRemoving ? 'Quitando…' : 'Quitar fotografía'}
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="text-[10px] text-navy-400 mt-1">
+                      JPG o PNG, máx. 3 MB. Sin foto se muestran tus iniciales.
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
-                    <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Nombre Completo</label>
-                    <input type="text" defaultValue={user?.name} className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white" />
+                    <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Nombre</label>
+                    <input
+                      type="text"
+                      required
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm((f) => ({ ...f, name: e.target.value }))}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Apellido</label>
+                    <input
+                      type="text"
+                      value={profileForm.apellido}
+                      onChange={(e) => setProfileForm((f) => ({ ...f, apellido: e.target.value }))}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Correo Electrónico</label>
-                    <input type="email" defaultValue={user?.email} className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white" />
+                    <input
+                      type="email"
+                      readOnly
+                      value={user?.email || ''}
+                      className="w-full border-2 border-gray-100 rounded-lg px-4 py-2.5 text-gray-500 bg-gray-50 cursor-not-allowed"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Teléfono</label>
-                    <input type="tel" placeholder="+52 55 0000 0000" className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white" />
+                    <input
+                      type="tel"
+                      value={profileForm.telefono}
+                      onChange={(e) => setProfileForm((f) => ({ ...f, telefono: e.target.value }))}
+                      placeholder="+52 55 0000 0000"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-navy-950 placeholder-gray-400 focus:border-gold focus:ring-1 focus:ring-gold outline-none transition-all bg-white"
+                    />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 md:col-span-2">
                     <label className="font-label font-bold text-navy-950 text-[10px] tracking-wider uppercase">Rol Actual</label>
-                    <input type="text" disabled defaultValue={user?.role === 'superadmin' ? 'Super Administrador' : user?.role === 'manager' ? 'Gerente' : 'Administrador'} className="w-full border-2 border-gray-100 rounded-lg px-4 py-2.5 text-gray-400 bg-gray-50 cursor-not-allowed" />
+                    <input
+                      type="text"
+                      disabled
+                      value={user?.role === 'superadmin' ? 'Super Administrador' : user?.role === 'manager' ? 'Gerente' : 'Administrador'}
+                      className="w-full border-2 border-gray-100 rounded-lg px-4 py-2.5 text-gray-400 bg-gray-50 cursor-not-allowed"
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <BosaGoldButton icon="save" type="button" aria-label="Guardar cambios">
-                    Guardar cambios
+                  <BosaGoldButton
+                    icon="save"
+                    type="button"
+                    aria-label="Guardar cambios"
+                    disabled={profileSaving}
+                    onClick={handleSaveProfile}
+                  >
+                    {profileSaving ? 'Guardando…' : 'Guardar cambios'}
                   </BosaGoldButton>
                 </div>
               </div>

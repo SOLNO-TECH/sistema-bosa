@@ -34,3 +34,14 @@ export function formatDateShort(ymd, locale = 'es-MX') {
   const d = parseYMD(ymd);
   return d ? d.toLocaleDateString(locale, { day: '2-digit', month: 'short' }) : ymd;
 }
+
+/** Texto legible del tramo de la tarea en el calendario operativo. */
+export function formatTaskScheduleLabel(startYmd, endYmd, locale = 'es-MX') {
+  const start = formatDateShort(startYmd, locale);
+  const end = formatDateShort(endYmd, locale);
+  if (!start && !end) return '';
+  if (!start) return `Concluye el día ${end}`;
+  if (!end) return `Tarea creada el día ${start}`;
+  if (start === end) return `Tarea creada y concluye el día ${start}`;
+  return `Tarea creada el día ${start} y concluye el día ${end}`;
+}

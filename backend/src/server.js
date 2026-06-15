@@ -81,6 +81,8 @@ app.use('/api/minutes', require('./routes/minutes'));
 app.use('/api/forums', require('./routes/forums'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/knowledge', require('./routes/knowledge'));
+app.use('/api/activity', require('./routes/activity'));
 
 // Archivos subidos — servir con headers de seguridad para evitar ejecución de HTML/SVG malicioso
 app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads'), {

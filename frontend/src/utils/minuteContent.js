@@ -158,9 +158,47 @@ export function emptyLegacyTopics() {
  * Payload al guardar desde minuta Saya (sin Pro): solo metadatos, audio y transcripción.
  * El análisis IA no se persiste; el backend refuerza esto con save_source.
  */
+/** Minuta generada con Saya (voz) desde el calendario — no es acta manual. */
+export function isSayaVoiceMinute(minute) {
+  if (!minute) return false;
+  const meetingId = Number(minute.meeting_id);
+  if (!Number.isFinite(meetingId) || meetingId <= 0) return false;
+  if (minuteHasPlayableAudio(minute)) return true;
+  if (String(minute.audio_path ?? '').trim()) return true;
+  if (String(minute.transcript_text ?? '').trim()) return true;
+  return false;
+}
+
+/** Actas manuales: creadas a mano o desde «Minuta manual» en reunión (sin flujo Saya). */
+export function isManualMinuteForListing(minute) {
+  return !isSayaVoiceMinute(minute);
+}
+
 /** Audio Saya guardado y aún disponible (no expirado). */
 export function minuteHasPlayableAudio(minute) {
   return Boolean(minute?.audio_available && (minute?.audio_url || minute?.audio_path));
+}
+
+/** Fuente de audio para escuchar: la minuta actual o la grabación vinculada a la reunión. */
+export function resolveMinuteAudio(minute) {
+  if (!minute) return null;
+  if (minuteHasPlayableAudio(minute)) {
+    return {
+      minuteId: minute.id,
+      audioUrl: minute.audio_url,
+      expiresAt: minute.audio_expires_at,
+      permanent: minute.audio_permanent,
+    };
+  }
+  if (minute.meeting_audio_available && minute.meeting_audio_url) {
+    return {
+      minuteId: minute.meeting_audio_minute_id,
+      audioUrl: minute.meeting_audio_url,
+      expiresAt: minute.meeting_audio_expires_at,
+      permanent: minute.meeting_audio_permanent,
+    };
+  }
+  return null;
 }
 
 export function formatAudioExpiryHint(minute) {

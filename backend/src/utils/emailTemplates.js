@@ -296,7 +296,7 @@ const getTaskEmailTemplate = (name, task) => {
       <p><strong>Inicio:</strong> ${fmt(task.start_date)}</p>
       <p><strong>Fin:</strong> ${fmt(task.end_date)}</p>
     </div>
-    <p style="margin-top: 20px;">Revisa el cronograma de <strong>Tareas operativas</strong> o el ticket en BOSA HUB para actualizar el estado.</p>
+    <p style="margin-top: 20px;">Revisa el calendario de <strong>Tareas operativas</strong> o el ticket en BOSA HUB para actualizar el estado.</p>
   </div>
   <div class="footer">
     &copy; ${new Date().getFullYear()} BOSA. Sistema Operativo Central.

@@ -24,7 +24,11 @@ const getTickets = (req, res) => {
   try {
     const db = getDb();
     const tickets = db.prepare(`
-      SELECT t.*, u1.name as assigned_name, u2.name as creator_name 
+      SELECT t.*,
+        u1.name as assigned_name,
+        u1.apellido as assigned_apellido,
+        u1.avatar_url as assigned_avatar_url,
+        u2.name as creator_name
       FROM tickets t
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
@@ -42,7 +46,11 @@ const getTicketDetails = (req, res) => {
     const db = getDb();
     
     const ticket = db.prepare(`
-      SELECT t.*, u1.name as assigned_name, u2.name as creator_name 
+      SELECT t.*,
+        u1.name as assigned_name,
+        u1.apellido as assigned_apellido,
+        u1.avatar_url as assigned_avatar_url,
+        u2.name as creator_name
       FROM tickets t
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
@@ -52,7 +60,7 @@ const getTicketDetails = (req, res) => {
     if (!ticket) return res.status(404).json({ error: 'Ticket no encontrado' });
 
     const comments = db.prepare(`
-      SELECT c.*, u.name as user_name 
+      SELECT c.*, u.name as user_name, u.apellido as user_apellido, u.avatar_url as user_avatar_url
       FROM ticket_comments c
       JOIN users u ON c.user_id = u.id
       WHERE c.ticket_id = ?

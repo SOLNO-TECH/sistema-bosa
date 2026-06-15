@@ -35,6 +35,7 @@ router.get('/by-ticket/:ticketId', ctrl.listTasksByTicket);
 router.post('/by-ticket/:ticketId', ctrl.createTask);
 router.get('/:id', ctrl.getTaskDetail);
 router.post('/:id/comments', ctrl.addTaskComment);
+router.post('/:id/request-completion', ctrl.requestTaskCompletion);
 router.post('/:id/attachments', upload.single('file'), ctrl.uploadTaskAttachment);
 router.delete('/:id/attachments/:attachmentId', ctrl.deleteTaskAttachment);
 router.patch('/:id', ctrl.updateTask);

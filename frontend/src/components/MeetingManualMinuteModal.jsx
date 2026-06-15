@@ -4,7 +4,9 @@ import axios from 'axios';
 import {
   MEETING_LOCATION_OPTIONS,
   meetingPlaceLabelForType,
+  meetingPlaceLabelFromMeeting,
   addMinutesToTime,
+  asistenciaForMeetingUser,
 } from '../utils/meetingSchedule';
 import BosaGoldButton from './BosaGoldButton';
 import {
@@ -44,8 +46,7 @@ function isoToTimeInput(iso) {
 }
 
 function meetingPlaceLabel(meeting) {
-  if (!meeting) return '';
-  return meetingPlaceLabelForType(meeting.location_type === 'virtual' ? 'virtual' : 'sala_juntas');
+  return meetingPlaceLabelFromMeeting(meeting);
 }
 
 function NextMeetingLocationIcon({ type, className = 'h-6 w-6' }) {
@@ -78,11 +79,12 @@ function buildFormFromMeeting(meeting, dbUsers) {
   ).map((u) => ({
     nombre: userFullName(u),
     cargo: [u.puesto, u.departamento].filter(Boolean).join(' · ') || '',
-    asistencia: 'Presente',
+    asistencia: asistenciaForMeetingUser(meeting, u.id),
   }));
 
   return {
     lugar: meetingPlaceLabel(meeting),
+    department: meeting?.department || '',
     fecha: isoToDateInput(meeting?.start_time),
     hora_inicio: isoToTimeInput(meeting?.start_time),
     hora_cierre: isoToTimeInput(meeting?.end_time),
@@ -104,6 +106,7 @@ function buildFormFromMeeting(meeting, dbUsers) {
 function buildFormFromMinute(data) {
   return {
     lugar: data.lugar || '',
+    department: data.department || '',
     fecha: data.fecha || '',
     hora_inicio: data.hora_inicio || '',
     hora_cierre: data.hora_cierre || '',
@@ -300,6 +303,7 @@ export default function MeetingManualMinuteModal({
     try {
       const payload = {
         lugar: form.lugar,
+        department: form.department || null,
         fecha: form.fecha,
         hora_inicio: form.hora_inicio,
         hora_cierre: form.hora_cierre,
@@ -400,6 +404,12 @@ export default function MeetingManualMinuteModal({
                   <p className="meeting-sheet__cell-label">Lugar</p>
                   <p className="meeting-sheet__cell-value">{form.lugar || '—'}</p>
                 </div>
+                {form.department ? (
+                  <div className="sm:col-span-2">
+                    <p className="meeting-sheet__cell-label">Departamento</p>
+                    <p className="meeting-sheet__cell-value">{form.department}</p>
+                  </div>
+                ) : null}
               </div>
               <div className="meeting-sheet__cell">
                 <p className="meeting-sheet__cell-label">Asistentes</p>

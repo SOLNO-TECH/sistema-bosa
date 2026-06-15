@@ -12,7 +12,7 @@ import {
   canManageDeptAsManager,
   canCreateStandaloneTask as canCreateStandalone,
 } from '../../utils/permissions';
-import { localDateYMD, parseYMD, formatDateShort } from '../../utils/localDate';
+import { localDateYMD, parseYMD, formatDateShort, formatTaskScheduleLabel } from '../../utils/localDate';
 
 const TASK_STATUS = {
   pending: { label: 'Pendiente', color: '#94a3b8', accent: '#64748b' },
@@ -55,6 +55,19 @@ function canParticipateOnTask(authUser, row) {
   return false;
 }
 
+function isTaskAssignee(authUser, task) {
+  return Boolean(task && authUser && Number(task.assigned_to) === Number(authUser.id));
+}
+
+function isTaskTicketCoordinator(authUser, task) {
+  return Boolean(
+    task &&
+      authUser &&
+      task.ticket_assigned_to != null &&
+      Number(task.ticket_assigned_to) === Number(authUser.id),
+  );
+}
+
 /** Creador de la tarea o del ticket vinculado (o superadmin). */
 function isTaskOrTicketCreator(authUser, row) {
   if (!authUser || !row) return false;
@@ -66,12 +79,6 @@ function isTaskOrTicketCreator(authUser, row) {
 
 function canViewTaskDetail(authUser, row) {
   return canParticipateOnTask(authUser, row);
-}
-
-/** Asignado sin ser creador: solo lectura al abrir la tarea. */
-function isAssigneeViewOnly(authUser, row) {
-  if (!authUser || !row) return false;
-  return Number(row.assigned_to) === Number(authUser.id) && !isTaskOrTicketCreator(authUser, row);
 }
 
 function canDeleteTaskAttachment(authUser, task, file) {
@@ -131,8 +138,14 @@ function AssigneeBlock({ task, size = 'sm' }) {
   const name = [task.assignee_name, task.assignee_apellido].filter(Boolean).join(' ') || 'Sin asignar';
   const dept = (task.assignee_departamento || taskDept(task) || '').trim();
   const puesto = (task.assignee_puesto || '').trim();
+  const textSizes =
+    size === 'xs'
+      ? { name: 'text-xs', meta: 'text-[10px]', dept: 'text-[9px]', gap: 'gap-2.5' }
+      : size === 'md'
+        ? { name: 'text-base', meta: 'text-[13px]', dept: 'text-[12px]', gap: 'gap-3.5' }
+        : { name: 'text-sm', meta: 'text-[12px]', dept: 'text-[11px]', gap: 'gap-3' };
   return (
-    <div className="flex items-center gap-2.5 min-w-0">
+    <div className={`flex items-center min-w-0 ${textSizes.gap}`}>
       <UserAvatar
         name={task.assignee_name}
         apellido={task.assignee_apellido}
@@ -140,10 +153,10 @@ function AssigneeBlock({ task, size = 'sm' }) {
         size={size}
       />
       <div className="min-w-0">
-        <p className="text-xs font-bold text-navy-950 truncate">{name}</p>
-        {puesto ? <p className="text-[10px] text-navy-500 truncate">{puesto}</p> : null}
+        <p className={`${textSizes.name} font-bold text-navy-950 truncate`}>{name}</p>
+        {puesto ? <p className={`${textSizes.meta} text-navy-500 truncate`}>{puesto}</p> : null}
         {dept ? (
-          <p className="text-[9px] text-navy-400 truncate mt-0.5">Depto. {dept}</p>
+          <p className={`${textSizes.dept} text-navy-400 truncate mt-0.5`}>Depto. {dept}</p>
         ) : null}
       </div>
     </div>
@@ -174,9 +187,55 @@ function TaskMetaChips({ task }) {
   );
 }
 
-const BAR_COLORS = ['#1e3a5f', '#2d5f8f', '#CBAC80', '#3b82f6', '#0d9488', '#7c3aed'];
+function ConfirmTaskIcon() {
+  return (
+    <span className="tasks-module__action-icon-wrap tasks-module__action-icon-wrap--confirm" aria-hidden>
+      <svg
+        className="tasks-module__action-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </span>
+  );
+}
+
+const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 const MOBILE_MQ = '(max-width: 767px)';
+
+/** Tono del chip según cumplimiento en la fecha de término (end_date). */
+function getTaskDeadlineTone(task) {
+  if (task?.status === 'done') return 'done';
+  if (task?.status === 'cancelled') return 'cancelled';
+  const end = parseYMD(task?.end_date);
+  const today = parseYMD(localDateYMD());
+  if (end && today && end.getTime() < today.getTime()) return 'overdue';
+  return 'pending';
+}
+
+function getTaskDeadlineChipClass(task) {
+  const tone = getTaskDeadlineTone(task);
+  const base =
+    'calendar-meeting-chip w-full text-left text-[9px] p-1 rounded border-l-2 truncate font-bold uppercase tracking-tight transition-colors';
+  if (tone === 'done') return `${base} tasks-calendar-chip--done`;
+  if (tone === 'overdue') return `${base} tasks-calendar-chip--overdue`;
+  if (tone === 'cancelled') return `${base} tasks-calendar-chip--cancelled`;
+  return `${base} calendar-meeting-chip--no-minute`;
+}
+
+function getTaskDeadlineLabel(task) {
+  const tone = getTaskDeadlineTone(task);
+  if (tone === 'done') return 'Cumplida';
+  if (tone === 'overdue') return 'Vencida / no cumplida';
+  if (tone === 'cancelled') return 'Cancelada';
+  return '';
+}
 
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => {
@@ -193,370 +252,19 @@ function useMediaQuery(query) {
   return matches;
 }
 
-/** Icono SVG para tareas sin ticket (sustituye ✦). */
-function StandaloneTaskIcon({ className = 'w-4 h-4' }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-      />
-    </svg>
-  );
-}
-
-function StandaloneTaskBadge({ size = 'md' }) {
-  const box = size === 'sm' ? 'h-8 w-8 rounded-lg' : size === 'xs' ? 'h-7 w-7 rounded-md' : 'h-9 w-9 rounded-lg';
-  const icon = size === 'xs' ? 'w-3.5 h-3.5' : size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]';
-  return (
-    <span
-      className={`shrink-0 flex items-center justify-center bg-navy-950 text-gold shadow-sm ring-1 ring-gold/35 ${box}`}
-      title="Tarea independiente"
-    >
-      <StandaloneTaskIcon className={icon} />
-    </span>
-  );
-}
-
-function StandaloneTaskOrigin({ task, compact = false, showDescription = true }) {
-  const dept = taskDept(task);
-  return (
-    <div
-      className={`flex items-start gap-2.5 rounded-xl border border-gold/35 bg-gradient-to-br from-gold/[0.12] via-white to-navy-950/[0.03] shadow-sm ${
-        compact ? 'p-2.5' : 'p-3'
-      }`}
-    >
-      <StandaloneTaskBadge size={compact ? 'sm' : 'md'} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <p className={`font-semibold text-navy-950 ${compact ? 'text-[10px]' : 'text-xs'}`}>Tarea independiente</p>
-          <span className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-navy-950 text-gold">
-            Sin ticket
-          </span>
-        </div>
-        {dept ? (
-          <p className={`text-navy-500 mt-0.5 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
-            Depto. <span className="font-bold text-navy-700">{dept}</span>
-          </p>
-        ) : null}
-        {showDescription && task.description ? (
-          <p className={`text-navy-600 mt-1 line-clamp-2 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>{task.description}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function TaskOriginBlock({ task, onOpenTicket, compact = false }) {
-  const dept = taskDept(task);
-  const linked = hasTicket(task);
-  if (linked) {
-    return (
-      <div className={`flex items-start gap-2 rounded-lg border border-gray-100 bg-white ${compact ? 'p-2.5 shadow-sm' : 'p-3'}`}>
-        <span className={`shrink-0 flex items-center justify-center rounded-md bg-navy-950 font-black text-gold tabular-nums ${compact ? 'h-9 w-9 text-[10px]' : 'h-8 w-8 text-[10px] rounded-lg'}`}>
-          #{task.ticket_id}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className={`font-semibold text-navy-800 line-clamp-2 ${compact ? 'text-[10px]' : 'text-xs'}`}>{task.ticket_title || 'Sin título'}</p>
-          {dept ? (
-            <p className={`text-navy-500 mt-0.5 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
-              Depto. <span className="font-bold text-navy-700">{dept}</span>
-            </p>
-          ) : null}
-          {onOpenTicket && compact && (
-            <button
-              type="button"
-              onClick={() => onOpenTicket(task.ticket_id)}
-              className="mt-1.5 text-[9px] font-bold uppercase tracking-wide text-navy-950 bg-gold/25 hover:bg-gold/40 px-2 py-1 rounded border border-gold/40"
-            >
-              Abrir ticket #{task.ticket_id}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-  return <StandaloneTaskOrigin task={task} compact={compact} />;
-}
-
-function TaskMobileCard({
-  task,
-  canManage,
-  canDelete,
-  canStatus,
-  canOpenDetail,
-  onOpenTicket,
-  onOpenDetail,
-  onStatusChange,
-  onDelete,
-  onEdit,
-}) {
-  const st = TASK_STATUS[task.status] || TASK_STATUS.pending;
-  const dept = taskDept(task);
-  const duration = taskDurationLabel(task.start_date, task.end_date);
-  const linked = hasTicket(task);
-
-  return (
-    <article className="tasks-module__card">
-      <div className="tasks-module__card-main">
-        <div className="flex items-start justify-between gap-3">
-          {canOpenDetail && onOpenDetail ? (
-            <button
-              type="button"
-              onClick={() => onOpenDetail(task)}
-              className="tasks-module__card-title flex-1 min-w-0 text-left hover:text-gold transition-colors"
-            >
-              {task.title}
-            </button>
-          ) : (
-            <h3 className="tasks-module__card-title flex-1 min-w-0">{task.title}</h3>
-          )}
-          <span
-            className="tasks-module__pill shrink-0"
-            style={{ background: `${st.color}22`, color: st.color }}
-          >
-            {st.label}
-          </span>
-        </div>
-        <div className="tasks-module__card-meta">
-          {dept ? (
-            <span className="tasks-module__pill bg-slate-100 text-slate-600">{dept}</span>
-          ) : null}
-          {linked ? (
-            <span className="tasks-module__pill bg-slate-100 text-slate-600">Ticket #{task.ticket_id}</span>
-          ) : (
-            <span className="tasks-module__pill" style={{ background: 'rgba(203,172,128,0.2)', color: '#78350f' }}>
-              Independiente
-            </span>
-          )}
-          {duration ? (
-            <span className="tasks-module__pill bg-slate-100 text-slate-600">{duration}</span>
-          ) : null}
-        </div>
-        {linked && task.ticket_title ? (
-          <p className="mt-2 line-clamp-2 text-[13px] text-slate-600">{task.ticket_title}</p>
-        ) : null}
-      </div>
-
-      <div className="tasks-module__card-section">
-        <div className="tasks-module__card-dates">
-          <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
-        </div>
-        <div className="mt-3">
-          <AssigneeBlock task={task} size="sm" />
-        </div>
-      </div>
-
-      <div className="tasks-module__card-actions">
-        {canStatus && (
-          <select
-            value={task.status}
-            onChange={(e) => onStatusChange(task.id, e.target.value)}
-            className="tasks-module__field w-full py-2 text-[13px] sm:max-w-[10rem]"
-            aria-label="Cambiar estado"
-          >
-            {Object.entries(TASK_STATUS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-        )}
-        <TaskRowActions
-          task={task}
-          linked={linked}
-          canEvidence={Boolean(onOpenDetail)}
-          canManage={canManage}
-          canDelete={canDelete}
-          onOpenDetail={onOpenDetail}
-          onOpenTicket={onOpenTicket}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      </div>
-    </article>
-  );
-}
-
-function getInitialView() {
-  return 'list';
-}
-
 /** Gerentes y administradores ven todas las tareas visibles sin activar el toggle. */
 function userSeesAllTasksByDefault(authUser) {
   return isAdminUser(authUser) || isManagerUser(authUser);
 }
 
-function TaskEvidenceIcon() {
-  return (
-    <span className="tasks-module__action-icon-wrap tasks-module__action-icon-wrap--evidence" aria-hidden>
-      <svg
-        className="tasks-module__action-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M8 4h7l3 3v13a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z" />
-        <path d="M15 4v3h3" />
-        <path d="M9 13l2 2 3.5-3.5" />
-      </svg>
-    </span>
-  );
-}
-
-/** Misma barra de acciones que en cronograma (Evidencia = action-primary dorado). */
-function TaskRowActions({ task, linked, canEvidence, canManage, canDelete, onOpenDetail, onOpenTicket, onEdit, onDelete }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {canEvidence && onOpenDetail && (
-        <button
-          type="button"
-          onClick={() => onOpenDetail(task)}
-          className="tasks-module__action-primary gap-1.5 px-3 py-2 text-[13px]"
-        >
-          <TaskEvidenceIcon />
-          Evidencia
-        </button>
-      )}
-      {linked && onOpenTicket && (
-        <button
-          type="button"
-          onClick={() => onOpenTicket(task.ticket_id)}
-          className="tasks-module__action-secondary px-3 py-2 text-[13px]"
-        >
-          Ticket
-        </button>
-      )}
-      {canManage && onEdit && (
-        <button
-          type="button"
-          onClick={() => onEdit(task)}
-          className="tasks-module__action-secondary px-3 py-2 text-[13px]"
-        >
-          Editar
-        </button>
-      )}
-      {canDelete && onDelete && (
-        <button type="button" onClick={() => onDelete(task.id)} className="tasks-module__action-danger px-2 py-2">
-          Eliminar
-        </button>
-      )}
-    </div>
-  );
-}
-
-function TasksListTable({
-  tasks,
-  user,
-  onOpenTicket,
-  onOpenDetail,
-  onStatusChange,
-  onDelete,
-  onEdit,
-}) {
-  return (
-    <div className="tasks-module__table-wrap hidden md:block">
-      <table className="tasks-module__table">
-        <thead>
-          <tr>
-            <th>Tarea</th>
-            <th>Origen</th>
-            <th>Responsable</th>
-            <th>Periodo</th>
-            <th>Estado</th>
-            <th className="tasks-module__table-actions-head">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((t) => {
-            const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-            const canOwn = isTaskOrTicketCreator(user, t);
-            const canStatus = canOwn;
-            const canOpenDetail = canViewTaskDetail(user, t);
-            const linked = hasTicket(t);
-            return (
-              <tr key={t.id}>
-                <td>
-                  {canOpenDetail && onOpenDetail ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetail(t)}
-                      className="tasks-module__table-title text-left hover:text-gold transition-colors"
-                    >
-                      {t.title}
-                    </button>
-                  ) : (
-                    <p className="tasks-module__table-title">{t.title}</p>
-                  )}
-                  {t.description ? (
-                    <p className="tasks-module__table-desc">{t.description}</p>
-                  ) : null}
-                </td>
-                <td>
-                  <TaskOriginBlock task={t} onOpenTicket={onOpenTicket} compact />
-                </td>
-                <td>
-                  <AssigneeBlock task={t} size="xs" />
-                </td>
-                <td className="tasks-module__table-dates">
-                  {formatDateShort(t.start_date)}
-                  <span className="text-slate-400"> → </span>
-                  {formatDateShort(t.end_date)}
-                </td>
-                <td>
-                  {canStatus ? (
-                    <select
-                      value={t.status}
-                      onChange={(e) => onStatusChange(t.id, e.target.value)}
-                      className="tasks-module__field tasks-module__table-select py-1.5 text-[13px]"
-                      aria-label={`Estado de ${t.title}`}
-                    >
-                      {Object.entries(TASK_STATUS).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="tasks-module__pill" style={{ background: `${st.color}22`, color: st.color }}>
-                      {st.label}
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <TaskRowActions
-                    task={t}
-                    linked={linked}
-                    canEvidence={canOwn}
-                    canManage={canOwn}
-                    canDelete={canOwn}
-                    onOpenDetail={onOpenDetail}
-                    onOpenTicket={onOpenTicket}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
+function TaskDetailModal({ taskId, onClose, onRefreshList, onOpenTicket }) {
   const { user } = useAuth();
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [requestingCompletion, setRequestingCompletion] = useState(false);
 
   const fetchDetail = async () => {
     if (!taskId) return;
@@ -576,9 +284,37 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
     fetchDetail();
   }, [taskId]);
 
-  const canParticipate = task
-    ? canParticipateOnTask(user, task) && !isAssigneeViewOnly(user, task)
-    : false;
+  const canParticipate = task ? canParticipateOnTask(user, task) : false;
+  const isAssignee = task ? isTaskAssignee(user, task) : false;
+  const isCoordinator = task ? isTaskTicketCoordinator(user, task) : false;
+  const completionPending = Boolean(task?.completion_requested_at);
+  const canReportCompletion =
+    isAssignee && task && !['done', 'cancelled'].includes(task.status) && !completionPending;
+
+  const handleRequestCompletion = async () => {
+    if (!task || requestingCompletion || !canReportCompletion) return;
+    setRequestingCompletion(true);
+    try {
+      await axios.post(`/api/ticket-tasks/${task.id}/request-completion`);
+      await fetchDetail();
+      onRefreshList?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo enviar a revisión');
+    } finally {
+      setRequestingCompletion(false);
+    }
+  };
+
+  const handleApproveTask = async () => {
+    if (!task || !isCoordinator) return;
+    try {
+      await axios.patch(`/api/ticket-tasks/${task.id}`, { status: 'done' });
+      await fetchDetail();
+      onRefreshList?.();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo confirmar la tarea');
+    }
+  };
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !task) return;
@@ -624,7 +360,6 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
   };
 
   const st = task ? (TASK_STATUS[task.status] || TASK_STATUS.pending) : null;
-  const linked = task && hasTicket(task);
 
   return createPortal(
     <div
@@ -652,6 +387,9 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                     {st.label}
                   </span>
                 )}
+                {completionPending && task.status !== 'done' ? (
+                  <span className="meeting-sheet__pill meeting-sheet__pill--review">En revisión</span>
+                ) : null}
               </div>
               <h3 id="task-detail-title" className="meeting-sheet__hero-title truncate">
                 {task?.title || '…'}
@@ -673,20 +411,114 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="meeting-sheet__scroll meeting-sheet__scroll--form flex-1 space-y-4">
               <div className="meeting-sheet__group">
-                <div className="meeting-sheet__cell space-y-2">
-                  <TaskOriginBlock
-                    task={task}
-                    onOpenTicket={linked && onOpenTicket ? () => { onClose(); onOpenTicket(task.ticket_id); } : undefined}
-                    compact
-                  />
-                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-600">
-                    <AssigneeBlock task={task} size="xs" />
-                    <span className="tabular-nums">
-                      {formatDateShort(task.start_date)} → {formatDateShort(task.end_date)}
+                <div className="meeting-sheet__cell py-4 space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-[13px] text-slate-600">
+                    <AssigneeBlock task={task} size="sm" />
+                    <span className="shrink-0 max-w-[14rem] text-right text-[12px] leading-snug text-slate-500">
+                      {formatTaskScheduleLabel(task.start_date, task.end_date)}
                     </span>
                   </div>
                 </div>
               </div>
+
+              {(canReportCompletion || completionPending || (isCoordinator && completionPending)) ? (
+                <section className="space-y-3">
+                  {canReportCompletion ? (
+                    <>
+                      <p className="meeting-sheet__section-label">Cierre del trabajo</p>
+                      <div className="meeting-sheet__group">
+                        <button
+                          type="button"
+                          onClick={handleRequestCompletion}
+                          disabled={requestingCompletion}
+                          className={`meeting-sheet__radio-row${requestingCompletion ? ' meeting-sheet__radio-row--selected' : ''} disabled:cursor-not-allowed disabled:opacity-70`}
+                        >
+                          <span className="meeting-sheet__modality-icon" aria-hidden>
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </span>
+                          <span className="meeting-sheet__modality-text">
+                            <span className="meeting-sheet__modality-label">
+                              {requestingCompletion ? 'Enviando a revisión…' : 'He terminado mi trabajo'}
+                            </span>
+                            <span className="block text-[12px] font-normal text-slate-500">
+                              Toca para avisar al coordinador y que revise tu evidencia antes de cerrar la tarea.
+                            </span>
+                          </span>
+                          <span className="meeting-sheet__modality-check" aria-hidden>
+                            {requestingCompletion ? (
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : null}
+                          </span>
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {completionPending && isAssignee && !isCoordinator ? (
+                    <>
+                      <p className="meeting-sheet__section-label">Cierre del trabajo</p>
+                      <div className="meeting-sheet__group">
+                        <div className="meeting-sheet__radio-row meeting-sheet__radio-row--selected" aria-live="polite">
+                          <span className="meeting-sheet__modality-icon meeting-sheet__modality-icon--virtual" aria-hidden>
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </span>
+                          <span className="meeting-sheet__modality-text">
+                            <span className="meeting-sheet__modality-label">Enviado a revisión del coordinador</span>
+                            <span className="block text-[12px] font-normal text-slate-500">
+                              Espera a que revise comentarios y evidencia antes de dar por concluida la tarea.
+                            </span>
+                          </span>
+                          <span className="meeting-sheet__modality-check" aria-hidden>
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {isCoordinator && completionPending && task.status !== 'done' ? (
+                    <div className="task-completion-request__status task-completion-request__status--coordinator">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900">Trabajo reportado como terminado</p>
+                        <p className="mt-0.5 text-[12px] text-slate-600">
+                          {[task.completion_requester_name, task.completion_requester_apellido].filter(Boolean).join(' ') || 'El responsable'}{' '}
+                          solicitó revisión. Verifica comentarios y archivos; luego confirma o cambia el estatus del ticket.
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleApproveTask}
+                          className="tasks-module__action-primary gap-1.5 px-4 py-2 text-[13px]"
+                        >
+                          <ConfirmTaskIcon />
+                          Confirmar tarea hecha
+                        </button>
+                        {task.ticket_id && onOpenTicket ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onClose();
+                              onOpenTicket(task.ticket_id, 'info');
+                            }}
+                            className="tasks-module__action-secondary px-4 py-2 text-[13px]"
+                          >
+                            Abrir ticket
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
 
               <section>
                 <p className="meeting-sheet__section-label">
@@ -704,9 +536,13 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
                         const mine = c.user_id === user?.id;
                         return (
                           <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
-                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-slate-100 text-slate-700'}`}>
-                              {(c.user_name || '?').charAt(0).toUpperCase()}
-                            </div>
+                            <UserAvatar
+                              name={c.user_name}
+                              apellido={c.user_apellido}
+                              avatarUrl={c.user_avatar_url}
+                              size="xs"
+                              className="shrink-0"
+                            />
                             <div className={`flex max-w-[85%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
                               <span className="mb-0.5 px-1 text-[12px] font-semibold text-slate-600">{c.user_name}</span>
                               <div className={`meeting-sheet__bubble ${mine ? 'meeting-sheet__bubble--mine' : 'meeting-sheet__bubble--other'}`}>
@@ -868,6 +704,259 @@ function TaskDetailModal({ taskId, onClose, onOpenTicket, onRefreshList }) {
   );
 }
 
+function TasksCalendarView({
+  tasks,
+  currentDate,
+  selectedDay,
+  onSelectDay,
+  onShiftMonth,
+  onOpenTask,
+  onDoubleClickDay,
+}) {
+  const month = currentDate.getMonth();
+  const year = currentDate.getFullYear();
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const monthTaskCount = useMemo(
+    () => tasks.filter((t) => (t.end_date || '').startsWith(monthKey)).length,
+    [tasks, monthKey],
+  );
+
+  const selectedDayTasks = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.end_date === selectedDay)
+        .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'es')),
+    [tasks, selectedDay],
+  );
+
+  const renderCalendar = () => {
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const startDay = new Date(year, month, 1).getDay();
+    const days = [];
+
+    for (let i = 0; i < startDay; i += 1) {
+      days.push(
+        <div key={`pad-${i}`} className="calendar-day-cell calendar-day-cell--pad lg:h-32 border border-gray-100 bg-gray-50/30" />,
+      );
+    }
+
+    for (let d = 1; d <= totalDays; d += 1) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayTasks = tasks.filter((t) => t.end_date === dateStr);
+      const isSelected = selectedDay === dateStr;
+      const isToday = localDateYMD() === dateStr;
+
+      days.push(
+        <div
+          key={dateStr}
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelectDay(dateStr)}
+          onDoubleClick={() => onDoubleClickDay?.(dateStr)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSelectDay(dateStr);
+            }
+          }}
+          className={[
+            'calendar-day-cell lg:h-32 border p-1 lg:p-2 cursor-pointer transition-all relative flex flex-col lg:block overflow-hidden',
+            isSelected ? 'is-selected bg-gold/[0.04] border-gold/30 lg:bg-gold/10 lg:border-gold/50' : 'border-gray-100 hover:bg-navy-50/10',
+            isToday && !isSelected ? 'is-today border-gold/20 lg:border-gold/30 lg:bg-gold/[0.07]' : '',
+            dayTasks.length > 0 ? 'is-has-meetings' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <div className="flex flex-col items-start shrink-0 px-0.5 pt-0.5 lg:p-0">
+            <span
+              className={`calendar-day-number ${
+                isToday ? 'calendar-day-number--today' : isSelected ? 'calendar-day-number--selected' : 'calendar-day-number--default'
+              }`}
+            >
+              {d}
+            </span>
+          </div>
+          <div className="calendar-day-meetings mt-1 space-y-1 min-h-0 flex-1 overflow-hidden">
+            {dayTasks.map((t, i) => (
+              <button
+                key={t.id ?? i}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectDay(dateStr);
+                  onOpenTask(t);
+                }}
+                className={getTaskDeadlineChipClass(t)}
+                title={`${t.title}${getTaskDeadlineLabel(t) ? ` · ${getTaskDeadlineLabel(t)}` : ''} · ${formatDateShort(t.end_date)}`}
+              >
+                {t.title}
+              </button>
+            ))}
+          </div>
+        </div>,
+      );
+    }
+
+    return days;
+  };
+
+  return (
+    <div className="tasks-calendar-view space-y-4">
+      <div className="tasks-calendar-view__nav">
+        <div>
+          <p className="tasks-calendar-view__nav-title">Calendario de tareas</p>
+          <p className="tasks-calendar-view__nav-sub">
+            {monthTaskCount} tarea{monthTaskCount === 1 ? '' : 's'} con término en {MONTH_NAMES[month].toLowerCase()}
+          </p>
+        </div>
+        <div className="calendar-module__month-nav" aria-label="Cambiar mes">
+          <button type="button" onClick={() => onShiftMonth(-1)} className="calendar-module__month-btn" aria-label="Mes anterior">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="calendar-module__month-label">
+            {MONTH_NAMES[month]} {year}
+          </span>
+          <button type="button" onClick={() => onShiftMonth(1)} className="calendar-module__month-btn" aria-label="Mes siguiente">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div className="lg:col-span-3 calendar-module__month-card bg-white rounded-xl lg:rounded-2xl shadow-sm lg:shadow-xl border border-gray-100 overflow-hidden h-fit">
+          <div className="tasks-calendar-legend" role="note" aria-label="Leyenda del calendario de tareas">
+            <span className="tasks-calendar-legend__title">Leyenda</span>
+            <span className="tasks-calendar-legend__item">
+              <span className="tasks-calendar-legend__chip tasks-calendar-legend__chip--done" aria-hidden />
+              Cumplida
+            </span>
+            <span className="tasks-calendar-legend__item">
+              <span className="tasks-calendar-legend__chip tasks-calendar-legend__chip--overdue" aria-hidden />
+              Vencida / no cumplida
+            </span>
+          </div>
+          <div className="calendar-month-scroll">
+            <div className="calendar-month-board">
+              <div className="calendar-weekdays grid grid-cols-7 bg-navy-950 text-white text-[8px] lg:text-[10px] font-black tracking-[0.16em] lg:tracking-[0.2em] uppercase py-1.5 lg:py-4 border-b border-navy-900">
+                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((wd) => (
+                  <div key={wd} className="text-center px-0.5">
+                    {wd}
+                  </div>
+                ))}
+              </div>
+              <div className="calendar-month-grid grid grid-cols-7">{renderCalendar()}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-1 space-y-4">
+          <div className="calendar-day-agenda">
+            <div className="calendar-day-agenda__header">
+              <div>
+                <h3 className="calendar-day-agenda__title">Tareas del día</h3>
+                <p className="calendar-day-agenda__date">
+                  {new Date(`${selectedDay}T12:00:00`).toLocaleDateString('es-MX', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                  })}
+                </p>
+                <p className="mt-1 text-[10px] text-white/45">Fecha de término</p>
+              </div>
+              <span className="calendar-day-agenda__count">
+                {selectedDayTasks.length} {selectedDayTasks.length === 1 ? 'tarea' : 'tareas'}
+              </span>
+            </div>
+
+            <div className="calendar-day-agenda__list">
+              {selectedDayTasks.length === 0 ? (
+                <div className="calendar-day-agenda__empty">
+                  <div className="calendar-day-agenda__empty-icon" aria-hidden>
+                    <svg className="h-6 w-6 text-gold/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold text-white/80">Sin tareas</p>
+                  <p className="mt-1 text-xs text-white/40">Ninguna tarea vence este día.</p>
+                </div>
+              ) : (
+                selectedDayTasks.map((t, i) => {
+                  const tone = getTaskDeadlineTone(t);
+                  const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
+                  const deadlineLabel = getTaskDeadlineLabel(t);
+                  const assigneeName =
+                    [t.assignee_name, t.assignee_apellido].filter(Boolean).join(' ') || 'Sin asignar';
+                  const deptLabel = taskDept(t);
+                  const agendaToneClass =
+                    tone === 'done'
+                      ? 'tasks-calendar-agenda__item--done'
+                      : tone === 'overdue'
+                        ? 'tasks-calendar-agenda__item--overdue'
+                        : '';
+                  return (
+                    <button
+                      key={t.id ?? i}
+                      type="button"
+                      onClick={() => onOpenTask(t)}
+                      className={[
+                        'calendar-day-agenda__item',
+                        'tasks-calendar-agenda__item',
+                        agendaToneClass,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <div className="calendar-day-agenda__timeline" aria-hidden>
+                        <span className="calendar-day-agenda__dot" />
+                        {i < selectedDayTasks.length - 1 ? <span className="calendar-day-agenda__line" /> : null}
+                      </div>
+                      <div className="calendar-day-agenda__card">
+                        <div className="calendar-day-agenda__time-row">
+                          <span className="calendar-day-agenda__time">{formatDateShort(t.end_date)}</span>
+                          <span
+                            className="tasks-calendar-agenda__badge"
+                            style={{ background: `${st.color}22`, color: st.color }}
+                          >
+                            {st.label}
+                          </span>
+                        </div>
+                        <h4 className="calendar-day-agenda__meeting-title">{t.title}</h4>
+                        <div className="calendar-day-agenda__meta">
+                          {deadlineLabel ? (
+                            <span className="calendar-day-agenda__location">{deadlineLabel}</span>
+                          ) : null}
+                          <span className="calendar-day-agenda__attendees tasks-calendar-agenda__assignee">
+                            <UserAvatar
+                              name={t.assignee_name}
+                              apellido={t.assignee_apellido}
+                              avatarUrl={t.assignee_avatar_url}
+                              size="xs"
+                            />
+                            <span className="tasks-calendar-agenda__assignee-text min-w-0">
+                              <span className="truncate block font-medium text-navy-900/80">{assigneeName}</span>
+                              {deptLabel ? (
+                                <span className="tasks-calendar-agenda__dept truncate block">{deptLabel}</span>
+                              ) : null}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TasksModule({ onOpenTicket } = {}) {
   const { user } = useAuth();
   const { departments: catalogDepartments } = useCatalog();
@@ -875,7 +964,8 @@ export default function TasksModule({ onOpenTicket } = {}) {
   const [tasks, setTasks] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('list');
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState(() => localDateYMD());
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -973,74 +1063,15 @@ export default function TasksModule({ onOpenTicket } = {}) {
     return { total: filteredTasks.length, ...byStatus };
   }, [filteredTasks]);
 
-  const { minTime, maxTime } = useMemo(() => {
-    if (!filteredTasks.length) {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      const end = new Date(now);
-      end.setDate(end.getDate() + 14);
-      return { minTime: now.getTime(), maxTime: end.getTime() };
-    }
-    let min = Infinity;
-    let max = -Infinity;
-    for (const t of filteredTasks) {
-      const s = parseYMD(t.start_date);
-      const e = parseYMD(t.end_date);
-      if (s) min = Math.min(min, s.getTime());
-      if (e) max = Math.max(max, e.getTime());
-    }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      return { minTime: now.getTime(), maxTime: now.getTime() + 14 * 86400000 };
-    }
-    const pad = 86400000 * 2;
-    return { minTime: min - pad, maxTime: max + pad };
-  }, [filteredTasks]);
-
-  const daySpan = useMemo(() => Math.max(1, Math.ceil((maxTime - minTime) / 86400000)), [minTime, maxTime]);
-
-  const barLayout = (start_date, end_date) => {
-    const s = parseYMD(start_date);
-    const e = parseYMD(end_date);
-    if (!s || !e) return { left: 0, width: 2 };
-    const total = maxTime - minTime;
-    if (total <= 0) return { left: 0, width: 100 };
-    const left = ((s.getTime() - minTime) / total) * 100;
-    const width = Math.max(((e.getTime() - s.getTime() + 86400000) / total) * 100, 0.35);
-    return { left: Math.max(0, left), width: Math.min(100 - left, width) };
+  const shiftCalendarMonth = (delta) => {
+    setCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
   };
 
-  const tickLabels = useMemo(() => {
-    const labels = [];
-    const step = Math.max(1, Math.ceil(daySpan / 8));
-    for (let i = 0; i <= daySpan; i += step) {
-      const t = minTime + i * 86400000;
-      labels.push({
-        pos: ((t - minTime) / (maxTime - minTime)) * 100,
-        text: new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
-      });
-    }
-    return labels;
-  }, [minTime, maxTime, daySpan]);
-
-  const updateStatus = async (taskId, status) => {
-    try {
-      await axios.patch(`/api/ticket-tasks/${taskId}`, { status });
-      await fetchTasks();
-    } catch (err) {
-      alert(err?.response?.data?.error || 'No se pudo actualizar el estado');
-    }
-  };
-
-  const deleteTask = async (taskId) => {
-    if (!window.confirm('¿Eliminar esta tarea operativa?')) return;
-    try {
-      await axios.delete(`/api/ticket-tasks/${taskId}`);
-      await fetchTasks();
-    } catch (err) {
-      alert(err?.response?.data?.error || 'No se pudo eliminar');
-    }
+  const openCreateForDay = (dateStr) => {
+    if (!canCreate) return;
+    const form = freshStandaloneTaskForm(user);
+    setCreateForm({ ...form, start_date: dateStr, end_date: dateStr });
+    setCreateOpen(true);
   };
 
   const openCreateModal = () => {
@@ -1127,91 +1158,17 @@ export default function TasksModule({ onOpenTicket } = {}) {
     }
   };
 
-  const rangeLabel = `${new Date(minTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(maxTime).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`;
-
-  const renderStatusControls = (t, canStatus, canDelete) => {
-    const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-    const canOwn = isTaskOrTicketCreator(user, t);
-    const canOpenDetail = canViewTaskDetail(user, t);
-    return (
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {canOpenDetail && !canOwn && (
-          <button
-            type="button"
-            onClick={() => openTaskDetail(t)}
-            className="tasks-module__action-secondary px-3 py-2 text-[13px]"
-          >
-            Ver tarea
-          </button>
-        )}
-        {canOwn && (
-          <button
-            type="button"
-            onClick={() => openTaskDetail(t)}
-            className="tasks-module__action-primary gap-1.5 px-3 py-2 text-[13px]"
-          >
-            <TaskEvidenceIcon />
-            Evidencia
-          </button>
-        )}
-        <span className="tasks-module__pill" style={{ background: `${st.color}22`, color: st.color }}>
-          {st.label}
-        </span>
-        {canStatus && (
-          <select
-            value={t.status}
-            onChange={(e) => updateStatus(t.id, e.target.value)}
-            className="tasks-module__field w-auto min-w-[8.5rem] py-2 text-[13px]"
-            aria-label="Cambiar estado de la tarea"
-          >
-            {Object.entries(TASK_STATUS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {canDelete && (
-          <button type="button" onClick={() => deleteTask(t.id)} className="tasks-module__action-danger px-2 py-2">
-            Eliminar
-          </button>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="tasks-module surface-light h-full flex flex-col animate-fade-in pb-4">
       <header className="tasks-module__top">
         <div>
           <h2 className="tasks-module__title">Tareas operativas</h2>
           <p className="tasks-module__subtitle">
-            {view === 'list'
-              ? `${stats.total} tarea${stats.total === 1 ? '' : 's'} · lista${!showAllTasks && !seesAllByRole ? ' · asignadas a ti' : ''}`
-              : `${stats.total} tarea${stats.total === 1 ? '' : 's'} · cronograma${!showAllTasks && !seesAllByRole ? ' · asignadas a ti' : ''}`}
+            {stats.total} tarea{stats.total === 1 ? '' : 's'} · calendario por fecha de término
+            {!showAllTasks && !seesAllByRole ? ' · asignadas a ti' : ''}
           </p>
         </div>
         <div className="tasks-module__toolbar">
-          <div className="tasks-module__segmented" role="tablist" aria-label="Vista de tareas">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === 'list'}
-              onClick={() => setView('list')}
-              className={`tasks-module__segment${view === 'list' ? ' tasks-module__segment--active' : ''}`}
-            >
-              Lista
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === 'gantt'}
-              onClick={() => setView('gantt')}
-              className={`tasks-module__segment${view === 'gantt' ? ' tasks-module__segment--active' : ''}`}
-            >
-              Cronograma
-            </button>
-          </div>
           <button type="button" onClick={() => fetchTasks()} className="tasks-module__btn-ghost">
             Actualizar
           </button>
@@ -1358,144 +1315,43 @@ export default function TasksModule({ onOpenTicket } = {}) {
             </BosaGoldButton>
           )}
         </div>
-      ) : filteredTasks.length === 0 ? (
-        <div className="tasks-module__empty">
-          <p className="text-[15px] font-semibold text-slate-800">Ninguna tarea coincide con los filtros</p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('');
-              setFilterDept('');
-              setFilterStatus('');
-              setShowAllTasks(userSeesAllTasksByDefault(user));
-            }}
-            className="tasks-module__btn-ghost mt-4"
-          >
-            Limpiar filtros
-          </button>
-        </div>
-      ) : view === 'list' ? (
-        <>
-          <TasksListTable
-            tasks={filteredTasks}
-            user={user}
-            onOpenTicket={onOpenTicket}
-            onOpenDetail={(t) => {
-              if (canViewTaskDetail(user, t)) openTaskDetail(t);
-            }}
-            onStatusChange={updateStatus}
-            onDelete={deleteTask}
-            onEdit={openEditTask}
-          />
-          <div className="tasks-module__list md:hidden">
-            {filteredTasks.map((t) => {
-              const canOwn = isTaskOrTicketCreator(user, t);
-              const canOpenDetail = canViewTaskDetail(user, t);
-              return (
-                <TaskMobileCard
-                  key={t.id}
-                  task={t}
-                  canManage={canOwn}
-                  canDelete={canOwn}
-                  canStatus={canOwn}
-                  canOpenDetail={canOpenDetail}
-                  onOpenTicket={onOpenTicket}
-                  onOpenDetail={canOpenDetail ? openTaskDetail : undefined}
-                  onStatusChange={updateStatus}
-                  onDelete={deleteTask}
-                  onEdit={canOwn ? openEditTask : undefined}
-                />
-              );
-            })}
-          </div>
-        </>
       ) : (
-        <div className="tasks-module__gantt">
-          <div className="tasks-module__gantt-header">
-            <div>
-              <p className="text-[15px] font-semibold text-slate-900">Cronograma</p>
-              <p className="text-[13px] text-slate-500">Cada barra muestra el rango de fechas de la tarea</p>
-            </div>
-            <p className="text-[13px] font-semibold tabular-nums text-slate-600">{rangeLabel}</p>
-          </div>
-          <div className="hidden border-b border-slate-100 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[minmax(280px,320px)_1fr]">
-            <div className="border-r border-slate-100 px-4 py-2">Tarea</div>
-            <div className="px-4 py-2">Línea de tiempo</div>
-          </div>
-          <div className="relative h-8 border-b border-slate-100 bg-white px-4 lg:ml-[320px]">
-            {tickLabels.map((tk, i) => (
-              <span
-                key={i}
-                className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-slate-400"
-                style={{ left: `${tk.pos}%` }}
+        <>
+          {filteredTasks.length === 0 ? (
+            <div className="tasks-module__empty mb-4 py-8">
+              <p className="text-[15px] font-semibold text-slate-800">Ninguna tarea coincide con los filtros</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setFilterDept('');
+                  setFilterStatus('');
+                  setShowAllTasks(userSeesAllTasksByDefault(user));
+                }}
+                className="tasks-module__btn-ghost mt-4"
               >
-                {tk.text}
-              </span>
-            ))}
-          </div>
-          <div className="max-h-[min(70vh,560px)] divide-y divide-slate-100 overflow-y-auto">
-            {filteredTasks.map((t, idx) => {
-              const { left, width } = barLayout(t.start_date, t.end_date);
-              const color = BAR_COLORS[idx % BAR_COLORS.length];
-              const canOwn = isTaskOrTicketCreator(user, t);
-              const canOpenDetail = canViewTaskDetail(user, t);
-              return (
-                <div
-                  key={t.id}
-                  className="flex flex-col transition-colors hover:bg-gold/[0.03] sm:grid sm:grid-cols-[minmax(280px,320px)_1fr] sm:items-stretch"
-                >
-                  <div className="border-b border-slate-100 bg-white p-4 sm:border-b-0 sm:border-r sm:bg-slate-50/30">
-                    {canOpenDetail ? (
-                      <button
-                        type="button"
-                        onClick={() => openTaskDetail(t)}
-                        className="text-left text-[14px] font-semibold leading-snug text-slate-900 hover:text-gold transition-colors"
-                      >
-                        {t.title}
-                      </button>
-                    ) : (
-                      <p className="text-[14px] font-semibold leading-snug text-slate-900">{t.title}</p>
-                    )}
-                    <div className="mt-2">
-                      <TaskOriginBlock task={t} onOpenTicket={onOpenTicket} compact />
-                    </div>
-                    <div className="mt-3 border-t border-slate-100 pt-3">
-                      <p className="mb-2 text-[12px] font-medium text-slate-500">Responsable</p>
-                      <AssigneeBlock task={t} size="sm" />
-                    </div>
-                    <TaskMetaChips task={t} />
-                    {renderStatusControls(t, canOwn, canOwn)}
-                  </div>
-                  <div className="flex min-h-[72px] flex-col justify-center p-4">
-                    <div className="relative h-10 overflow-hidden rounded-[10px] bg-slate-100 ring-1 ring-slate-200/80">
-                      <div
-                        className="absolute bottom-1 top-1 flex min-w-[12px] items-center rounded-[8px] px-2 shadow-md"
-                        style={{ left: `${left}%`, width: `${width}%`, background: color }}
-                        title={`${t.start_date} → ${t.end_date}`}
-                      >
-                        <span className="truncate text-[10px] font-semibold text-white drop-shadow-sm">
-                          {parseYMD(t.start_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} —{' '}
-                          {parseYMD(t.end_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-1.5 text-center text-[13px] font-semibold tabular-nums text-slate-800 sm:text-left">
-                      {formatDateShort(t.start_date)} → {formatDateShort(t.end_date)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                Limpiar filtros
+              </button>
+            </div>
+          ) : null}
+          <TasksCalendarView
+            tasks={filteredTasks}
+            currentDate={calendarDate}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            onShiftMonth={shiftCalendarMonth}
+            onOpenTask={openTaskDetail}
+            onDoubleClickDay={openCreateForDay}
+          />
+        </>
       )}
 
       {detailTaskId && (
         <TaskDetailModal
           taskId={detailTaskId}
           onClose={() => setDetailTaskId(null)}
-          onOpenTicket={onOpenTicket}
           onRefreshList={fetchTasks}
+          onOpenTicket={onOpenTicket}
         />
       )}
 
@@ -1672,7 +1528,7 @@ export default function TasksModule({ onOpenTicket } = {}) {
                     Nueva tarea operativa
                   </h3>
                   <p className="meeting-sheet__hero-subtitle">
-                    Sin ticket — queda en el cronograma del departamento.
+                    Sin ticket — queda en el calendario del departamento.
                   </p>
                 </div>
                 <button

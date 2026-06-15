@@ -4,7 +4,10 @@ import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import {
   MEETING_LOCATION_OPTIONS,
-  getLocationLabel,
+  getLocationShort,
+  formatLocationCustomInput,
+  capitalizeFirstLetter,
+  meetingLocationLabelFromMeeting,
   buildTimeSlots,
   getSalaBusyRanges,
   isStartSlotDisabled,
@@ -14,6 +17,9 @@ import {
   getBusyUsersInRange,
   formatBusyUserHint,
   getRsvpForUser,
+  getMeetingAgendaModalityClass,
+  syncMinuteAttendeesFromMeetingRsvps,
+  meetingHasMinute,
 } from '../../utils/meetingSchedule';
 import { useCatalog } from '../../hooks/useCatalog';
 import { useMeetingVoiceRecorder } from '../../hooks/useMeetingVoiceRecorder';
@@ -27,6 +33,7 @@ import SayaBrandMark from '../voice/SayaBrandMark';
 import { minuteHasPlayableAudio, formatAudioExpiryHint } from '../../utils/minuteContent';
 import { localDateYMD } from '../../utils/localDate';
 import BosaGoldButton from '../BosaGoldButton';
+import UserAvatar from '../UserAvatar';
 import { isSuperadminUser, canManageMeetingMinute } from '../../utils/permissions';
 
 function userFullName(u) {
@@ -74,10 +81,6 @@ function formatMeetingDuration(startIso, endIso) {
   return r ? `${h} h ${r} min` : `${h} h`;
 }
 
-function getLocationShort(type) {
-  return MEETING_LOCATION_OPTIONS.find((o) => o.value === type)?.short ?? 'Sala';
-}
-
 const RSVP_OPTIONS = [
   { value: 'going', label: 'Asistiré', hint: 'Confirmo que estaré' },
   { value: 'declined', label: 'No asistiré', hint: 'No podré asistir' },
@@ -118,6 +121,14 @@ function isInvitedAttendee(meeting, userId) {
 }
 
 function MeetingLocationIcon({ type, className = 'h-3.5 w-3.5' }) {
+  if (type === 'other') {
+    return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+      </svg>
+    );
+  }
   if (type === 'virtual') {
     return (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
@@ -129,6 +140,61 @@ function MeetingLocationIcon({ type, className = 'h-3.5 w-3.5' }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" />
     </svg>
+  );
+}
+
+function MeetingRsvpCommentField({
+  id,
+  value,
+  onChange,
+  placeholder,
+  expanded,
+  onExpandedChange,
+}) {
+  const hasComment = Boolean(String(value || '').trim());
+
+  if (!expanded) {
+    return (
+      <div className="meeting-sheet__rsvp-comment-toggle-wrap">
+        <button
+          type="button"
+          onClick={() => onExpandedChange(true)}
+          className="meeting-sheet__rsvp-comment-toggle"
+          aria-expanded={false}
+        >
+          <svg className="meeting-sheet__rsvp-comment-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          {hasComment ? 'Editar comentario' : 'Agregar comentario (opcional)'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="meeting-sheet__cell meeting-sheet__cell--field meeting-sheet__rsvp-comment-panel border-t border-slate-100">
+      <div className="meeting-sheet__rsvp-comment-head">
+        <label className="meeting-sheet__cell-label mb-0" htmlFor={id}>
+          Comentario (opcional)
+        </label>
+        <button
+          type="button"
+          onClick={() => onExpandedChange(false)}
+          className="meeting-sheet__rsvp-comment-hide"
+          aria-expanded
+        >
+          Ocultar
+        </button>
+      </div>
+      <textarea
+        id={id}
+        rows={2}
+        value={value}
+        onChange={onChange}
+        className="meeting-sheet__textarea text-[14px]"
+        placeholder={placeholder}
+      />
+    </div>
   );
 }
 
@@ -166,6 +232,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     start_time: '',
     end_time: '',
     location_type: 'sala_juntas',
+    location_custom: '',
+    department: '',
     attendees: [],
     recurrence: 'none',
     recurrence_until: '',
@@ -222,10 +290,17 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   const [voiceRecordingBlob, setVoiceRecordingBlob] = useState(null);
   const [voiceAudioSaving, setVoiceAudioSaving] = useState(false);
   const [voiceAudioSaved, setVoiceAudioSaved] = useState(false);
+  const [voiceAudioDeleting, setVoiceAudioDeleting] = useState(false);
   const [whisperConfigured, setWhisperConfigured] = useState(null);
   const [rsvpDraft, setRsvpDraft] = useState({ status: '', comment: '' });
+  const [rsvpCommentOpen, setRsvpCommentOpen] = useState(false);
   const [rsvpSaving, setRsvpSaving] = useState(false);
   const [rsvpError, setRsvpError] = useState('');
+  const [proxyRsvpUserId, setProxyRsvpUserId] = useState(null);
+  const [proxyRsvpDraft, setProxyRsvpDraft] = useState({ status: '', comment: '' });
+  const [proxyRsvpCommentOpen, setProxyRsvpCommentOpen] = useState(false);
+  const [proxyRsvpSaving, setProxyRsvpSaving] = useState(false);
+  const [proxyRsvpError, setProxyRsvpError] = useState('');
   const [meetingMinuteRecord, setMeetingMinuteRecord] = useState(null);
   const [manualMinuteOpen, setManualMinuteOpen] = useState(false);
 
@@ -240,15 +315,26 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   useEffect(() => {
     if (!selectedMeeting || !user) {
       setRsvpDraft({ status: '', comment: '' });
+      setRsvpCommentOpen(false);
       setRsvpError('');
+      setProxyRsvpUserId(null);
+      setProxyRsvpDraft({ status: '', comment: '' });
+      setProxyRsvpCommentOpen(false);
+      setProxyRsvpError('');
       return;
     }
     const mine = getRsvpForUser(selectedMeeting, user.id);
+    const savedComment = String(mine?.comment || '').trim();
     setRsvpDraft({
       status: mine?.status || '',
       comment: mine?.comment || '',
     });
+    setRsvpCommentOpen(Boolean(savedComment));
     setRsvpError('');
+    setProxyRsvpUserId(null);
+    setProxyRsvpDraft({ status: '', comment: '' });
+    setProxyRsvpCommentOpen(false);
+    setProxyRsvpError('');
   }, [selectedMeeting?.id, selectedMeeting?.rsvps, user?.id]);
 
   const reloadMeetingMinute = async (meetingId) => {
@@ -286,6 +372,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       if (meetingId != null) {
         const updated = list.find((m) => Number(m.id) === Number(meetingId));
         if (updated) setSelectedMeeting(updated);
+        await reloadMeetingMinute(meetingId);
       }
     } catch (err) {
       console.error(err);
@@ -312,13 +399,46 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     }
   };
 
+  const openProxyRsvpFor = (attendeeId) => {
+    setProxyRsvpUserId(Number(attendeeId));
+    setProxyRsvpDraft({ status: '', comment: '' });
+    setProxyRsvpCommentOpen(false);
+    setProxyRsvpError('');
+  };
+
+  const handleSaveProxyRsvp = async () => {
+    if (!selectedMeeting || !proxyRsvpUserId || !proxyRsvpDraft.status) {
+      setProxyRsvpError('Elige si asistirá, no asistirá o si llegará tarde.');
+      return;
+    }
+    setProxyRsvpSaving(true);
+    setProxyRsvpError('');
+    try {
+      await axios.patch(`/api/meetings/${selectedMeeting.id}/rsvp`, {
+        user_id: proxyRsvpUserId,
+        status: proxyRsvpDraft.status,
+        comment: proxyRsvpDraft.comment,
+      });
+      setProxyRsvpUserId(null);
+      setProxyRsvpDraft({ status: '', comment: '' });
+      setProxyRsvpCommentOpen(false);
+      await refreshMeetingsAndSelection(selectedMeeting.id);
+    } catch (err) {
+      setProxyRsvpError(err?.response?.data?.error || 'No se pudo registrar la asistencia.');
+    } finally {
+      setProxyRsvpSaving(false);
+    }
+  };
+
   const fetchMeetings = async () => {
     try {
+      const meetingId = selectedMeeting?.id ?? null;
+      if (meetingId) {
+        await refreshMeetingsAndSelection(meetingId);
+        return;
+      }
       const { data } = await axios.get('/api/meetings');
       setMeetings(Array.isArray(data) ? data : []);
-      if (selectedMeeting?.id) {
-        await reloadMeetingMinute(selectedMeeting.id);
-      }
     } catch (err) {
       console.error(err);
     }
@@ -371,6 +491,15 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
 
   const handleSubmitMeeting = async (e) => {
     e.preventDefault();
+    if (formData.location_type === 'other' && !String(formData.location_custom || '').trim()) {
+      alert('Indica la modalidad personalizada en "Otro".');
+      return;
+    }
+    const locationPayload = {
+      location_type: formData.location_type,
+      location_custom: formData.location_type === 'other' ? capitalizeFirstLetter(formData.location_custom) : '',
+      department: formData.department || '',
+    };
     try {
       if (editingMeetingId) {
         await axios.patch(`/api/meetings/${editingMeetingId}`, {
@@ -379,7 +508,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
           start_time: `${formData.date}T${formData.start_time}`,
           end_time: `${formData.date}T${formData.end_time}`,
           attendees: formData.attendees,
-          location_type: formData.location_type,
+          ...locationPayload,
         });
       } else {
         const occurrences = generateOccurrences(formData);
@@ -392,7 +521,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               start_time: occ.start,
               end_time: occ.end,
               attendees: formData.attendees,
-              location_type: formData.location_type,
+              ...locationPayload,
             })
           )
         );
@@ -422,6 +551,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       start_time: '',
       end_time: '',
       location_type: 'sala_juntas',
+      location_custom: '',
+      department: '',
       attendees: [],
       recurrence: 'none',
       recurrence_until: '',
@@ -431,12 +562,11 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
     setEditingMeetingId(null);
   };
 
+  const isMeetingOrganizer = (m) =>
+    m && user && Number(m.created_by) === Number(user.id);
+
   const canEditMeeting = (m) =>
-    m &&
-    user &&
-    (Number(m.created_by) === Number(user.id) ||
-      user.role === 'superadmin' ||
-      user.role === 'administrator');
+    isMeetingOrganizer(m) || (m && user && isSuperadminUser(user));
 
   const canDeleteMeeting = (m) =>
     m && user && (Number(m.created_by) === Number(user.id) || isSuperadminUser(user));
@@ -444,9 +574,14 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   const canAccessMeeting = (m) =>
     m &&
     user &&
-    (canEditMeeting(m) || meetingInvolvesUser(m, user.id));
+    (meetingInvolvesUser(m, user.id) || isSuperadminUser(user));
 
   const canManageMinute = (m) => canManageMeetingMinute(user, m);
+
+  const syncedVoiceMinuteDraft = useMemo(() => {
+    if (!voiceMinuteDraft) return null;
+    return syncMinuteAttendeesFromMeetingRsvps(voiceMinuteDraft, selectedMeeting, dbUsers);
+  }, [voiceMinuteDraft, selectedMeeting, dbUsers]);
 
   const uploadVoiceAndGenerateMinute = async (meetingId, blob, browserTranscript, captureMode) => {
     const fd = new FormData();
@@ -508,7 +643,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       const serverAudioUrl = data.audio_url || null;
       const serverAudioOk = Number(data.audio_size) > 64;
       setVoiceRecordingAudioUrl(serverAudioOk && serverAudioUrl ? serverAudioUrl : null);
-      await reloadMeetingMinute(selectedMeeting.id);
+      await refreshMeetingsAndSelection(selectedMeeting.id);
       setVoiceMinuteOpen(true);
       if (data.whisperConfigured != null) setWhisperConfigured(!!data.whisperConfigured);
     } catch (err) {
@@ -516,6 +651,23 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       setVoiceCaptureError(err.response?.data?.message || err.message || 'No se pudo generar la minuta.');
     } finally {
       setVoiceProcessing(false);
+    }
+  };
+
+  const handleDeleteMeetingAudio = async () => {
+    if (!selectedMeeting?.id || !meetingMinuteRecord?.id) return;
+    if (!window.confirm('¿Eliminar el audio guardado de esta reunión? La transcripción y la minuta se conservan.')) {
+      return;
+    }
+    setVoiceAudioDeleting(true);
+    try {
+      await axios.delete(`/api/meetings/${selectedMeeting.id}/voice-audio`);
+      setVoiceAudioSaved(false);
+      await refreshMeetingsAndSelection(selectedMeeting.id);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'No se pudo eliminar el audio.');
+    } finally {
+      setVoiceAudioDeleting(false);
     }
   };
 
@@ -534,7 +686,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       });
       setVoiceAudioSaved(true);
       setVoiceExistingMinuteId(data.minute_id ?? voiceExistingMinuteId);
-      await reloadMeetingMinute(selectedMeeting.id);
+      await refreshMeetingsAndSelection(selectedMeeting.id);
     } catch (err) {
       const msg = err?.response?.data?.message || err.message || 'No se pudo guardar el audio.';
       alert(msg);
@@ -555,7 +707,9 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
       start_time: timeOnly(st),
       end_time: timeOnly(et),
       attendees: Array.isArray(m.attendees) ? [...m.attendees] : [],
-      location_type: m.location_type === 'virtual' ? 'virtual' : 'sala_juntas',
+      location_type: ['virtual', 'other', 'sala_juntas'].includes(m.location_type) ? m.location_type : 'sala_juntas',
+      location_custom: m.location_custom || '',
+      department: m.department || '',
       recurrence: 'none',
       recurrence_until: '',
     };
@@ -626,7 +780,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
 
     for (let i = 0; i < startDay; i++) {
       days.push(
-        <div key={`pad-${i}`} className="h-[5.75rem] lg:h-32 border border-gray-100 bg-gray-50/30" />
+        <div key={`pad-${i}`} className="calendar-day-cell calendar-day-cell--pad lg:h-32 border border-gray-100 bg-gray-50/30" />
       );
     }
 
@@ -655,6 +809,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               start_time: firstStart,
               end_time: firstStart ? pickEndAfterStart(dateStr, firstStart, 'sala_juntas', null) : '',
               location_type: 'sala_juntas',
+              location_custom: '',
+              department: '',
               attendees: [],
               recurrence: 'none',
               recurrence_until: '',
@@ -662,53 +818,39 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
             setSelectedDay(dateStr);
             setIsModalOpen(true);
           }}
-          className={`h-[5.75rem] lg:h-32 border p-1 lg:p-2 cursor-pointer transition-all relative flex flex-col lg:block overflow-hidden ${
-            isSelected ? 'bg-gold/10 border-gold/50' : 'border-gray-100 hover:bg-navy-50/10'
-          } ${isToday && !isSelected ? 'border-gold/30 bg-gold/[0.07]' : ''}`}
+          className={[
+            'calendar-day-cell lg:h-32 border p-1 lg:p-2 cursor-pointer transition-all relative flex flex-col lg:block overflow-hidden',
+            isSelected ? 'is-selected bg-gold/[0.04] border-gold/30 lg:bg-gold/10 lg:border-gold/50' : 'border-gray-100 hover:bg-navy-50/10',
+            isToday && !isSelected ? 'is-today border-gold/20 lg:border-gold/30 lg:bg-gold/[0.07]' : '',
+            dayMeetings.length > 0 ? 'is-has-meetings' : '',
+          ].filter(Boolean).join(' ')}
         >
-          <div className="flex items-center justify-between gap-0.5 lg:flex-col lg:items-start shrink-0 px-0.5 pt-0.5 lg:p-0">
-            <span className={`text-[11px] font-black w-6 h-6 lg:w-5 lg:h-5 flex items-center justify-center rounded-full shrink-0 leading-none ${
-              isToday ? 'bg-gold text-navy-950' :
-              isSelected ? 'bg-navy-950 text-white' : 'text-navy-700/80'
+          <div className="flex flex-col items-start shrink-0 px-0.5 pt-0.5 lg:p-0">
+            <span className={`calendar-day-number ${
+              isToday ? 'calendar-day-number--today' :
+              isSelected ? 'calendar-day-number--selected' : 'calendar-day-number--default'
             }`}>
               {d}
             </span>
-            {dayMeetings.length > 0 && (
-              <span className="lg:hidden text-[8px] font-bold text-navy-600 tabular-nums leading-none">
-                {dayMeetings.length}
-              </span>
-            )}
           </div>
 
-          {/* Móvil: filas compactas con un poco más de aire */}
-          <div className="mt-1 flex-1 min-h-0 overflow-hidden lg:hidden">
-            <div className="h-full max-h-[3.65rem] overflow-y-auto overflow-x-hidden [scrollbar-width:thin] space-y-0.5">
-            {dayMeetings.map((m) => (
-              <button
-                key={m.id ?? `${m.start_time}-${m.title}`}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setSelectedDay(dateStr); setSelectedMeeting(m); }}
-                className="w-full text-left rounded-md bg-navy-950/95 text-white px-1 py-0.5 border-l-[3px] border-gold active:opacity-90"
-                title={m.title}
-              >
-                <span className="text-[8px] font-black text-gold tabular-nums leading-tight block">{timeShort(m.start_time)}</span>
-                <span className="text-[8px] font-semibold leading-snug line-clamp-2 normal-case">
-                  {m.title}
-                </span>
-              </button>
-            ))}
-            </div>
-          </div>
-
-          {/* Escritorio */}
-          <div className="mt-1 space-y-1 hidden lg:block">
+          {/* Reuniones: mismo chip compacto que escritorio */}
+          <div className="calendar-day-meetings mt-1 space-y-1 min-h-0 flex-1 overflow-hidden">
             {dayMeetings.map((m, i) => (
               <button
                 key={m.id ?? i}
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setSelectedMeeting(m); }}
-                className="w-full text-left text-[9px] bg-navy-950 text-white p-1 rounded border-l-2 border-gold truncate font-bold uppercase tracking-tight hover:bg-gold hover:text-navy-950 transition-colors"
-                title={m.title}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDay(dateStr);
+                  setSelectedMeeting(m);
+                }}
+                className={`calendar-meeting-chip w-full text-left text-[9px] p-1 rounded border-l-2 truncate font-bold uppercase tracking-tight transition-colors ${
+                  meetingHasMinute(m)
+                    ? 'calendar-meeting-chip--with-minute'
+                    : 'calendar-meeting-chip--no-minute'
+                }`}
+                title={`${m.title} · ${timeShort(m.start_time)}`}
               >
                 {m.title} <span className="font-normal opacity-70 normal-case tracking-normal">{new Date(m.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </button>
@@ -729,6 +871,24 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
         .sort((a, b) => new Date(a.start_time) - new Date(b.start_time)),
     [filteredMeetings, selectedDay],
   );
+
+  const currentMonthMeetingsCount = useMemo(() => {
+    const month = currentDate.getMonth();
+    const year = currentDate.getFullYear();
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    return filteredMeetings.filter((m) => String(m.start_time || '').startsWith(prefix)).length;
+  }, [filteredMeetings, currentDate]);
+
+  const calendarFiltersActive = Boolean(teamUserSearch.trim() || filterUser !== 'all');
+
+  const shiftCalendarMonth = (delta) => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  };
+
+  const clearCalendarFilters = () => {
+    setTeamUserSearch('');
+    setFilterUser('all');
+  };
 
   const filteredUsersForModal = useMemo(
     () =>
@@ -764,87 +924,116 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
   };
 
   return (
-    <div className="p-4 lg:p-6 pb-24 lg:pb-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 lg:mb-8 gap-4">
+    <div className="tasks-module surface-light h-full animate-fade-in pb-24 lg:pb-4">
+      <header className="tasks-module__top">
         <div>
-          <h2 className="text-xl lg:text-2xl font-display font-light text-navy-950 uppercase tracking-widest">Calendario Corporativo</h2>
-          <div className="flex flex-col gap-2 mt-2 sm:mt-3">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Disponibilidad por persona</span>
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="relative min-w-0 flex-1 sm:max-w-xs md:max-w-sm">
-                <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={teamUserSearch}
-                  onChange={(e) => {
-                    setTeamUserSearch(e.target.value);
-                    if (e.target.value.trim()) setFilterUser('all');
-                  }}
-                  placeholder="Buscar por nombre, correo o departamento…"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 placeholder-gray-400 transition-all bg-gray-50 hover:bg-white shadow-inner"
-                  aria-label="Buscar persona en calendario"
-                />
-              </div>
-              <select
-                value={filterUser}
-                onChange={(e) => setFilterUser(e.target.value)}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-sm text-navy-900 bg-gray-50 hover:bg-white transition-all outline-none min-w-0 flex-1 sm:max-w-[280px]"
-              >
-                <option value="all">Todo el equipo (A–Z)</option>
-                {teamUsersForFilter.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {userFullName(u)}
-                    {u.departamento ? ` · ${u.departamento}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {teamUserSearch.trim() && teamUsersForFilter.length === 0 ? (
-              <p className="text-[10px] text-gray-500">Ningún nombre coincide con la búsqueda.</p>
-            ) : teamUserSearch.trim() && filterUser === 'all' ? (
-              <p className="text-[10px] text-gray-500">
-                Mostrando reuniones de {teamUsersForFilter.length}{' '}
-                {teamUsersForFilter.length === 1 ? 'persona' : 'personas'} que coinciden.
-              </p>
-            ) : null}
-          </div>
+          <h2 className="tasks-module__title">Calendario corporativo</h2>
+          <p className="tasks-module__subtitle">
+            {currentMonthMeetingsCount} reunión{currentMonthMeetingsCount === 1 ? '' : 'es'} en{' '}
+            {monthNames[currentDate.getMonth()].toLowerCase()} · disponibilidad por persona
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-           <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-             <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-3 lg:p-2 hover:bg-gray-50 text-navy-950 transition-colors">
-               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-             </button>
-             <div className="flex-1 px-4 py-2 border-x border-gray-100 font-black text-navy-950 min-w-[120px] lg:min-w-[150px] text-center text-[10px] lg:text-xs uppercase tracking-[0.2em]">
-               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-             </div>
-             <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-3 lg:p-2 hover:bg-gray-50 text-navy-950 transition-colors">
-               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-             </button>
-           </div>
-           <BosaGoldButton
-             icon="schedule"
-             onClick={() => {
-               resetForm();
-               setIsModalOpen(true);
-             }}
-             className="w-full sm:!w-auto lg:py-2.5"
-             aria-label="Nueva reunión"
-           >
-             Nueva reunión
-           </BosaGoldButton>
+        <div className="tasks-module__toolbar">
+          <BosaGoldButton
+            icon="schedule"
+            onClick={() => {
+              resetForm();
+              setIsModalOpen(true);
+            }}
+            className="sm:!w-auto"
+            aria-label="Nueva reunión"
+          >
+            Nueva reunión
+          </BosaGoldButton>
         </div>
+      </header>
+
+      <div className="minutas-module__toolbar calendar-module__toolbar">
+        <div className="minutas-module__toolbar-search">
+          <svg className="minutas-module__toolbar-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="search"
+            value={teamUserSearch}
+            onChange={(e) => {
+              setTeamUserSearch(e.target.value);
+              if (e.target.value.trim()) setFilterUser('all');
+            }}
+            placeholder="Buscar por nombre, correo o departamento…"
+            className="minutas-module__toolbar-input"
+            aria-label="Buscar persona en calendario"
+          />
+        </div>
+        <div className="calendar-module__toolbar-meta">
+        <select
+          value={filterUser}
+          onChange={(e) => setFilterUser(e.target.value)}
+          className="minutas-module__toolbar-select"
+          aria-label="Filtrar por persona"
+        >
+          <option value="all">Todo el equipo (A–Z)</option>
+          {teamUsersForFilter.map((u) => (
+            <option key={u.id} value={u.id}>
+              {userFullName(u)}
+              {u.departamento ? ` · ${u.departamento}` : ''}
+            </option>
+          ))}
+        </select>
+        <div className="calendar-module__month-nav" aria-label="Cambiar mes">
+          <button type="button" onClick={() => shiftCalendarMonth(-1)} className="calendar-module__month-btn" aria-label="Mes anterior">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="calendar-module__month-label">
+            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+          </span>
+          <button type="button" onClick={() => shiftCalendarMonth(1)} className="calendar-module__month-btn" aria-label="Mes siguiente">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        </div>
+        {calendarFiltersActive ? (
+          <button type="button" onClick={clearCalendarFilters} className="minutas-module__toolbar-clear">
+            Limpiar
+          </button>
+        ) : null}
       </div>
 
+      {teamUserSearch.trim() && teamUsersForFilter.length === 0 ? (
+        <p className="calendar-module__toolbar-hint">Ningún nombre coincide con la búsqueda.</p>
+      ) : teamUserSearch.trim() && filterUser === 'all' ? (
+        <p className="calendar-module__toolbar-hint">
+          Mostrando reuniones de {teamUsersForFilter.length}{' '}
+          {teamUsersForFilter.length === 1 ? 'persona' : 'personas'} que coinciden.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
-        {/* Calendario primero en móvil (más compacto visualmente) */}
-        <div className="lg:col-span-3 bg-white rounded-xl lg:rounded-2xl shadow-lg lg:shadow-xl border border-gray-100 overflow-hidden h-fit">
-          <div className="grid grid-cols-7 bg-navy-950 text-white text-[8px] lg:text-[10px] font-black tracking-[0.2em] uppercase py-2 lg:py-4 border-b border-navy-900">
-            {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => <div key={d} className="text-center px-0.5">{d}</div>)}
+        <div className="lg:col-span-3 calendar-module__month-card bg-white rounded-xl lg:rounded-2xl shadow-sm lg:shadow-xl border border-gray-100 overflow-hidden h-fit">
+          <div className="calendar-minute-legend calendar-minute-legend--compact-mobile hidden lg:flex" role="note" aria-label="Leyenda de reuniones">
+            <span className="calendar-minute-legend__title">Leyenda</span>
+            <span className="calendar-minute-legend__item">
+              <span className="calendar-minute-legend__chip calendar-minute-legend__chip--no-minute" aria-hidden />
+              Sin minuta
+            </span>
+            <span className="calendar-minute-legend__item">
+              <span className="calendar-minute-legend__chip calendar-minute-legend__chip--with-minute" aria-hidden />
+              Con minuta
+            </span>
           </div>
-          <div className="grid grid-cols-7">
-            {renderCalendar()}
+          <div className="calendar-month-scroll">
+            <div className="calendar-month-board">
+              <div className="calendar-weekdays grid grid-cols-7 bg-navy-950 text-white text-[8px] lg:text-[10px] font-black tracking-[0.16em] lg:tracking-[0.2em] uppercase py-1.5 lg:py-4 border-b border-navy-900">
+                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => <div key={d} className="text-center px-0.5">{d}</div>)}
+              </div>
+              <div className="calendar-month-grid grid grid-cols-7">
+                {renderCalendar()}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -881,13 +1070,17 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               ) : (
                 selectedDayMeetings.map((m, i) => {
                   const isActive = selectedMeeting?.id === m.id;
-                  const isVirtual = m.location_type === 'virtual';
+                  const modalityClass = getMeetingAgendaModalityClass(m.location_type);
                   return (
                     <button
                       key={m.id ?? i}
                       type="button"
                       onClick={() => setSelectedMeeting(m)}
-                      className={`calendar-day-agenda__item${isActive ? ' calendar-day-agenda__item--active' : ''}${isVirtual ? ' calendar-day-agenda__item--virtual' : ''}`}
+                      className={[
+                        'calendar-day-agenda__item',
+                        isActive && 'calendar-day-agenda__item--active',
+                        modalityClass,
+                      ].filter(Boolean).join(' ')}
                     >
                       <div className="calendar-day-agenda__timeline" aria-hidden>
                         <span className="calendar-day-agenda__dot" />
@@ -908,7 +1101,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                         <div className="calendar-day-agenda__meta">
                           <span className="calendar-day-agenda__location">
                             <MeetingLocationIcon type={m.location_type} />
-                            {getLocationShort(m.location_type)}
+                            {getLocationShort(m.location_type, m.location_custom)}
                           </span>
                           <span className="calendar-day-agenda__attendees">
                             {m.attendees?.length
@@ -1020,7 +1213,13 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                                 end = pickEndAfterStart(formData.date, start, nextType, editingMeetingId);
                               }
                             }
-                            setFormData({ ...formData, location_type: nextType, start_time: start, end_time: end });
+                            setFormData({
+                              ...formData,
+                              location_type: nextType,
+                              location_custom: nextType === 'other' ? formData.location_custom : '',
+                              start_time: start,
+                              end_time: end,
+                            });
                           }}
                           className="sr-only"
                         />
@@ -1043,6 +1242,57 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                       </label>
                     );
                   })}
+                </div>
+                {formData.location_type === 'other' ? (
+                  <div className="meeting-sheet__group">
+                    <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                      <label className="meeting-sheet__cell-label" htmlFor="meeting-location-custom">
+                        Especifica la modalidad
+                      </label>
+                      <input
+                        id="meeting-location-custom"
+                        required
+                        type="text"
+                        maxLength={80}
+                        value={formData.location_custom}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            location_custom: formatLocationCustomInput(e.target.value),
+                          })
+                        }
+                        className="meeting-sheet__input"
+                        placeholder="Ej. Obra en sitio, Cafetería, Proveedor externo"
+                      />
+                      <p className="meeting-sheet__cell-note">
+                        La primera letra se capitaliza automáticamente para mantener uniformidad.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                <p className="meeting-sheet__section-label">Departamento</p>
+                <div className="meeting-sheet__group">
+                  <div className="meeting-sheet__cell meeting-sheet__cell--field">
+                    <label className="meeting-sheet__cell-label" htmlFor="meeting-department">
+                      Departamento vinculado
+                    </label>
+                    <select
+                      id="meeting-department"
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      className="meeting-sheet__select"
+                    >
+                      <option value="">Sin departamento específico</option>
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="meeting-sheet__cell-note">
+                      Aparecerá en el detalle de la reunión, la minuta y el PDF.
+                    </p>
+                  </div>
                 </div>
                 {formData.location_type === 'sala_juntas' && formData.date && salaBusyRanges.length > 0 && (
                   <p className="meeting-sheet__hint meeting-sheet__hint--warn">
@@ -1418,6 +1668,12 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
           showRsvpForm &&
           (rsvpDraft.status !== (mySavedRsvp?.status || '') ||
             String(rsvpDraft.comment || '').trim() !== String(mySavedRsvp?.comment || '').trim());
+        const canProxyRsvp = isMeetingOrganizer(selectedMeeting);
+        const pendingAttendeeCount = canProxyRsvp
+          ? sortedMeetingAttendees.filter(
+              (u) => Number(u.id) !== Number(user?.id) && !getRsvpForUser(selectedMeeting, u.id),
+            ).length
+          : 0;
 
         return (
         <div
@@ -1438,18 +1694,31 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="meeting-sheet__pill meeting-sheet__pill--gold">
-                      {getLocationLabel(selectedMeeting.location_type)}
+                      {meetingLocationLabelFromMeeting(selectedMeeting)}
                     </span>
+                    {selectedMeeting.department ? (
+                      <span className="meeting-sheet__pill meeting-sheet__pill--dept">{selectedMeeting.department}</span>
+                    ) : null}
                     <span className="meeting-sheet__pill meeting-sheet__pill--ok">Confirmada</span>
                   </div>
                   <h3 id="meeting-summary-title" className="meeting-sheet__hero-title">
                     {selectedMeeting.title}
                   </h3>
-                  {organizerLabel && (
-                    <p className="text-sm text-white/60">
-                      Organiza <span className="font-medium text-white/90">{organizerLabel}</span>
-                    </p>
-                  )}
+                  {organizerLabel && organizer ? (
+                    <div className="meeting-sheet__organizer">
+                      <span className="meeting-sheet__organizer-prefix">Organiza</span>
+                      <span className="meeting-sheet__organizer-person">
+                        <UserAvatar
+                          name={organizer.name}
+                          apellido={organizer.apellido}
+                          avatarUrl={organizer.avatar_url}
+                          size="xs"
+                          className="meeting-sheet__organizer-avatar"
+                        />
+                        <span className="meeting-sheet__organizer-name">{organizerLabel}</span>
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <span className="meeting-sheet__meta-chip">
                       {start.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
@@ -1479,13 +1748,21 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               <div className="meeting-sheet__group">
                 <div className="meeting-sheet__cell">
                   <p className="meeting-sheet__cell-label">Modalidad</p>
-                  <p className="meeting-sheet__cell-value">{getLocationLabel(selectedMeeting.location_type)}</p>
+                  <p className="meeting-sheet__cell-value">{meetingLocationLabelFromMeeting(selectedMeeting)}</p>
                   <p className="meeting-sheet__cell-note">
                     {selectedMeeting.location_type === 'virtual'
                       ? 'Enlace o detalles en la descripción o invitación.'
-                      : 'Reserva física de la sala de juntas corporativa.'}
+                      : selectedMeeting.location_type === 'other'
+                        ? 'Modalidad personalizada registrada para esta reunión.'
+                        : 'Reserva física de la sala de juntas corporativa.'}
                   </p>
                 </div>
+                {selectedMeeting.department ? (
+                  <div className="meeting-sheet__cell">
+                    <p className="meeting-sheet__cell-label">Departamento</p>
+                    <p className="meeting-sheet__cell-value">{selectedMeeting.department}</p>
+                  </div>
+                ) : null}
                 <div className="meeting-sheet__cell">
                   <p className="meeting-sheet__cell-label">Descripción</p>
                   <p className="meeting-sheet__cell-value meeting-sheet__cell-value--body">
@@ -1500,6 +1777,11 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                   ? ` · ${rsvpSummary.going} confirmados · ${rsvpSummary.late} tarde · ${rsvpSummary.declined} no asisten`
                   : ''}
               </p>
+              {canProxyRsvp && pendingAttendeeCount > 0 ? (
+                <p className="meeting-sheet__hint meeting-sheet__hint--info mb-3">
+                  Como organizador puedes registrar la asistencia de quien aún no haya respondido.
+                </p>
+              ) : null}
               <div className="meeting-sheet__group">
                 {attendeeCount === 0 ? (
                   <div className="meeting-sheet__cell meeting-sheet__cell--empty">
@@ -1509,37 +1791,138 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                   sortedMeetingAttendees.map((u, idx) => {
                     const rsvp = getRsvpForUser(selectedMeeting, u.id);
                     const meta = rsvp ? RSVP_META[rsvp.status] : null;
+                    const canRegisterForAttendee =
+                      canProxyRsvp && Number(u.id) !== Number(user?.id) && !rsvp;
+                    const isProxyFormOpen = proxyRsvpUserId === Number(u.id);
                     return (
-                    <div
-                      key={u.id}
-                      className={`meeting-sheet__person${idx > 0 ? ' meeting-sheet__person--border' : ''}`}
-                    >
-                      <div className="meeting-sheet__avatar">{(u.name || '?').charAt(0).toUpperCase()}</div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-[15px] font-semibold text-slate-900">{userFullName(u)}</p>
-                            <p className="truncate text-[13px] text-slate-500">
-                              {[u.puesto, u.departamento].filter(Boolean).join(' · ') || '—'}
-                            </p>
+                    <div key={u.id}>
+                      <div
+                        className={`meeting-sheet__person${idx > 0 ? ' meeting-sheet__person--border' : ''}`}
+                      >
+                        <UserAvatar
+                          name={u.name}
+                          apellido={u.apellido}
+                          avatarUrl={u.avatar_url}
+                          size="sm"
+                          className="meeting-sheet__avatar !bg-transparent"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-[15px] font-semibold text-slate-900">{userFullName(u)}</p>
+                              <p className="truncate text-[13px] text-slate-500">
+                                {[u.puesto, u.departamento].filter(Boolean).join(' · ') || '—'}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-1.5">
+                              {meta ? (
+                                <span
+                                  className="meeting-sheet__rsvp-pill"
+                                  style={{ background: meta.bg, color: meta.color }}
+                                >
+                                  {meta.short}
+                                </span>
+                              ) : (
+                                <span className="meeting-sheet__rsvp-pill meeting-sheet__rsvp-pill--pending">
+                                  Pendiente
+                                </span>
+                              )}
+                              {canRegisterForAttendee ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openProxyRsvpFor(u.id)}
+                                  className="meeting-sheet__proxy-rsvp-btn"
+                                >
+                                  {isProxyFormOpen ? 'Cerrar' : 'Registrar asistencia'}
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
-                          {meta ? (
-                            <span
-                              className="meeting-sheet__rsvp-pill"
-                              style={{ background: meta.bg, color: meta.color }}
-                            >
-                              {meta.short}
-                            </span>
-                          ) : (
-                            <span className="meeting-sheet__rsvp-pill meeting-sheet__rsvp-pill--pending">
-                              Pendiente
-                            </span>
-                          )}
+                          {rsvp?.comment ? (
+                            <p className="meeting-sheet__person-comment">&ldquo;{rsvp.comment}&rdquo;</p>
+                          ) : null}
                         </div>
-                        {rsvp?.comment ? (
-                          <p className="meeting-sheet__person-comment">&ldquo;{rsvp.comment}&rdquo;</p>
-                        ) : null}
                       </div>
+                      {isProxyFormOpen ? (
+                        <div className="meeting-sheet__proxy-rsvp">
+                          <p className="meeting-sheet__proxy-rsvp-title">
+                            Confirmar asistencia de {userFullName(u)}
+                          </p>
+                          <div
+                            className="meeting-sheet__group !border-0 !shadow-none"
+                            role="radiogroup"
+                            aria-label={`Asistencia de ${userFullName(u)}`}
+                          >
+                            {RSVP_OPTIONS.map((opt) => {
+                              const selected = proxyRsvpDraft.status === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  onClick={() => setProxyRsvpDraft((prev) => ({ ...prev, status: opt.value }))}
+                                  className={`meeting-sheet__radio-row${selected ? ' meeting-sheet__radio-row--selected' : ''}`}
+                                >
+                                  <span
+                                    className={`meeting-sheet__modality-icon${opt.tilted ? ' meeting-sheet__modality-icon--virtual' : ''}`}
+                                    aria-hidden
+                                  >
+                                    <MeetingRsvpIcon status={opt.value} className="h-5 w-5" />
+                                  </span>
+                                  <span className="meeting-sheet__modality-text">
+                                    <span className="meeting-sheet__modality-label">{opt.label}</span>
+                                    <span className="block text-[12px] font-normal text-slate-500">{opt.hint}</span>
+                                  </span>
+                                  <span className="meeting-sheet__modality-check" aria-hidden>
+                                    {selected ? (
+                                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                            <MeetingRsvpCommentField
+                              id={`meeting-proxy-rsvp-comment-${u.id}`}
+                              value={proxyRsvpDraft.comment}
+                              onChange={(e) => setProxyRsvpDraft((prev) => ({ ...prev, comment: e.target.value }))}
+                              placeholder="Ej. Me confirmó por teléfono que sí asistirá."
+                              expanded={proxyRsvpCommentOpen}
+                              onExpandedChange={setProxyRsvpCommentOpen}
+                            />
+                            <div className="meeting-sheet__rsvp-actions">
+                              {proxyRsvpError ? (
+                                <p className="meeting-sheet__hint meeting-sheet__hint--error mb-3">{proxyRsvpError}</p>
+                              ) : null}
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProxyRsvpUserId(null);
+                                    setProxyRsvpDraft({ status: '', comment: '' });
+                                    setProxyRsvpCommentOpen(false);
+                                    setProxyRsvpError('');
+                                  }}
+                                  disabled={proxyRsvpSaving}
+                                  className="meeting-sheet__btn meeting-sheet__btn--secondary flex-1"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveProxyRsvp}
+                                  disabled={proxyRsvpSaving || !proxyRsvpDraft.status}
+                                  className="meeting-sheet__btn meeting-sheet__btn--primary flex-1"
+                                >
+                                  {proxyRsvpSaving ? 'Guardando…' : 'Guardar confirmación'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     );
                   })
@@ -1581,19 +1964,14 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                         </button>
                       );
                     })}
-                    <div className="meeting-sheet__cell meeting-sheet__cell--field border-t border-slate-100">
-                      <label className="meeting-sheet__cell-label" htmlFor="meeting-rsvp-comment">
-                        Comentario (opcional)
-                      </label>
-                      <textarea
-                        id="meeting-rsvp-comment"
-                        rows={2}
-                        value={rsvpDraft.comment}
-                        onChange={(e) => setRsvpDraft((prev) => ({ ...prev, comment: e.target.value }))}
-                        className="meeting-sheet__textarea text-[14px]"
-                        placeholder="Ej. Salgo de otra junta a las 10:30 o no podré conectarme desde la oficina."
-                      />
-                    </div>
+                    <MeetingRsvpCommentField
+                      id="meeting-rsvp-comment"
+                      value={rsvpDraft.comment}
+                      onChange={(e) => setRsvpDraft((prev) => ({ ...prev, comment: e.target.value }))}
+                      placeholder="Ej. Salgo de otra junta a las 10:30 o no podré conectarme desde la oficina."
+                      expanded={rsvpCommentOpen}
+                      onExpandedChange={setRsvpCommentOpen}
+                    />
                     <div className="meeting-sheet__rsvp-actions">
                       {rsvpError ? <p className="meeting-sheet__hint meeting-sheet__hint--error mb-3">{rsvpError}</p> : null}
                       <button
@@ -1617,6 +1995,8 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
               {canAccessMeeting(selectedMeeting) && (
                 <MeetingMinuteActaPanel
                   minute={meetingMinuteRecord}
+                  meeting={selectedMeeting}
+                  dbUsers={dbUsers}
                   canManage={canManageMinute(selectedMeeting)}
                   onCreate={() => setManualMinuteOpen(true)}
                   onEdit={() => setManualMinuteOpen(true)}
@@ -1640,7 +2020,19 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
                     />
                     {minuteHasPlayableAudio(meetingMinuteRecord) ? (
                       <div className="saya-capture-card__saved-audio">
-                        <p className="saya-capture-card__saved-label">Audio guardado de la reunión</p>
+                        <div className="saya-capture-card__saved-head">
+                          <p className="saya-capture-card__saved-label">Audio guardado de la reunión</p>
+                          {isSuperadminUser(user) ? (
+                            <button
+                              type="button"
+                              onClick={handleDeleteMeetingAudio}
+                              disabled={voiceAudioDeleting}
+                              className="saya-capture-card__delete-audio"
+                            >
+                              {voiceAudioDeleting ? 'Eliminando…' : 'Eliminar audio'}
+                            </button>
+                          ) : null}
+                        </div>
                         {formatAudioExpiryHint(meetingMinuteRecord) ? (
                           <p className="saya-capture-card__saved-expiry">{formatAudioExpiryHint(meetingMinuteRecord)}</p>
                         ) : null}
@@ -1760,7 +2152,7 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
           onClose={() => setManualMinuteOpen(false)}
           onMeetingScheduled={fetchMeetings}
           onSaved={async () => {
-            if (selectedMeeting?.id) await reloadMeetingMinute(selectedMeeting.id);
+            if (selectedMeeting?.id) await refreshMeetingsAndSelection(selectedMeeting.id);
             onMinuteSaved?.();
           }}
         />
@@ -1778,9 +2170,9 @@ export default function CalendarModule({ onMinuteSaved } = {}) {
             setVoiceRecordingAudioUrl(null);
             setVoiceRecordingBlob(null);
             setVoiceAudioSaved(false);
-            if (selectedMeeting?.id) await reloadMeetingMinute(selectedMeeting.id);
+            if (selectedMeeting?.id) await refreshMeetingsAndSelection(selectedMeeting.id);
           }}
-          draft={voiceMinuteDraft}
+          draft={syncedVoiceMinuteDraft}
           transcript={voiceTranscript}
           transcriptSegments={voiceTranscriptSegments}
           linkedMinute={meetingMinuteRecord}

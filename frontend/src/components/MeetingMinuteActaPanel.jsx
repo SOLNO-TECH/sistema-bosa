@@ -1,15 +1,28 @@
+import { useMemo } from 'react';
 import BosaGoldButton from './BosaGoldButton';
 import { exportMinutaPdf, previewMinutaPdf } from '../utils/exportMinutaPdf';
-import { minuteHasUserContent } from '../utils/minuteContent';
+import { minuteHasManualActa } from '../utils/minuteContent';
+import { syncMinuteAttendeesFromMeetingRsvps } from '../utils/meetingSchedule';
 
-export default function MeetingMinuteActaPanel({ minute, canManage = false, onCreate, onEdit }) {
-  const hasContent = minuteHasUserContent(minute);
+export default function MeetingMinuteActaPanel({
+  minute,
+  meeting = null,
+  dbUsers = [],
+  canManage = false,
+  onCreate,
+  onEdit,
+}) {
+  const hasContent = minuteHasManualActa(minute);
+  const minuteForPdf = useMemo(
+    () => syncMinuteAttendeesFromMeetingRsvps(minute, meeting, dbUsers),
+    [minute, meeting, dbUsers],
+  );
 
   if (!hasContent && !canManage) return null;
 
   const handleExport = () => {
     try {
-      exportMinutaPdf(minute);
+      exportMinutaPdf(minuteForPdf);
     } catch (e) {
       console.error(e);
       alert('No se pudo exportar el PDF.');
@@ -18,7 +31,7 @@ export default function MeetingMinuteActaPanel({ minute, canManage = false, onCr
 
   const handleView = () => {
     try {
-      previewMinutaPdf(minute);
+      previewMinutaPdf(minuteForPdf);
     } catch (e) {
       console.error(e);
       alert(e?.message || 'No se pudo abrir la vista previa. Permite ventanas emergentes en el navegador.');
@@ -28,7 +41,9 @@ export default function MeetingMinuteActaPanel({ minute, canManage = false, onCr
   if (!hasContent) {
     return (
       <>
-        <p className="meeting-sheet__section-label">Acta de la reunión</p>
+        <div className="meeting-minute-acta__intro">
+          <p className="meeting-sheet__section-label meeting-minute-acta__section-label">Acta de la reunión</p>
+        </div>
         <div className="meeting-sheet__group">
           <div className="meeting-sheet__cell meeting-sheet__cell--field">
             <p className="meeting-sheet__cell-note mb-4">
@@ -45,20 +60,9 @@ export default function MeetingMinuteActaPanel({ minute, canManage = false, onCr
 
   return (
     <>
-      <p className="meeting-sheet__section-label">Acta de la reunión</p>
-      <div className="meeting-sheet__group">
-        <div className="meeting-sheet__cell">
-          <p className="meeting-sheet__cell-label">Estado</p>
-          <p className="meeting-sheet__cell-value">
-            <span className="meeting-minute-acta__status-pill">Registrada</span>
-          </p>
-        </div>
-        <div className="meeting-sheet__cell">
-          <p className="meeting-sheet__cell-label">Título</p>
-          <p className="meeting-sheet__cell-value meeting-sheet__cell-value--body">
-            {minute.tema || '—'}
-          </p>
-        </div>
+      <div className="meeting-minute-acta__intro">
+        <p className="meeting-sheet__section-label meeting-minute-acta__section-label">Acta de la reunión</p>
+        <p className="meeting-minute-acta__title">{minute.tema || '—'}</p>
       </div>
 
       <div className="meeting-minute-acta__toolbar">

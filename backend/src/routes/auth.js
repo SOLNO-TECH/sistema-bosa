@@ -51,7 +51,9 @@ const refreshLimiter = rateLimit({
 router.post('/login', loginLimiter, authController.login);
 router.post('/refresh', refreshLimiter, authController.refresh);
 router.get('/me', authenticate, authController.me);
+router.put('/me', authenticate, authController.updateMyProfile);
 router.post('/me/avatar', authenticate, uploadAvatar.single('avatar'), authController.uploadAvatar);
+router.delete('/me/avatar', authenticate, authController.deleteAvatar);
 
 // Solo superadmin puede gestionar usuarios
 router.get('/users', authenticate, requireRole('superadmin'), authController.getUsers);

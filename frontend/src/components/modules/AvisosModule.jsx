@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useId } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { PushEvents } from '../../utils/pushNotify';
 import { useCatalog } from '../../hooks/useCatalog';
 import BosaGoldButton from '../BosaGoldButton';
+import UserAvatar from '../UserAvatar';
 
 const PRIORIDAD_META = {
   normal: { label: 'Normal', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' },
@@ -117,39 +118,30 @@ function AvisoDestinatarioSegmented({ value, onChange }) {
   );
 }
 
-function AvisoCardDeco() {
-  const glowId = useId().replace(/:/g, '');
-  return (
-    <div className="aviso-card__deco" aria-hidden>
-      <svg className="aviso-card__deco-ring" viewBox="0 0 100 100">
-        <defs>
-          <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#cbac80" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#cbac80" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle cx="50" cy="50" r="46" fill={`url(#${glowId})`} />
-      </svg>
-      <svg className="aviso-card__deco-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-        />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20 8l2-2M20 12h3M20 16l2 2" opacity="0.85" />
-      </svg>
-    </div>
-  );
+function formatAvisoRecipients(aviso) {
+  const items = aviso?.destinatarios || [];
+  if (!items.length) return null;
+  if (items.length <= 2) return items.join(', ');
+  return `${items.slice(0, 2).join(', ')} +${items.length - 2}`;
+}
+
+function formatAvisoAuthorName(aviso) {
+  return [aviso?.autorNombre, aviso?.autorApellido].filter(Boolean).join(' ').trim() || aviso?.autor || 'Sistema';
 }
 
 function AvisoCard({ aviso, onOpen }) {
   const prio = PRIORIDAD_META[aviso.prioridad] || PRIORIDAD_META.normal;
   const estado = ESTADO_META[aviso.estado] || ESTADO_META.borrador;
   const tipo = TIPO_META[aviso.tipo] || TIPO_META.departamento;
+  const recipients = formatAvisoRecipients(aviso);
+  const authorName = formatAvisoAuthorName(aviso);
+  const priorityKey = ['normal', 'importante', 'urgente'].includes(aviso.prioridad)
+    ? aviso.prioridad
+    : 'normal';
 
   return (
     <article
-      className="aviso-card"
+      className={`aviso-card aviso-card--${priorityKey}`}
       onClick={() => onOpen(aviso)}
       role="button"
       tabIndex={0}
@@ -162,64 +154,59 @@ function AvisoCard({ aviso, onOpen }) {
     >
       <div className="aviso-card__inner">
         <header className="aviso-card__header">
-          <h3 className="aviso-card__title">{aviso.titulo}</h3>
-          <span className="aviso-card__id">{aviso.id}</span>
+          <div className="aviso-card__header-copy">
+            <span className="aviso-card__id">{aviso.id}</span>
+            <h3 className="aviso-card__title">{aviso.titulo}</h3>
+          </div>
+          <span className="aviso-card__chevron" aria-hidden>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
         </header>
 
-        <div className="aviso-card__meta">
-          <span className="tasks-module__pill" style={{ background: prio.bg, color: prio.color }}>
+        <div className="aviso-card__chips">
+          <span
+            className="aviso-card__chip"
+            style={{ background: prio.bg, color: prio.color }}
+          >
             {prio.label}
           </span>
-          <span className="tasks-module__pill" style={{ background: estado.bg, color: estado.color }}>
+          <span
+            className="aviso-card__chip"
+            style={{ background: estado.bg, color: estado.color }}
+          >
             {estado.label}
           </span>
-          <span className="tasks-module__pill bg-slate-100 text-slate-600">{tipo.label}</span>
+          <span className="aviso-card__chip aviso-card__chip--muted">{tipo.label}</span>
         </div>
 
-        <div className="aviso-card__message-wrap">
-          <AvisoCardDeco />
-          <p className="aviso-card__message">{aviso.mensaje}</p>
-        </div>
+        <p className="aviso-card__message">{aviso.mensaje}</p>
 
-        {(aviso.destinatarios || []).length > 0 && (
-          <div className="aviso-card__recipients">
-            {(aviso.destinatarios || []).slice(0, 3).map((d) => (
-              <span key={d} className="tasks-module__pill bg-slate-100 text-slate-600">
-                {d}
-              </span>
-            ))}
-            {(aviso.destinatarios || []).length > 3 && (
-              <span className="tasks-module__pill bg-slate-100 text-slate-500">
-                +{(aviso.destinatarios || []).length - 3}
-              </span>
-            )}
-          </div>
-        )}
+        {recipients ? (
+          <p className="aviso-card__recipients-line">
+            Para <span className="aviso-card__recipients-value">{recipients}</span>
+          </p>
+        ) : null}
 
         <footer className="aviso-card__footer">
-          <div className="aviso-card__meta-row">
-            <div className="aviso-card__when">
-              <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>
+          <div className="aviso-card__author-row">
+            <UserAvatar
+              name={aviso.autorNombre}
+              apellido={aviso.autorApellido}
+              avatarUrl={aviso.autorAvatar}
+              size="xs"
+            />
+            <div className="aviso-card__author-copy">
+              <span className="aviso-card__author-name">{authorName}</span>
+              {aviso.autorPuesto ? (
+                <span className="aviso-card__author-role">{aviso.autorPuesto}</span>
+              ) : null}
+              <span className="aviso-card__when">
                 {aviso.fecha} · {aviso.hora}
               </span>
             </div>
-            <p className="aviso-card__author">
-              Por <span className="font-semibold text-slate-700">{aviso.autor}</span>
-            </p>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(aviso);
-            }}
-            className="aviso-card__cta"
-          >
-            Ver detalle
-          </button>
         </footer>
       </div>
     </article>
@@ -273,6 +260,10 @@ export default function AvisosModule() {
           fecha: new Date(a.created_at).toLocaleDateString('es-MX'),
           hora: new Date(a.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
           autor: a.creator_name || 'Sistema',
+          autorNombre: a.creator_name || '',
+          autorApellido: a.creator_apellido || '',
+          autorAvatar: a.creator_avatar_url || '',
+          autorPuesto: a.creator_puesto || '',
           enviados: 0,
           leidos: 0,
           destinatarios: Array.isArray(a.destinatarios) && a.destinatarios.length ? a.destinatarios : [],
@@ -363,6 +354,10 @@ export default function AvisosModule() {
           fecha: now.toLocaleDateString('es-MX'),
           hora: now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
           autor: user?.name || 'Administrador',
+          autorNombre: user?.name || '',
+          autorApellido: user?.apellido || '',
+          autorAvatar: user?.avatar_url || '',
+          autorPuesto: user?.puesto || '',
           enviados: destinatarios.length,
           leidos: 0,
         },
@@ -822,9 +817,23 @@ export default function AvisosModule() {
                     <h3 id="aviso-detail-title" className="meeting-sheet__hero-title">
                       {selectedAviso.titulo}
                     </h3>
-                    <p className="meeting-sheet__hero-subtitle">
-                      {selectedAviso.autor} · {selectedAviso.fecha} a las {selectedAviso.hora}
-                    </p>
+                    <div className="mt-3 flex items-center gap-2.5">
+                      <UserAvatar
+                        name={selectedAviso.autorNombre}
+                        apellido={selectedAviso.autorApellido}
+                        avatarUrl={selectedAviso.autorAvatar}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white/95 truncate">
+                          {formatAvisoAuthorName(selectedAviso)}
+                        </p>
+                        <p className="meeting-sheet__hero-subtitle !mt-0">
+                          {selectedAviso.fecha} a las {selectedAviso.hora}
+                          {selectedAviso.autorPuesto ? ` · ${selectedAviso.autorPuesto}` : ''}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <button type="button" onClick={() => setSelectedAviso(null)} className="meeting-sheet__close" aria-label="Cerrar">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -861,6 +870,19 @@ export default function AvisosModule() {
               <div className="meeting-sheet__footer shrink-0">
                 <div className="meeting-sheet__footer-actions">
                   <button type="button" onClick={() => setSelectedAviso(null)} className="meeting-sheet__btn meeting-sheet__btn--primary">
+                    <svg
+                      className="h-5 w-5 shrink-0 opacity-95"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M9 12.75L11.25 15 15 9.75" />
+                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     Cerrar
                   </button>
                 </div>

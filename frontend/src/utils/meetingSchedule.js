@@ -1,17 +1,68 @@
 export const MEETING_LOCATION_OPTIONS = [
   { value: 'sala_juntas', label: 'Sala de juntas', short: 'Sala' },
   { value: 'virtual', label: 'Reunión virtual', short: 'Virtual' },
+  { value: 'other', label: 'Otro', short: 'Otro' },
 ];
 
-export function getLocationLabel(type) {
+/** Normaliza al guardar: recorta espacios extra y capitaliza la primera letra. */
+export function capitalizeFirstLetter(text) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Mientras escribe: solo capitaliza la primera letra, sin trim (permite espacios). */
+export function formatLocationCustomInput(value) {
+  const s = String(value ?? '');
+  if (!s) return '';
+  const first = s.charAt(0);
+  if (first >= 'a' && first <= 'z') {
+    return first.toUpperCase() + s.slice(1);
+  }
+  return s;
+}
+
+export function getLocationLabel(type, locationCustom = '') {
+  if (type === 'other') return locationCustom || 'Otro';
   return MEETING_LOCATION_OPTIONS.find((o) => o.value === type)?.label ?? 'Sala de juntas';
 }
 
+export function getLocationShort(type, locationCustom = '') {
+  if (type === 'other') {
+    const short = String(locationCustom || 'Otro').trim();
+    return short.length > 10 ? `${short.slice(0, 9)}…` : short || 'Otro';
+  }
+  return MEETING_LOCATION_OPTIONS.find((o) => o.value === type)?.short ?? 'Sala';
+}
+
+export function meetingLocationLabelFromMeeting(meeting) {
+  if (!meeting) return 'Sala de juntas';
+  return getLocationLabel(meeting.location_type, meeting.location_custom);
+}
+
 /** Etiqueta de lugar para minuta / PDF según modalidad. */
-export function meetingPlaceLabelForType(locationType) {
+export function meetingPlaceLabelForType(locationType, locationCustom = '') {
   if (locationType === 'virtual') return 'Reunión virtual';
-  const base = getLocationLabel(locationType);
-  return base === 'Sala de juntas' ? 'Sala de juntas corporativo' : base;
+  if (locationType === 'other') return locationCustom || 'Otro';
+  return 'Sala de juntas corporativo';
+}
+
+export function meetingPlaceLabelFromMeeting(meeting) {
+  if (!meeting) return '';
+  return meetingPlaceLabelForType(meeting.location_type, meeting.location_custom);
+}
+
+/** Clase de color en tarjetas de la agenda del día (sala = dorado por defecto). */
+export function getMeetingAgendaModalityClass(locationType) {
+  if (locationType === 'virtual') return 'calendar-day-agenda__item--virtual';
+  if (locationType === 'other') return 'calendar-day-agenda__item--other';
+  return '';
+}
+
+/** True si la reunión ya tiene minuta manual vinculada (no solo audio Saya). */
+export function meetingHasMinute(meeting) {
+  if (!meeting) return false;
+  return Boolean(meeting.has_minute);
 }
 
 const DAY_START_HOUR = 7;
@@ -116,6 +167,39 @@ function userCountsAsBusyInMeeting(meeting, userId) {
 
 export function getRsvpForUser(meeting, userId) {
   return (meeting?.rsvps || []).find((r) => Number(r.user_id) === Number(userId)) || null;
+}
+
+/** Etiqueta de asistencia en minuta/PDF según confirmación de reunión. */
+export function rsvpStatusToAsistencia(status) {
+  if (status === 'declined') return 'Ausente';
+  return 'Presente';
+}
+
+export function asistenciaForMeetingUser(meeting, userId) {
+  return rsvpStatusToAsistencia(getRsvpForUser(meeting, userId)?.status);
+}
+
+function normalizePersonName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Aplica confirmaciones actuales de la reunión a los asistentes de la minuta (p. ej. PDF). */
+export function syncMinuteAttendeesFromMeetingRsvps(minute, meeting, users = []) {
+  if (!minute || !meeting || !Array.isArray(minute.attendees)) return minute;
+
+  const attendees = minute.attendees.map((row) => {
+    const nombreNorm = normalizePersonName(row?.nombre);
+    if (!nombreNorm) return row;
+    const user = users.find(
+      (u) => normalizePersonName(`${u?.name || ''} ${u?.apellido || ''}`.trim()) === nombreNorm,
+    );
+    if (!user) return row;
+    const asistencia = asistenciaForMeetingUser(meeting, user.id);
+    if (row.asistencia === asistencia) return row;
+    return { ...row, asistencia };
+  });
+
+  return { ...minute, attendees };
 }
 
 export function getOverlappingMeetings(meetings, startIso, endIso, excludeMeetingId = null) {

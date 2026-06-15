@@ -159,8 +159,13 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const updateUser = useCallback((nextUser) => {
+    if (!nextUser) return;
+    setUser((prev) => (prev ? { ...prev, ...nextUser } : nextUser));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,7 +9,7 @@ import BosaGoldButton from '../BosaGoldButton';
 import { useCatalog } from '../../hooks/useCatalog';
 import { FALLBACK_DEPARTMENTS } from '../../utils/catalog';
 import { canManageDeptAsManager, isSuperadminUser } from '../../utils/permissions';
-import { localDateYMD } from '../../utils/localDate';
+import { localDateYMD, formatTaskScheduleLabel } from '../../utils/localDate';
 
 const COLUMNS = [
   { id: 'open',        label: 'Pendientes',  accent: '#94a3b8' },
@@ -21,15 +21,16 @@ const COLUMNS = [
 const EMPTY_TICKET_FORM = { title: '', description: '', category: FALLBACK_DEPARTMENTS[0] };
 
 /** Igual que el backend: administradores o rol Gerente del mismo departamento que el ticket. */
-function formatTaskDate(ymd) {
-  if (!ymd) return '';
-  const d = new Date(String(ymd).includes('T') ? ymd : `${ymd}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return ymd;
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 function canDelegarTarea(authUser, ticket) {
   return canManageDeptAsManager(authUser, ticket?.category);
+}
+
+/** Solo el coordinador asignado al ticket (assigned_to) puede crear tramos. */
+function canAsignarTramo(authUser, ticket) {
+  if (!authUser || !ticket) return false;
+  if (ticket.assigned_to == null || ticket.assigned_to === '') return false;
+  return Number(ticket.assigned_to) === Number(authUser.id);
 }
 
 function canManageTicketStatus(authUser, ticket) {
@@ -180,8 +181,17 @@ export default function TicketsModule({
 
   const handleCreateTicketTask = async () => {
     if (!selectedTicket || creatingTicketTask) return;
+    if (!canAsignarTramo(user, selectedTicket)) {
+      alert('Solo el coordinador asignado a este ticket puede asignar tramos.');
+      return;
+    }
     if (!newTaskForm.assigned_to || !newTaskForm.start_date || !newTaskForm.end_date) {
       alert('Selecciona responsable, fecha de inicio y fecha de fin.');
+      return;
+    }
+    const assigneeId = Number(newTaskForm.assigned_to);
+    if (ticketTasks.some((t) => Number(t.assigned_to) === assigneeId)) {
+      alert('Ese usuario ya tiene una tarea asignada en este ticket.');
       return;
     }
     const baseTitle = selectedTicket.title?.trim() || 'Requerimiento';
@@ -379,6 +389,18 @@ export default function TicketsModule({
       return true;
     });
 
+  const assignedUserIdsOnTicket = (tasks) =>
+    new Set(
+      (tasks || [])
+        .map((t) => Number(t.assigned_to))
+        .filter((id) => !Number.isNaN(id) && id > 0),
+    );
+
+  const availableAssigneesForTicketTask = (ticket, tasks) => {
+    const taken = assignedUserIdsOnTicket(tasks);
+    return deptMembersForTicket(ticket).filter((u) => !taken.has(Number(u.id)));
+  };
+
   const filteredTickets = tickets.filter(t => {
     const matchSearch = (t.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                         (t.assigned_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -388,49 +410,81 @@ export default function TicketsModule({
     return matchSearch && matchDept && matchMine;
   });
 
-  return (
-    <div className="h-full flex flex-col animate-fade-in space-y-6">
-      
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl sm:text-2xl font-display font-medium text-navy-950 tracking-tight">Centro de Soporte Avanzado</h2>
-          <p className="text-sm text-navy-600 mt-1">Gestión integral con historial, comentarios y multimedia</p>
-        </div>
-        <BosaGoldButton
-          icon="ticket"
-          onClick={() => { setFormData({ ...EMPTY_TICKET_FORM }); setNewTicketFiles([]); setIsModalOpen(true); }}
-          className="self-end sm:!w-auto sm:self-auto"
-          aria-label="Nuevo ticket"
-        >
-          <span className="sm:hidden">Nuevo</span>
-          <span className="hidden sm:inline">Nuevo ticket</span>
-        </BosaGoldButton>
-      </div>
+  const ticketsFiltersActive = Boolean(searchTerm.trim() || filterDept || taskView !== 'all');
+  const clearTicketsFilters = () => {
+    setSearchTerm('');
+    setFilterDept('');
+    setTaskView('all');
+  };
 
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="relative w-full md:w-96">
-          <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input type="text" placeholder="Buscar por ID, asunto..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-2.5 rounded-full border border-gray-200 focus:outline-none focus:border-gold text-sm text-navy-900 placeholder-gray-400 bg-gray-50 hover:bg-white shadow-inner transition-all" />
+  return (
+    <div className="tasks-module surface-light h-full animate-fade-in flex flex-col pb-4">
+      <header className="tasks-module__top">
+        <div>
+          <h2 className="tasks-module__title">Centro de soporte</h2>
+          <p className="tasks-module__subtitle">
+            {filteredTickets.length} ticket{filteredTickets.length === 1 ? '' : 's'}
+            {ticketsFiltersActive ? ' con filtros' : ''} · historial, comentarios y multimedia
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:items-center">
-          <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-            className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-navy-900 bg-gray-50 outline-none min-w-[200px]">
+        <div className="tasks-module__toolbar">
+          <BosaGoldButton
+            icon="ticket"
+            onClick={() => { setFormData({ ...EMPTY_TICKET_FORM }); setNewTicketFiles([]); setIsModalOpen(true); }}
+            className="sm:!w-auto"
+            aria-label="Nuevo ticket"
+          >
+            Nuevo ticket
+          </BosaGoldButton>
+        </div>
+      </header>
+
+      <div className="minutas-module__toolbar tickets-module__toolbar">
+        <div className="minutas-module__toolbar-search">
+          <svg className="minutas-module__toolbar-search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por ID, asunto o responsable…"
+            className="minutas-module__toolbar-input"
+            aria-label="Buscar tickets"
+          />
+        </div>
+        <div className="tickets-module__toolbar-meta">
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            className="minutas-module__toolbar-select"
+            aria-label="Filtrar por departamento"
+          >
             <option value="">Todos los departamentos</option>
-            {departments.map(d => <option key={d} value={d}>{d}</option>)}
+            {departments.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
-          <select value={taskView} onChange={e => setTaskView(e.target.value)}
-            className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-navy-900 bg-gray-50 outline-none min-w-[180px]">
+          <select
+            value={taskView}
+            onChange={(e) => setTaskView(e.target.value)}
+            className="minutas-module__toolbar-select"
+            aria-label="Filtrar tickets"
+          >
             <option value="all">Todos los tickets</option>
             <option value="mine">Mis tareas</option>
           </select>
         </div>
+        {ticketsFiltersActive ? (
+          <button type="button" onClick={clearTicketsFilters} className="minutas-module__toolbar-clear">
+            Limpiar
+          </button>
+        ) : null}
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 flex gap-4 overflow-x-auto pb-6" style={{ minHeight: 0 }}>
+      <div className="tickets-module__kanban-wrap flex-1 min-h-0">
+        <div className="tickets-module__kanban">
         {COLUMNS.map(col => {
           const colTickets = filteredTickets.filter(t => t.status === col.id);
           return (
@@ -473,6 +527,7 @@ export default function TicketsModule({
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
+                      dbUsers={dbUsers}
                       onClick={t => { setActiveTab('info'); fetchTicketDetails(t.id); }}
                       canChangeStatus={canChangeStatus}
                       onChangeStatus={canChangeStatus ? changeStatus : undefined}
@@ -485,6 +540,7 @@ export default function TicketsModule({
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Modal nuevo ticket (portal = mismo efecto difuminado que calendario, cubre todo el viewport) */}
@@ -927,7 +983,7 @@ export default function TicketsModule({
                       subtitle="Tramos de ejecución vinculados a este requerimiento"
                       count={ticketTasks.length}
                     >
-                      {canDelegarTarea(user, selectedTicket) && (
+                      {canAsignarTramo(user, selectedTicket) && (
                         <div className="meeting-sheet__task-form mb-3 space-y-3">
                           <p className="text-[13px] font-semibold text-slate-700">Asignar tramo</p>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -939,12 +995,18 @@ export default function TicketsModule({
                                 className="meeting-sheet__select"
                               >
                                 <option value="">Selecciona quién ejecuta…</option>
-                                {deptMembersForTicket(selectedTicket).map((u) => (
+                                {availableAssigneesForTicketTask(selectedTicket, ticketTasks).map((u) => (
                                   <option key={u.id} value={String(u.id)}>
                                     {u.name} {u.apellido || ''}{u.puesto ? ` · ${u.puesto}` : ''}
                                   </option>
                                 ))}
                               </select>
+                              {deptMembersForTicket(selectedTicket).length > 0 &&
+                              availableAssigneesForTicketTask(selectedTicket, ticketTasks).length === 0 ? (
+                                <p className="text-[12px] text-slate-500">
+                                  Todos los miembros del departamento ya tienen una tarea en este ticket.
+                                </p>
+                              ) : null}
                             </div>
                             <div className="space-y-1.5">
                               <label className="meeting-sheet__cell-label">Inicio</label>
@@ -968,7 +1030,10 @@ export default function TicketsModule({
                           <button
                             type="button"
                             onClick={handleCreateTicketTask}
-                            disabled={creatingTicketTask}
+                            disabled={
+                              creatingTicketTask ||
+                              availableAssigneesForTicketTask(selectedTicket, ticketTasks).length === 0
+                            }
                             className="tasks-module__action-primary gap-1.5 px-3 py-2.5 text-[13px] w-full sm:w-auto sm:px-6 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <AssignTaskIcon />
@@ -986,8 +1051,10 @@ export default function TicketsModule({
                           ticketTasks.map((task) => {
                             const assignee = [task.assignee_name, task.assignee_apellido].filter(Boolean).join(' ') || '—';
                             const canOwn = isTaskOrTicketCreator(user, task, selectedTicket);
+                            const canManageStatus = canOwn || canAsignarTramo(user, selectedTicket);
+                            const pendingReview = Boolean(task.completion_requested_at) && task.status !== 'done';
                             return (
-                              <div key={task.id} className="meeting-sheet__task-card">
+                              <div key={task.id} className={`meeting-sheet__task-card${pendingReview ? ' meeting-sheet__task-card--review' : ''}`}>
                                 <div className="flex flex-wrap items-start justify-between gap-2">
                                   <div className="flex min-w-0 gap-3">
                                     <UserAvatar
@@ -1003,18 +1070,25 @@ export default function TicketsModule({
                                           {task.assignee_departamento || selectedTicket.category}
                                         </p>
                                       )}
-                                      <p className="mt-1.5 text-[14px] font-semibold tabular-nums text-slate-800">
-                                        {formatTaskDate(task.start_date)} → {formatTaskDate(task.end_date)}
-                                      </p>
                                       {task.description ? (
                                         <p className="mt-2 whitespace-pre-wrap text-[13px] text-slate-600">{task.description}</p>
                                       ) : (
-                                        <p className="mt-1 text-[12px] text-slate-400">Etiqueta en cronograma: {task.title}</p>
+                                        <p className="mt-1 text-[12px] text-slate-400">Etiqueta en calendario: {task.title}</p>
                                       )}
+                                      {pendingReview ? (
+                                        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                                          Pendiente de revisión del coordinador
+                                        </p>
+                                      ) : null}
                                     </div>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {canOwn ? (
+                                  <div className="flex shrink-0 flex-col items-end gap-2 self-center">
+                                    <p className="max-w-[12rem] text-right text-[12px] leading-snug text-slate-500">
+                                      {formatTaskScheduleLabel(task.start_date, task.end_date)}
+                                    </p>
+                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {canManageStatus ? (
                                       <select
                                         value={task.status}
                                         onChange={(e) => handleTicketTaskStatus(task.id, e.target.value)}
@@ -1037,6 +1111,7 @@ export default function TicketsModule({
                                         Eliminar
                                       </button>
                                     )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1066,11 +1141,16 @@ export default function TicketsModule({
                             <div className="meeting-sheet__comments-list">
                             {selectedTicket.comments.map((c) => {
                               const mine = c.user_id === user?.id;
+                              const author = resolveCommentAuthor(c, dbUsers);
                               return (
                                 <div key={c.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
-                                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${mine ? 'bg-gold text-navy-950' : 'bg-slate-100 text-slate-700'}`}>
-                                    {(c.user_name || '?').charAt(0).toUpperCase()}
-                                  </div>
+                                  <UserAvatar
+                                    name={author.name}
+                                    apellido={author.apellido}
+                                    avatarUrl={author.avatarUrl}
+                                    size="xs"
+                                    className="tickets-module__comment-avatar shrink-0"
+                                  />
                                   <div className={`flex max-w-[85%] flex-col ${mine ? 'items-end' : 'items-start'}`}>
                                     <span className="mb-0.5 px-1 text-[12px] font-semibold text-slate-600">{c.user_name}</span>
                                     <div className={`meeting-sheet__bubble ${mine ? 'meeting-sheet__bubble--mine' : 'meeting-sheet__bubble--other'}`}>
@@ -1292,8 +1372,33 @@ function AnimatedColumn({ children, className, ...props }) {
   return <div ref={ref} className={className} {...props}>{children}</div>;
 }
 
-function TicketCard({ ticket, onClick, canChangeStatus = false, onChangeStatus, onDragStart, onDragEnd }) {
+function resolveTicketAssignee(ticket, dbUsers = []) {
+  const id = Number(ticket?.assigned_to);
+  if (!Number.isFinite(id) || id <= 0) {
+    return { name: '', apellido: '', avatarUrl: '' };
+  }
+  const fromDb = dbUsers.find((u) => Number(u.id) === id);
+  return {
+    name: fromDb?.name || ticket?.assigned_name || '',
+    apellido: fromDb?.apellido || ticket?.assigned_apellido || '',
+    avatarUrl: fromDb?.avatar_url || ticket?.assigned_avatar_url || '',
+  };
+}
+
+function resolveCommentAuthor(comment, dbUsers = []) {
+  const id = Number(comment?.user_id);
+  const fromDb = Number.isFinite(id) ? dbUsers.find((u) => Number(u.id) === id) : null;
+  return {
+    name: fromDb?.name || comment?.user_name || '',
+    apellido: fromDb?.apellido || comment?.user_apellido || '',
+    avatarUrl: fromDb?.avatar_url || comment?.user_avatar_url || '',
+  };
+}
+
+function TicketCard({ ticket, dbUsers = [], onClick, canChangeStatus = false, onChangeStatus, onDragStart, onDragEnd }) {
   const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date() && ticket.status !== 'closed';
+  const assignee = resolveTicketAssignee(ticket, dbUsers);
+  const hasAssignee = Boolean(ticket?.assigned_to);
 
   // Acciones de estado disponibles (sin incluir el actual)
   const STATUS_ACTIONS = [
@@ -1335,16 +1440,24 @@ function TicketCard({ ticket, onClick, canChangeStatus = false, onChangeStatus, 
           <span className="font-label text-[8px] tracking-wider text-navy-600 uppercase truncate max-w-[110px] font-bold">
             {ticket.category}
           </span>
-          {ticket.assigned_name ? (
-            <div className="w-6 h-6 rounded-sm bg-navy-950 text-gold flex items-center justify-center text-[10px] font-bold border border-gold/20">
-              {ticket.assigned_name.charAt(0).toUpperCase()}
-            </div>
+          {hasAssignee ? (
+            <UserAvatar
+              name={assignee.name}
+              apellido={assignee.apellido}
+              avatarUrl={assignee.avatarUrl}
+              size="xs"
+              className="tickets-module__card-avatar"
+            />
           ) : (
-            <div className="w-6 h-6 rounded-sm bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
-              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <span
+              className="tickets-module__card-avatar tickets-module__card-avatar--empty"
+              title="Sin responsable asignado"
+              aria-label="Sin responsable asignado"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-            </div>
+            </span>
           )}
         </div>
 

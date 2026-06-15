@@ -7,13 +7,21 @@ const { structureTranscript } = require('../services/transcriptSpeakerService');
 const { transcribeAudioFile, isConfigured } = require('../services/voiceTranscriptionService');
 const { relativeAudioPath, uploadsRoot } = require('../utils/minuteAudio');
 const { ensurePlaybackAudioFile } = require('../utils/audioPlayback');
-const { canManageMeetingMinute } = require('../utils/meetingMinuteAccess');
-function parseMeetingRow(row) {
+const { canManageMeetingMinute, isSuperadminUser } = require('../utils/meetingMinuteAccess');
+const { deleteAudioFileIfExists } = require('../utils/minuteAudio');
+function parseMeetingRow(row, rsvps = []) {
   if (!row) return null;
   return {
     ...row,
     attendees: parseMeetingAttendees(row.attendees),
+    rsvps,
   };
+}
+
+function loadMeetingRsvps(db, meetingId) {
+  return db
+    .prepare('SELECT user_id, status, comment FROM meeting_rsvps WHERE meeting_id = ?')
+    .all(meetingId);
 }
 
 function loadUsersMap(db) {
@@ -85,7 +93,10 @@ const generateMinuteFromVoice = async (req, res) => {
     if (!meetingId) return res.status(400).json({ message: 'ID de reunión inválido.' });
 
     const db = getDb();
-    const meeting = parseMeetingRow(db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId));
+    const meeting = parseMeetingRow(
+      db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId),
+      loadMeetingRsvps(db, meetingId),
+    );
     if (!meeting) return res.status(404).json({ message: 'Reunión no encontrada.' });
     if (!canManageMeetingMinute(req.user, meeting)) {
       return res.status(403).json({
@@ -236,7 +247,10 @@ const saveVoiceAudio = (req, res) => {
     if (!meetingId) return res.status(400).json({ message: 'ID de reunión inválido.' });
 
     const db = getDb();
-    const meeting = parseMeetingRow(db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId));
+    const meeting = parseMeetingRow(
+      db.prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId),
+      loadMeetingRsvps(db, meetingId),
+    );
     if (!meeting) return res.status(404).json({ message: 'Reunión no encontrada.' });
     if (!canManageMeetingMinute(req.user, meeting)) {
       return res.status(403).json({
@@ -289,8 +303,50 @@ const saveVoiceAudio = (req, res) => {
   }
 };
 
+/**
+ * DELETE /api/meetings/:id/voice-audio
+ * Solo superadmin: borra el archivo de audio guardado (conserva transcripción y minuta).
+ */
+const deleteVoiceAudio = (req, res) => {
+  try {
+    if (!isSuperadminUser(req.user)) {
+      return res.status(403).json({ message: 'Solo el superadministrador puede eliminar el audio guardado.' });
+    }
+
+    const meetingId = Number(req.params.id);
+    if (!meetingId) return res.status(400).json({ message: 'ID de reunión inválido.' });
+
+    const db = getDb();
+    const meeting = db.prepare('SELECT id FROM meetings WHERE id = ?').get(meetingId);
+    if (!meeting) return res.status(404).json({ message: 'Reunión no encontrada.' });
+
+    const minute = db
+      .prepare('SELECT * FROM meeting_minutes WHERE meeting_id = ? ORDER BY id DESC LIMIT 1')
+      .get(meetingId);
+    if (!minute) return res.status(404).json({ message: 'No hay minuta vinculada a esta reunión.' });
+    if (!minute.audio_path || !String(minute.audio_path).trim()) {
+      return res.status(400).json({ message: 'Esta reunión no tiene audio guardado.' });
+    }
+
+    deleteAudioFileIfExists(minute.audio_path);
+    db.prepare(
+      `UPDATE meeting_minutes SET
+        audio_path = NULL,
+        audio_expires_at = NULL,
+        updated_at = datetime('now')
+       WHERE id = ?`,
+    ).run(minute.id);
+
+    res.json({ message: 'Audio eliminado correctamente.', minute_id: minute.id });
+  } catch (err) {
+    console.error('[deleteVoiceAudio]', err);
+    res.status(500).json({ message: err.message || 'Error al eliminar el audio.' });
+  }
+};
+
 module.exports = {
   generateMinuteFromVoice,
   getVoiceStatus,
   saveVoiceAudio,
+  deleteVoiceAudio,
 };

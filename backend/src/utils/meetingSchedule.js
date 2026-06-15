@@ -1,8 +1,4 @@
-const VALID_LOCATION_TYPES = ['virtual', 'sala_juntas'];
-
-function normalizeLocationType(value) {
-  return VALID_LOCATION_TYPES.includes(value) ? value : 'sala_juntas';
-}
+const { normalizeLocationType, VALID_LOCATION_TYPES } = require('./meetingLocation');
 
 function parseTime(iso) {
   return new Date(iso).getTime();
@@ -37,6 +33,17 @@ function getRsvpStatus(db, meetingId, userId) {
   const row = db
     .prepare('SELECT status FROM meeting_rsvps WHERE meeting_id = ? AND user_id = ?')
     .get(meetingId, userId);
+  return row?.status || null;
+}
+
+/** Convierte confirmación de reunión a etiqueta de asistencia en minuta/PDF. */
+function rsvpStatusToAsistencia(status) {
+  if (status === 'declined') return 'Ausente';
+  return 'Presente';
+}
+
+function getRsvpStatusFromList(rsvps, userId) {
+  const row = (rsvps || []).find((r) => Number(r.user_id) === Number(userId));
   return row?.status || null;
 }
 
@@ -126,4 +133,6 @@ module.exports = {
   parseAttendeeIds,
   meetingParticipantIds,
   userCountsAsBusyInMeeting,
+  rsvpStatusToAsistencia,
+  getRsvpStatusFromList,
 };

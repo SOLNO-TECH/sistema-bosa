@@ -15,6 +15,14 @@ function canManageDeptTicketAssignments(reqUser, ticket) {
   return Boolean(cat && dept === cat);
 }
 
+/** Solo el coordinador del ticket (assigned_to) puede asignar tramos a su equipo. */
+function canAssignTicketTramo(reqUser, ticket) {
+  if (!reqUser || !ticket) return false;
+  if (ticket.assigned_to == null || ticket.assigned_to === '') return false;
+  return Number(ticket.assigned_to) === Number(reqUser.id);
+}
+
 module.exports = {
   canManageDeptTicketAssignments,
+  canAssignTicketTramo,
 };
